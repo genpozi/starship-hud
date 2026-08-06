@@ -1,11 +1,27 @@
 import './style.css'
 import { createGalaxy } from './galaxy.js'
-import { SHIP, AGENTS, WORKFLOWS, TOOLS, AGENDA } from './config.js'
+import { SHIP, AGENTS, WORKFLOWS, TOOLS, AGENDA, CHAT_SEED } from './config.js'
+import {
+  renderKanban,
+  renderItems,
+  renderScheduler,
+  renderChat,
+  renderDispatch,
+  renderGraphs,
+  renderVault,
+  renderEmail,
+  renderCalendar,
+  renderAlerts,
+  renderHealth,
+  renderReports,
+  seedChat,
+  pushChat
+} from './views.js'
 
 /**
- * MAIN // Boots the galaxy renderer and drives all HUD updates.
- * Everything is a lightweight DOM render; state lives in plain arrays
- * so the dashboard template is easy to re-theme or swap for a framework.
+ * MAIN // Boots the galaxy renderer, drives all HUD updates and the
+ * view router. Every view renderer is re-invoked on an interval so the
+ * whole mission control stays live.
  */
 
 // ---- State (mutable live data) ---- //
@@ -30,23 +46,23 @@ const toolIcons = {
 
 const $ = (sel) => document.querySelector(sel)
 
-// ---- Timestamp / clock helpers ---- //
+// ---- Timestamp helpers ---- //
 function stamp() {
   return new Date().toISOString().slice(11, 19)
 }
 function log(level, msg) {
   logs.push({ t: stamp(), level, msg })
-  if (logs.length > 120) logs.shift()
+  if (logs.length > 160) logs.shift()
   renderLogs()
 }
-window.__log = log // console access
+window.__log = log
 
 // ============================================================================
-// RENDERERS
+// RENDERERS (mission control)
 // ============================================================================
-
 function renderAgents() {
   const list = $('#agent-list')
+  if (!list) return
   list.innerHTML = ''
   fleet.forEach((a) => {
     const el = document.createElement('div')
@@ -66,6 +82,7 @@ function renderAgents() {
 
 function renderLogs() {
   const box = $('#log-stream')
+  if (!box) return
   const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30
   box.innerHTML = logs
     .slice(-40)
@@ -76,6 +93,7 @@ function renderLogs() {
 
 function renderWorkflows() {
   const list = $('#workflow-list')
+  if (!list) return
   const running = pipeline.filter((w) => w.state === 'running').length
   $('#pipeline-count').textContent = `${running} RUNNING / ${pipeline.length - running} QUEUED`
   list.innerHTML = ''
@@ -101,6 +119,7 @@ function renderWorkflows() {
 
 function renderTools() {
   const grid = $('#tool-grid')
+  if (!grid) return
   grid.innerHTML = ''
   TOOLS.forEach((t) => {
     const el = document.createElement('button')
@@ -123,8 +142,9 @@ function renderTools() {
 function renderAgenda() {
   $('#agenda-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()
   const list = $('#agenda-list')
+  if (!list) return
   list.innerHTML = ''
-  AGENDA.forEach((item, i) => {
+  AGENDA.forEach((item) => {
     const el = document.createElement('div')
     el.className = 'agenda-item'
     el.innerHTML = `
@@ -138,9 +158,9 @@ function renderAgenda() {
   })
 }
 
-// ---- Gauges ---- //
 function renderGauges() {
   const row = $('#gauge-row')
+  if (!row) return
   row.innerHTML = `
     <div class="gauge-cell">
       <span class="gauge-label">CORE TEMP</span>
@@ -188,9 +208,8 @@ function renderGauges() {
 // ============================================================================
 // LIVE SIMULATION
 // ============================================================================
-
 const rand = (min, max) => min + Math.random() * (max - min)
-const C = 238.8 // circle circumference for r=38
+const C = 238.8
 
 let telemetry = { temp: 42, token: 38, lat: 84, ctx: 27 }
 let tokenTotal = 0
@@ -205,26 +224,20 @@ function tickTelemetry() {
   telemetry.lat = Math.max(40, Math.min(420, telemetry.lat + rand(-18, 18)))
   telemetry.ctx = Math.max(15, Math.min(92, telemetry.ctx + rand(-2, 2)))
 
-  setGauge('g-temp', 'temp-val', ((telemetry.temp - 30) / 60) * 100)
-  setGauge('g-token', 'token-val', telemetry.token)
-  setGauge('g-lat', 'lat-val', ((telemetry.lat - 30) / 400) * 100)
-  setGauge('g-ctx', 'ctx-val', telemetry.ctx)
+  if ($('#g-temp')) {
+    setGauge('g-temp', 'temp-val', ((telemetry.temp - 30) / 60) * 100)
+    setGauge('g-token', 'token-val', telemetry.token)
+    setGauge('g-lat', 'lat-val', ((telemetry.lat - 30) / 400) * 100)
+    setGauge('g-ctx', 'ctx-val', telemetry.ctx)
+    $('#g-ctx').style.stroke = telemetry.ctx > 75 ? 'var(--warn)' : 'var(--ok)'
+  }
 
-  $('#temp-val').textContent = Math.round(telemetry.temp)
-  $('#lat-val').textContent = Math.round(telemetry.lat)
-  $('#token-val').textContent = Math.round(telemetry.token)
-  $('#ctx-val').textContent = Math.round(telemetry.ctx)
-
-  const fillColor = telemetry.ctx > 75 ? 'var(--warn)' : 'var(--ok)'
-  $('#g-ctx').style.stroke = fillColor
-
-  // token usage bottom bar
   tokenTotal += rand(0.8, 3.2)
-  $('#token-usage').textContent = `${(tokenTotal).toFixed(1)}K`
+  $('#token-usage').textContent = `${tokenTotal.toFixed(1)}K`
 }
 
 function tickFuel() {
-  const fuel = 100 - ((Date.now() / 1000) % 3600) / 36 // drains over an hour
+  const fuel = 100 - ((Date.now() / 1000) % 3600) / 36
   $('#fuel-fill').style.width = `${Math.max(8, fuel)}%`
   $('#warp-fill').style.width = `${20 + ((Date.now() / 1000) % 40)}%`
 }
@@ -278,9 +291,48 @@ function tickClock() {
 }
 
 // ============================================================================
+// VIEW ROUTER
+// ============================================================================
+function showView(name) {
+  document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'))
+  document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'))
+  const view = document.getElementById(`view-${name}`)
+  if (view) view.classList.add('active')
+  const btn = document.querySelector(`.nav-btn[data-view="${name}"]`)
+  if (btn) btn.classList.add('active')
+}
+
+function bindNavigation() {
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
+    btn.addEventListener('click', () => showView(btn.dataset.view))
+  })
+}
+
+// ============================================================================
+// CHAT dispatch simulation
+// ============================================================================
+const CHAT_BANK = [
+  { agent: 'ORCH', text: 'Re-scoring task priorities against mission objectives.' },
+  { agent: 'CODA', text: 'Static analysis pass complete. 3 minor warnings, 0 errors.' },
+  { agent: 'SAGE', text: 'Appending fresh telemetry to weekly digest.' },
+  { agent: 'LINK', text: 'Heartbeat received from all integration channels.' },
+  { agent: 'PILOT', text: 'Canary health checks steady. No rollout pause needed.' },
+  { agent: 'NUDGE', text: 'Agenda sync — no collisions with scheduled blocks.' },
+  { agent: 'ORCH', text: 'Workflow step complete — advancing pipeline.' }
+]
+
+function chatAmbientLoop() {
+  if (document.getElementById('view-chat').classList.contains('active')) {
+    if (Math.random() < 0.7) {
+      const m = CHAT_BANK[Math.floor(Math.random() * CHAT_BANK.length)]
+      pushChat(m.agent, m.text)
+    }
+  }
+}
+
+// ============================================================================
 // BOOT
 // ============================================================================
-
 export function boot() {
   createGalaxy($('#galaxy-canvas'))
 
@@ -293,6 +345,22 @@ export function boot() {
   $('#active-mission').textContent = SHIP.mission
   $('#agent-count').textContent = `${fleet.filter((a) => a.state !== 'idle').length} ACTIVE / ${fleet.length}`
 
+  seedChat(CHAT_SEED)
+  renderKanban()
+  renderItems()
+  renderScheduler()
+  renderChat()
+  renderDispatch()
+  renderGraphs(telemetry)
+  renderVault()
+  renderEmail()
+  renderCalendar()
+  renderAlerts()
+  renderHealth(logs)
+  renderReports()
+
+  bindNavigation()
+
   const seedLogs = [
     'INFO', 'HUD link established — all subsystems nominal',
     'OK', 'Agent fleet handshake complete (6/6)',
@@ -301,6 +369,12 @@ export function boot() {
   ]
   for (let i = 0; i < seedLogs.length; i += 2) log(seedLogs[i], seedLogs[i + 1])
 
+  // chat send handler
+  $('#chat-send').addEventListener('click', sendChat)
+  $('#chat-box').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChat()
+  })
+
   setInterval(tickClock, 1000)
   setInterval(tickTelemetry, 1200)
   setInterval(tickFuel, 1000)
@@ -308,28 +382,28 @@ export function boot() {
   setInterval(advanceWorkflows, 1400)
   setInterval(tickCoords, 1000)
 
-  // throttle agent re-render
   setInterval(() => {
     renderAgents()
     renderWorkflows()
+    renderDispatch()
+    renderGraphs(telemetry)
+    renderHealth(logs)
     $('#agent-count').textContent = `${fleet.filter((a) => a.state !== 'idle').length} ACTIVE / ${fleet.length}`
     const bad = fleet.some((a) => a.state === 'error') || telemetry.ctx > 80
     const sys = $('#system-status')
     if (bad) {
-      sys.classList.add('warn')
       sys.innerHTML = '<span class="status-dot warn"></span> DEGRADED OPERATIONS'
     } else {
-      sys.classList.remove('warn')
       sys.innerHTML = '<span class="status-dot online"></span> ALL SYSTEMS NOMINAL'
     }
   }, 1200)
 
-  // occasionally inject a warning into the log
+  setInterval(chatAmbientLoop, 5000)
+
   setInterval(() => {
     if (Math.random() < 0.4) log('WARN', 'Spike detected in context load — throttling speculative token use')
   }, 15000)
 
-  // some ambient logs
   setInterval(() => {
     const events = [
       ['INFO', 'Heartbeat received from all fleet nodes'],
@@ -340,6 +414,23 @@ export function boot() {
     const [lvl, msg] = events[Math.floor(Math.random() * events.length)]
     log(lvl, msg)
   }, 6000)
+}
+
+function sendChat() {
+  const box = $('#chat-box')
+  const text = box.value.trim()
+  if (!text) return
+  pushChat('USER', text)
+  box.value = ''
+  setTimeout(() => {
+    const replies = [
+      { agent: 'ORCH', text: 'Acknowledged. Decomposing and assigning to the appropriate fleet member.' },
+      { agent: 'CODA', text: `Queued: "${text.slice(0, 40)}" — picking up after current batch.` },
+      { agent: 'SAGE', text: 'Noted. Adding to research backlog for triage.' }
+    ]
+    const r = replies[Math.floor(Math.random() * replies.length)]
+    pushChat(r.agent, r.text)
+  }, 900)
 }
 
 boot()

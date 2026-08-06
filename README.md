@@ -8,19 +8,22 @@ A dynamic, richly animated **starship HUD dashboard** for **multi-agent agentic 
 
 ## Overview
 
-This dashboard is a **template / mission control** that rolls up everything an operator needs to supervise a fleet of AI agents and manage their daily workflow:
+The dashboard is organized into **12 views**, each a focused screen for a use case. The **Mission Control** view is the rollup of the most important tools and information; every other view is a detailed drill-down of a grouped concern.
 
-| Sector | Purpose |
-| --- | --- |
-| **Agent Fleet** | Live crew manifest — state, current task, token spend, activity progress |
-| **Mission Pipeline** | Agentic workflow orchestration — running/queued pipelines, ETA, step progress |
-| **Tool Bay** | Quick-launch launcher for all tooling (coder, shell, browser, search, memory, MCP…) |
-| **System Telemetry** | Radial gauges — core temp, token budget, latency, context load |
-| **Comms Log** | Live event stream (STDIN/STDOUT of the fleet) |
-| **Daily Driver** | Operator agenda with milestone/deploy tagging and check-off |
-| **Ship Status Bar** | UTC clock, active mission, fleet count, threat level, fuel/warp charge |
-
-Everything is data-driven from a single config file (`src/config.js`) so the template can be re-skinned or repurposed without touching render code.
+| # | View | Purpose |
+| --- | --- | --- |
+| 1 | **Mission Control** | Rollup — agent fleet, mission pipeline, tool bay, telemetry, comms log, daily driver |
+| 2 | **Kanban** | Board with Backlog / In Progress / In Review / Done columns; click a card to advance it |
+| 3 | **Open Items** | Issue / PR / task tracker — ID, type, priority, owner, status |
+| 4 | **Scheduler** | Cron / recurring job registry — schedule, agent, next run, duration, last result |
+| 5 | **Chat** | Agent orchestration console — fleet chat + dispatch console + live command input |
+| 6 | **Graphs** | Analytics — token usage, task throughput, context pressure, success rate |
+| 7 | **Vault** | Knowledge core — documents, schemas, runbooks with tags |
+| 8 | **Email** | Inbox with reading pane — click a row to open the message |
+| 9 | **Calendar** | Cycle week grid + selected-day agenda |
+| 10 | **Alerts** | Condition monitor — severity summary + alert feed |
+| 11 | **System Health** | Subsystem probes + full diagnostic log stream |
+| 12 | **Research Reports** | Fleet findings — drafts, reviews, published reports |
 
 ---
 
@@ -40,7 +43,7 @@ npm run build
 npm run preview
 ```
 
-Open the local URL printed by Vite (default `http://localhost:5173`).
+Open the local URL printed by Vite (default `http://localhost:5173`). Use the **left nav rail** to switch views.
 
 ---
 
@@ -48,13 +51,14 @@ Open the local URL printed by Vite (default `http://localhost:5173`).
 
 ```
 .
-├── index.html            # HUD shell markup
+├── index.html            # HUD shell markup + all view containers
 ├── package.json
 ├── vite.config.js        # dev server + build config
 └── src/
-    ├── main.js           # boot + live simulation + DOM render loop
+    ├── main.js           # boot, live simulation, view router
+    ├── views.js          # renderer for every view (kanban → reports)
     ├── galaxy.js         # Three.js 3D scene (galaxy, nebula, planets, stars)
-    ├── style.css         # full HUD theme + animations
+    ├── style.css         # full HUD theme + animations + per-view styles
     └── config.js         # ⭐ single source of truth for all dashboard data
 ```
 
@@ -70,14 +74,32 @@ export const AGENTS = [ /* fleet members */ ]
 export const WORKFLOWS = [ /* pipelines */ ]
 export const TOOLS = [ /* tool bay grid */ ]
 export const AGENDA = [ /* daily driver schedule */ ]
+export const KANBAN_COLUMNS / KANBAN_CARDS   // kanban view
+export const OPEN_ITEMS                       // open items view
+export const SCHEDULED_TASKS                  // scheduler view
+export const CHAT_SEED                        // chat bootstrap messages
+export const VAULT_DOCS                       // vault view
+export const EMAILS                           // email view
+export const CALENDAR_EVENTS                  // calendar view
+export const ALERTS                           // alerts view
+export const PROBES                           // system health probes
+export const REPORTS                          // research reports
 ```
 
 - **Agent states** — `active | busy | idle | error` (drives color + animation).
 - **Workflow states** — `running | queued | done | failed`.
-- **Tool status** — `ok | warn` (dot in the top-right of each tile).
-- **Agenda tags** — `mil` (milestone, green) or `dep` (deploy, amber).
+- **Kanban columns** — edit `KANBAN_COLUMNS` to rename/reorder columns; cards reference `col` by id.
+- **Calendar** — events use `day` (0–4 = Mon–Fri), `start`/`end` (24h hours), `type` (`mil`/`dep`).
+- **Alerts** — `sev` is `crit | warn | info`; drives the summary cards and feed styling.
+- **Reports** — `status` is `draft | review | published`.
 
-The live simulation in `main.js` advances progress/telemetry on a timer. Replace it with real data by calling the renderers directly (`renderAgents()`, `renderWorkflows()`, `log(level, msg)`, …).
+The live simulation in `main.js` advances progress/telemetry on timers. Replace it with real data by calling renderers directly (`renderAgents()`, `renderKanban()`, `pushChat(from, text)`, `log(level, msg)`, …).
+
+### Adding a new view
+
+1. Add a `<section id="view-yourname" class="view">` in `index.html`.
+2. Add a `<button class="nav-btn" data-view="yourname">` in the nav rail.
+3. Write a `renderYourName()` in `src/views.js` and call it in `main.js` `boot()` + refresh loop.
 
 ### Theme
 
@@ -98,8 +120,9 @@ The 3D scene parameters (galaxy arm count, particle counts, planet positions, ne
 ## Design notes
 
 - **HUD panels** — clipped angular corners (`clip-path`), corner brackets, backdrop blur over the 3D scene.
-- **CRT layer** — scanline overlay + a slow moving scan bar for the "live viewport" feel.
-- **Motion** — pulsing status dots, flowing warp bar, progress fills, log line entrance, mouse-parallax on the camera, slow galaxy rotation, breathing planet glows.
+- **View router** — instant panel switching with a fade/scale transition; the 3D galaxy persists behind every view.
+- **CRT layer** — scanline overlay + slow moving scan bar for the "live viewport" feel.
+- **Motion** — pulsing status dots, flowing warp bar, progress fills, log line entrance, mouse-parallax camera, breathing planet glows, ambient agent chat.
 - **Fonts** — Orbitron (display), Rajdhani (UI), Share Tech Mono (data) via Google Fonts, with system fallbacks.
 
 ---
