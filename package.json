@@ -1,0 +1,18 @@
+{
+  "name": "starship-mission-control",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Starship HUD Mission Control dashboard for multi-agent agentic workflows and daily driver needs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8"
+  }
+}

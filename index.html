@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STELLARIS-7 // Mission Control</title>
+    <meta name="description" content="Starship HUD Mission Control dashboard for multi-agent agentic workflows and daily driver operations." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l3 9 9 3-9 3-3 9-3-9-9-3 9-3z' fill='%2300e5ff'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="galaxy-canvas" aria-hidden="true"></canvas>
+
+      <header id="topbar" class="hud-panel">
+        <div class="topbar-left">
+          <div class="ship-emblem" title="Ship Systems Nominal">
+            <svg viewBox="0 0 32 32" width="34" height="34">
+              <path d="M16 2l3 9 9 3-9 3-3 9-3-9-9-3 9-3z" fill="#00e5ff" fill-opacity="0.9" />
+            </svg>
+          </div>
+          <div class="ship-id">
+            <span class="ship-name">STELLARIS-7</span>
+            <span class="ship-class">CLASS-VII AGENTIC EXPLORATION VESSEL</span>
+          </div>
+        </div>
+
+        <div class="topbar-center">
+          <div class="clock-block">
+            <span id="utc-clock" class="clock-time">--:--:--</span>
+            <span class="clock-label">UTC // ZULU</span>
+          </div>
+          <div class="mission-block">
+            <span class="mission-label">ACTIVE MISSION</span>
+            <span id="active-mission" class="mission-name">DEEP-SPACE ORCHESTRATION</span>
+          </div>
+          <div class="system-status" id="system-status">
+            <span class="status-dot online"></span>
+            ALL SYSTEMS NOMINAL
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="threat-gauge">
+            <span class="gauge-label">THREAT LEVEL</span>
+            <span class="gauge-value" id="threat-level">ALPHA</span>
+          </div>
+          <div class="crew-count">
+            <span class="gauge-label">AGENT FLEET</span>
+            <span class="gauge-value" id="agent-count">06 ONLINE</span>
+          </div>
+        </div>
+      </header>
+
+      <main id="dashboard">
+        <!-- LEFT COLUMN -->
+        <section class="col col-left">
+          <!-- AGENT FLEET -->
+          <div class="hud-panel panel" data-panel="fleet">
+            <div class="panel-head">
+              <h2>AGENT FLEET</h2>
+              <span class="panel-sub">CREW MANIFEST</span>
+              <span class="panel-tag live">LIVE</span>
+            </div>
+            <div id="agent-list" class="agent-list"></div>
+          </div>
+
+          <!-- COMMS / LOG STREAM -->
+          <div class="hud-panel panel" data-panel="comms">
+            <div class="panel-head">
+              <h2>COMMS LOG</h2>
+              <span class="panel-sub">EVENT STREAM</span>
+              <span class="panel-tag">STDIN/STDOUT</span>
+            </div>
+            <div id="log-stream" class="log-stream"></div>
+          </div>
+        </section>
+
+        <!-- CENTER COLUMN -->
+        <section class="col col-center">
+          <!-- MISSION / WORKFLOW PIPELINE -->
+          <div class="hud-panel panel" data-panel="missions">
+            <div class="panel-head">
+              <h2>MISSION PIPELINE</h2>
+              <span class="panel-sub">AGENTIC WORKFLOWS</span>
+              <span class="panel-tag" id="pipeline-count">4 QUEUED</span>
+            </div>
+            <div id="workflow-list" class="workflow-list"></div>
+          </div>
+
+          <!-- TOOL BAY / QUICK LAUNCH -->
+          <div class="hud-panel panel" data-panel="tools">
+            <div class="panel-head">
+              <h2>TOOL BAY</h2>
+              <span class="panel-sub">QUICK LAUNCH</span>
+              <span class="panel-tag">12 MODULES</span>
+            </div>
+            <div id="tool-grid" class="tool-grid"></div>
+          </div>
+        </section>
+
+        <!-- RIGHT COLUMN -->
+        <section class="col col-right">
+          <!-- TELEMETRY -->
+          <div class="hud-panel panel" data-panel="telemetry">
+            <div class="panel-head">
+              <h2>SYSTEM TELEMETRY</h2>
+              <span class="panel-sub">VESSEL VITALS</span>
+              <span class="panel-tag live">STREAMING</span>
+            </div>
+            <div id="gauge-row" class="gauge-row"></div>
+          </div>
+
+          <!-- DAILY DRIVER / SCHEDULE -->
+          <div class="hud-panel panel" data-panel="agenda">
+            <div class="panel-head">
+              <h2>DAILY DRIVER</h2>
+              <span class="panel-sub">OPERATOR SCHEDULE</span>
+              <span class="panel-tag" id="agenda-date"></span>
+            </div>
+            <div id="agenda-list" class="agenda-list"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer id="bottombar" class="hud-panel">
+        <div class="bottombar-left">
+          <span class="coord-label">GALACTIC COORDINATES</span>
+          <span class="coord-value" id="coords">04:35:12 // -12:04:55 // 89.2</span>
+        </div>
+        <div id="fuel-bar" class="fuel-bar">
+          <span class="fuel-label">FUEL</span>
+          <div class="fuel-track"><div class="fuel-fill" id="fuel-fill"></div></div>
+        </div>
+        <div id="warp-bar" class="warp-bar">
+          <span class="fuel-label">WARP CHARGE</span>
+          <div class="fuel-track"><div class="fuel-fill warp-fill" id="warp-fill"></div></div>
+        </div>
+        <div class="bottombar-right">
+          <span class="coord-label">SESSION TOKENS</span>
+          <span class="coord-value" id="token-usage">0.0K</span>
+        </div>
+      </footer>
+
+      <div id="scanline-overlay" aria-hidden="true"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
