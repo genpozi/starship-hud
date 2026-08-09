@@ -27,23 +27,52 @@ The dashboard is organized into **12 views**, each a focused screen for a use ca
 
 ---
 
+## Architecture
+
+The HUD is driven by a realtime **orbit server** (Node/Express + WebSocket)
+that is the single source of truth for fleet state. The browser mirrors state
+over WebSocket and issues mutations via REST. When the server is unreachable
+the HUD falls back to an offline simulation so the console never goes dark.
+
+```
+Browser (Vite SPA)                Orbit server (Node, port 3001)
+┌──────────────────────┐   WS    ┌────────────────────────────────┐
+│ src/main.js   boot   │◄───────►│ server/index.js    express + ws │
+│ src/store.js  state  │  /ws    │ server/orchestrator.js  engine │
+│ src/views.js  views  │  REST   │ server/planner.js   LLM/heuris.│
+│ src/api.js    bridge │ /api/*  │ server/skills.js    tool reg.  │
+│ src/galaxy.js 3D bg  │         │ server/store.js     persistence│
+│ src/config.js seed   │         │ data/state.json                │
+└──────────────────────┘         └────────────────────────────────┘
+```
+
+See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
+
 ## Getting started
 
 ```bash
 # Install dependencies
 npm install
 
-# Start the dev server (HMR)
+# Terminal 1 — orbit server (REST + WebSocket on :3001)
+npm run dev:server
+
+# Terminal 2 — dev server with HMR (:5173, proxies /api and /ws to :3001)
 npm run dev
 
 # Production build
 npm run build
 
-# Preview the production build
-npm run preview
+# Production — build then serve everything from the Express server on :3001
+npm start
 ```
 
 Open the local URL printed by Vite (default `http://localhost:5173`). Use the **left nav rail** to switch views.
+
+> **Optional LLM planning** — copy `.env.example` to `.env` and set
+> `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL`. The chat planner
+> will then ask the model to decompose operator goals into orchestrated steps.
+> Without a key it uses the deterministic heuristic planner — fully offline.
 
 ---
 
@@ -53,13 +82,26 @@ Open the local URL printed by Vite (default `http://localhost:5173`). Use the **
 .
 ├── index.html            # HUD shell markup + all view containers
 ├── package.json
-├── vite.config.js        # dev server + build config
+├── vite.config.js        # dev server + build config + /api /ws proxy
+├── .env.example          # optional LLM planner credentials (user-supplied)
+├── docs/
+│   ├── ARCHITECTURE.md   # runtime modes, data flow, module guide
+│   └── API.md            # REST + WebSocket reference
+├── server/               # STELLARIS-7 orbit backend
+│   ├── index.js          # express + ws entry point
+│   ├── orchestrator.js   # heartbeat engine + all mutations
+│   ├── planner.js        # LLM-backed (optional) + heuristic planning
+│   ├── skills.js         # sandboxed tool registry
+│   ├── store.js          # JSON persistence (data/state.json)
+│   └── seed.js           # seeds state from src/config.js
 └── src/
-    ├── main.js           # boot, live simulation, view router
+    ├── main.js           # boot, offline sim fallback, view router
+    ├── store.js          # canonical client STATE + server snapshots
+    ├── api.js            # WebSocket mirror + REST mutations
     ├── views.js          # renderer for every view (kanban → reports)
     ├── galaxy.js         # Three.js 3D scene (galaxy, nebula, planets, stars)
     ├── style.css         # full HUD theme + animations + per-view styles
-    └── config.js         # ⭐ single source of truth for all dashboard data
+    └── config.js         # ⭐ seed data for every dashboard view
 ```
 
 ---
@@ -93,7 +135,11 @@ export const REPORTS                          // research reports
 - **Alerts** — `sev` is `crit | warn | info`; drives the summary cards and feed styling.
 - **Reports** — `status` is `draft | review | published`.
 
-The live simulation in `main.js` advances progress/telemetry on timers. Replace it with real data by calling renderers directly (`renderAgents()`, `renderKanban()`, `pushChat(from, text)`, `log(level, msg)`, …).
+The live simulation in `main.js` is the **offline fallback** only. In ONLINE
+mode the orbit server owns state: `src/api.js` applies WebSocket snapshots to
+`src/store.js`, and interactions (chat dispatch, kanban advance, alert ack,
+email read, mission create) mutate the server via REST. Use `api.chat(text)`,
+`api.advanceCard(id)`, `pushChat(from, text)`, `log(level, msg)`, …
 
 ### Adding a new view
 

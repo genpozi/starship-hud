@@ -111,6 +111,9 @@
 *.pem
 *.key
 
+# Runtime state
+data/
+
 # Temporary files
 *.tmp
 *.temp

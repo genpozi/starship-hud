@@ -1,22 +1,12 @@
 /**
  * VIEWS // Renderers for every HUD view.
- * Each renderer targets a container in index.html and is re-invoked on an
- * interval by main.js so the HUD always reflects current state.
- * Data sources are imported from config.js and shared mutable state.
+ * Every renderer reads from the shared STATE (store.js). In ONLINE mode the
+ * orbit server owns state and pushes snapshots; in OFFLINE mode the local sim
+ * mutates the same object. Interactions go through api.js when online.
  */
 
-import {
-  KANBAN_COLUMNS,
-  KANBAN_CARDS,
-  OPEN_ITEMS,
-  SCHEDULED_TASKS,
-  VAULT_DOCS,
-  EMAILS,
-  CALENDAR_EVENTS,
-  ALERTS,
-  REPORTS,
-  PROBES
-} from './config.js'
+import { STATE } from './store.js'
+import { api, isOnline } from './api.js'
 
 const $ = (sel) => document.querySelector(sel)
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -26,9 +16,10 @@ const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 // ============================================================================
 export function renderKanban() {
   const board = $('#kanban-board')
+  if (!board) return
   board.innerHTML = ''
-  KANBAN_COLUMNS.forEach((col) => {
-    const cards = KANBAN_CARDS.filter((c) => c.col === col.id)
+  STATE.kanban.columns.forEach((col) => {
+    const cards = STATE.kanban.cards.filter((c) => c.col === col.id)
     const el = document.createElement('div')
     el.className = 'kanban-col'
     el.innerHTML = `
@@ -40,7 +31,7 @@ export function renderKanban() {
         ${cards
           .map(
             (c) => `
-          <div class="kan-card ${col.id === 'done' ? 'done' : ''}" title="Click to advance">
+          <div class="kan-card ${col.id === 'done' ? 'done' : ''}" title="Click to advance" data-id="${c.id}">
             <div class="kan-title">${c.title}</div>
             <div class="kan-tags">${c.tags.map((t) => `<span class="kan-tag">${t}</span>`).join('')}</div>
             <div class="kan-meta">
@@ -51,14 +42,17 @@ export function renderKanban() {
           )
           .join('')}
       </div>`
-    el.querySelectorAll('.kan-card').forEach((card, i) => {
+    el.querySelectorAll('.kan-card').forEach((card) => {
       card.addEventListener('click', () => {
-        const cardData = cards[i]
-        if (col.id !== 'done') {
-          const next = KANBAN_COLUMNS[KANBAN_COLUMNS.findIndex((c) => c.id === col.id) + 1]
-          cardData.col = next.id
+        const id = card.dataset.id
+        if (isOnline()) {
+          api.advanceCard(id).catch(() => {})
         } else {
-          KANBAN_CARDS.splice(KANBAN_CARDS.indexOf(cardData), 1)
+          const c = STATE.kanban.cards.find((x) => x.id === id)
+          if (!c) return
+          const idx = STATE.kanban.columns.findIndex((col) => col.id === c.col)
+          if (idx < STATE.kanban.columns.length - 1) c.col = STATE.kanban.columns[idx + 1].id
+          else STATE.kanban.cards = STATE.kanban.cards.filter((x) => x.id !== id)
         }
         renderKanban()
       })
@@ -72,12 +66,13 @@ export function renderKanban() {
 // ============================================================================
 export function renderItems() {
   const table = $('#items-table')
-  $('#items-count').textContent = `${OPEN_ITEMS.length} TRACKED`
+  if (!table) return
+  $('#items-count').textContent = `${STATE.items.length} TRACKED`
   table.innerHTML = `
     <div class="tbl-row tbl-head">
       <span>ID</span><span>TITLE</span><span>TYPE</span><span>PRIO</span><span>OWNER</span><span>STATUS</span>
     </div>
-    ${OPEN_ITEMS.map(
+    ${STATE.items.map(
       (it) => `
     <div class="tbl-row">
       <span class="tbl-id">${it.id}</span>
@@ -95,12 +90,13 @@ export function renderItems() {
 // ============================================================================
 export function renderScheduler() {
   const table = $('#cron-table')
-  $('#cron-count').textContent = `${SCHEDULED_TASKS.length} JOBS`
+  if (!table) return
+  $('#cron-count').textContent = `${STATE.schedules.length} JOBS`
   table.innerHTML = `
     <div class="tbl-row tbl-head">
       <span>JOB</span><span>CRON</span><span>AGENT</span><span>NEXT RUN</span><span>DURATION</span><span>LAST</span>
     </div>
-    ${SCHEDULED_TASKS.map(
+    ${STATE.schedules.map(
       (j) => `
     <div class="cron-row">
       <span class="cron-name">${j.name}</span>
@@ -116,14 +112,11 @@ export function renderScheduler() {
 // ============================================================================
 // CHAT / ORCHESTRATION
 // ============================================================================
-let chatLog = []
-export function seedChat(messages) {
-  chatLog = [...messages]
-}
 export function renderChat() {
   const stream = $('#chat-stream')
+  if (!stream) return
   const atBottom = stream.scrollTop + stream.clientHeight >= stream.scrollHeight - 40
-  stream.innerHTML = chatLog
+  stream.innerHTML = STATE.chat
     .slice(-60)
     .map(
       (m) => `
@@ -136,26 +129,22 @@ export function renderChat() {
   if (atBottom) stream.scrollTop = stream.scrollHeight
 }
 export function pushChat(from, text) {
-  chatLog.push({ from, text })
+  STATE.chat.push({ from, text, ts: Date.now() })
   renderChat()
 }
 
-const DISPATCH_POOL = [
-  { task: 'Review failing CI job: e2e-surface', agent: 'CODA', state: 'assigned' },
-  { task: 'Investigate ingress latency p99', agent: 'PILOT', state: 'assigned' },
-  { task: 'Draft cycle 42 planning notes', agent: 'NUDGE', state: 'waiting' },
-  { task: 'Sweep vault for stale blobs', agent: 'LINK', state: 'waiting' },
-  { task: 'Compile context-compaction digest', agent: 'SAGE', state: 'assigned' }
-]
 export function renderDispatch() {
   const c = $('#dispatch-console')
-  c.innerHTML = DISPATCH_POOL.map(
-    (d) => `
+  if (!c) return
+  c.innerHTML = STATE.dispatch
+    .map(
+      (d) => `
   <div class="dispatch-item ${d.state}">
     <div class="dispatch-task">${d.task}</div>
     <div class="dispatch-meta"><span>◈ ${d.agent}</span><span>${d.state.toUpperCase()}</span></div>
   </div>`
-  ).join('')
+    )
+    .join('')
 }
 
 // ============================================================================
@@ -180,13 +169,13 @@ function sparklineSvg(values, opts = {}) {
   </svg>`
 }
 
-function barChartSvg(labels, values, opts = {}) {
+function barChartSvg(values) {
   const w = 100, h = 40, pad = 2
   const max = Math.max(...values) || 1
   const bw = (w - pad * 2) / values.length
   const bars = values
     .map((v, i) => {
-      const bh = ((v / max) * (h - 8))
+      const bh = (v / max) * (h - 8)
       const x = pad + i * bw + bw * 0.18
       return `<rect class="gbar" x="${x.toFixed(1)}" y="${(h - 2 - bh).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${bh.toFixed(1)}"/>`
     })
@@ -196,26 +185,28 @@ function barChartSvg(labels, values, opts = {}) {
 
 export function renderGraphs(telemetry) {
   const tokens = $('#graph-tokens')
+  if (!tokens) return
   tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">CTX: ${Math.round(telemetry.ctx)}% · LAT: ${Math.round(telemetry.lat)}ms · TEMP: ${Math.round(telemetry.temp)}°</div>` +
     sparklineSvg([42, 48, 45, 55, 60, 58, 66, 70, 68, 74, 79, 82], { cls: 'amber' })
 
   const throughput = $('#graph-throughput')
-  throughput.innerHTML = barChartSvg([], [4, 7, 5, 9, 6, 8, 10, 7, 6, 9, 8, 11])
+  if (throughput) throughput.innerHTML = barChartSvg([4, 7, 5, 9, 6, 8, 10, 7, 6, 9, 8, 11])
 
   const context = $('#graph-context')
-  context.innerHTML = sparklineSvg([18, 22, 20, 30, 28, 34, 38, 36, 44, 48, 46, 52])
+  if (context) context.innerHTML = sparklineSvg([18, 22, 20, 30, 28, 34, 38, 36, 44, 48, 46, 52])
 
   const success = $('#graph-success')
-  success.innerHTML = sparklineSvg([88, 90, 87, 93, 91, 95, 92, 96, 94, 97, 96, 98], { min: 80 })
+  if (success) success.innerHTML = sparklineSvg([88, 90, 87, 93, 91, 95, 92, 96, 94, 97, 96, 98], { min: 80 })
 }
 
 // ============================================================================
 // VAULT
 // ============================================================================
 export function renderVault() {
-  $('#vault-count').textContent = `${VAULT_DOCS.length} DOCS`
   const grid = $('#vault-grid')
-  grid.innerHTML = VAULT_DOCS.map(
+  if (!grid) return
+  $('#vault-count').textContent = `${STATE.vault.length} DOCS`
+  grid.innerHTML = STATE.vault.map(
     (d) => `
   <div class="vault-card" title="Open ${d.title}">
     <div class="vault-title">${d.title}</div>
@@ -233,9 +224,10 @@ export function renderVault() {
 // EMAIL
 // ============================================================================
 export function renderEmail() {
-  $('#email-count').textContent = `${EMAILS.filter((e) => !e.read).length} UNREAD`
   const list = $('#email-list')
-  list.innerHTML = EMAILS.map(
+  if (!list) return
+  $('#email-count').textContent = `${STATE.email.filter((e) => !e.read).length} UNREAD`
+  list.innerHTML = STATE.email.map(
     (e, i) => `
   <div class="email-row ${e.read ? '' : 'unread'}" data-i="${i}">
     <span class="email-from">${e.from}</span>
@@ -249,20 +241,23 @@ export function renderEmail() {
   list.querySelectorAll('.email-row').forEach((row) => {
     row.addEventListener('click', () => {
       const i = +row.dataset.i
-      const e = EMAILS[i]
+      const e = STATE.email[i]
       e.read = true
+      if (isOnline()) api.readEmail(i).catch(() => {})
       renderEmail()
       const reader = $('#email-reader')
-      reader.innerHTML = `
-        <div class="reader-head">
-          <div class="reader-subject">${e.subject}</div>
-          <div class="reader-meta">
-            <span>FROM: ${e.from}</span>
-            <span>${e.time}</span>
-            <span class="email-label ${e.label}">${e.label}</span>
+      if (reader) {
+        reader.innerHTML = `
+          <div class="reader-head">
+            <div class="reader-subject">${e.subject}</div>
+            <div class="reader-meta">
+              <span>FROM: ${e.from}</span>
+              <span>${e.time}</span>
+              <span class="email-label ${e.label}">${e.label}</span>
+            </div>
           </div>
-        </div>
-        <div class="reader-body">${e.preview} Full message body rendered here for the selected thread. Attachments and inline signatures are supported by the HUD reader.</div>`
+          <div class="reader-body">${e.preview} Full message body rendered here for the selected thread. Attachments and inline signatures are supported by the HUD reader.</div>`
+      }
     })
   })
 }
@@ -270,17 +265,17 @@ export function renderEmail() {
 // ============================================================================
 // CALENDAR
 // ============================================================================
-let calDay = new Date().getDay() % 5
 export function renderCalendar() {
   const grid = $('#calendar-grid')
-  $('#cal-week').textContent = 'CYCLE 42 / W-2'
+  if (!grid) return
+  $('#cal-week').textContent = STATE.calendar.weekLabel
   const start = 8
   const end = 18
   let html = '<div></div>' + weekdays.slice(0, 5).map((d) => `<div class="cal-day-head">${d}</div>`).join('')
   for (let hour = start; hour <= end; hour++) {
     html += `<div class="cal-hour">${String(hour).padStart(2, '0')}:00</div>`
     for (let day = 0; day < 5; day++) {
-      const events = CALENDAR_EVENTS.filter((e) => e.day === day && parseInt(e.start) === hour)
+      const events = STATE.calendar.events.filter((e) => e.day === day && parseInt(e.start) === hour)
       html += `<div class="cal-slot">${events
         .map((e) => `<div class="evt ${e.type}" data-day="${day}" style="height:${(e.end - e.start) * 26}px">${e.title}</div>`)
         .join('')}</div>`
@@ -290,15 +285,17 @@ export function renderCalendar() {
   grid.querySelectorAll('.evt').forEach((ev) => {
     ev.addEventListener('click', () => selectCalDay(+ev.dataset.day))
   })
-  selectCalDay(calDay, true)
+  selectCalDay(STATE.calendar.day, true)
 }
 
 function selectCalDay(day, force) {
-  if (!force && day === calDay) return
-  calDay = day
+  if (!force && day === STATE.calendar.day) return
+  STATE.calendar.day = day
+  if (isOnline()) api.setCalDay(day).catch(() => {})
   $('#cal-day-label').textContent = `${weekdays[day]} // CYCLE 42`
-  const events = CALENDAR_EVENTS.filter((e) => e.day === day)
+  const events = STATE.calendar.events.filter((e) => e.day === day)
   const box = $('#calendar-day')
+  if (!box) return
   box.innerHTML = events.length
     ? events
         .map(
@@ -317,17 +314,20 @@ function selectCalDay(day, force) {
 // ALERTS
 // ============================================================================
 export function renderAlerts() {
-  const crit = ALERTS.filter((a) => a.sev === 'crit').length
-  const warn = ALERTS.filter((a) => a.sev === 'warn').length
-  const info = ALERTS.filter((a) => a.sev === 'info').length
-  $('#alert-count').textContent = `${ALERTS.length} ACTIVE`
+  const feed = $('#alert-feed')
+  if (!feed) return
+  const crit = STATE.alerts.filter((a) => a.sev === 'crit' && !a.acked).length
+  const warn = STATE.alerts.filter((a) => a.sev === 'warn' && !a.acked).length
+  const info = STATE.alerts.filter((a) => a.sev === 'info' && !a.acked).length
+  $('#alert-count').textContent = `${crit + warn + info} ACTIVE`
   $('#alert-summary').innerHTML = `
     <div class="alert-sum-card crit"><span class="alert-sum-label">CRITICAL</span><span class="alert-sum-num">${crit}</span></div>
     <div class="alert-sum-card warn"><span class="alert-sum-label">WARNING</span><span class="alert-sum-num">${warn}</span></div>
     <div class="alert-sum-card info"><span class="alert-sum-label">INFO</span><span class="alert-sum-num">${info}</span></div>`
-  $('#alert-feed').innerHTML = ALERTS.map(
-    (a) => `
-  <div class="alert-row">
+  feed.innerHTML = STATE.alerts
+    .map(
+      (a) => `
+  <div class="alert-row ${a.acked ? 'acked' : ''}" data-id="${a.id}" title="${a.acked ? 'Acknowledged' : 'Click to ack'}">
     <span class="alert-sev ${a.sev}">${a.sev.toUpperCase()}</span>
     <span class="alert-source">${a.source}</span>
     <div>
@@ -336,7 +336,18 @@ export function renderAlerts() {
     </div>
     <span class="alert-time">${a.time}</span>
   </div>`
-  ).join('')
+    )
+    .join('')
+  feed.querySelectorAll('.alert-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id
+      const a = STATE.alerts.find((x) => x.id === id)
+      if (!a || a.acked) return
+      if (isOnline()) api.ackAlert(id).catch(() => {})
+      else a.acked = true
+      renderAlerts()
+    })
+  })
 }
 
 // ============================================================================
@@ -344,7 +355,8 @@ export function renderAlerts() {
 // ============================================================================
 export function renderHealth(logs) {
   const grid = $('#probe-grid')
-  grid.innerHTML = PROBES.map((p) => {
+  if (!grid) return
+  grid.innerHTML = STATE.probes.map((p) => {
     const warn = p.warnAt > 0 && p.value >= p.warnAt
     return `
   <div class="probe-cell ${warn ? 'warn' : ''}">
@@ -355,6 +367,7 @@ export function renderHealth(logs) {
   }).join('')
 
   const box = $('#health-log')
+  if (!box) return
   const lines = logs.slice(-60)
   const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40
   box.innerHTML = lines
@@ -369,9 +382,10 @@ export function renderHealth(logs) {
 // RESEARCH REPORTS
 // ============================================================================
 export function renderReports() {
-  $('#reports-count').textContent = `${REPORTS.length} DOCS`
   const grid = $('#reports-grid')
-  grid.innerHTML = REPORTS.map(
+  if (!grid) return
+  $('#reports-count').textContent = `${STATE.reports.length} DOCS`
+  grid.innerHTML = STATE.reports.map(
     (r) => `
   <div class="report-card" title="Open ${r.title}">
     <div class="report-title">${r.title}</div>

@@ -1,0 +1,68 @@
+/**
+ * STORE // Client-side canonical state.
+ *
+ * In ONLINE mode the server pushes full snapshots which deep-replace these
+ * slices. In OFFLINE (sim) mode the boot sequence mutates this same object so
+ * every view renderer always reads one state — no config import drift.
+ */
+
+import {
+  AGENTS,
+  WORKFLOWS,
+  KANBAN_COLUMNS,
+  KANBAN_CARDS,
+  OPEN_ITEMS,
+  SCHEDULED_TASKS,
+  CHAT_SEED,
+  VAULT_DOCS,
+  EMAILS,
+  CALENDAR_EVENTS,
+  ALERTS,
+  REPORTS,
+  PROBES,
+  SHIP
+} from './config.js'
+
+export const STATE = {
+  meta: { mission: SHIP.mission, coordinates: [...SHIP.coordinates], tokenTotal: 0 },
+  agents: AGENTS.map((a) => ({ ...a })),
+  workflows: WORKFLOWS.map((w) => ({ ...w, steps: [...w.steps] })),
+  kanban: {
+    columns: KANBAN_COLUMNS.map((c) => ({ ...c })),
+    cards: KANBAN_CARDS.map((c) => ({ ...c }))
+  },
+  items: OPEN_ITEMS.map((i) => ({ ...i })),
+  schedules: SCHEDULED_TASKS.map((s) => ({ ...s })),
+  chat: CHAT_SEED.map((m) => ({ ...m })),
+  dispatch: [
+    { task: 'Review failing CI job: e2e-surface', agent: 'CODA', state: 'assigned' },
+    { task: 'Investigate ingress latency p99', agent: 'PILOT', state: 'assigned' },
+    { task: 'Draft cycle 42 planning notes', agent: 'NUDGE', state: 'waiting' },
+    { task: 'Sweep vault for stale blobs', agent: 'LINK', state: 'waiting' },
+    { task: 'Compile context-compaction digest', agent: 'SAGE', state: 'assigned' }
+  ],
+  vault: VAULT_DOCS.map((d) => ({ ...d })),
+  email: EMAILS.map((e) => ({ ...e })),
+  calendar: { events: CALENDAR_EVENTS.map((e) => ({ ...e })), day: new Date().getDay() % 5, weekLabel: 'CYCLE 42 / W-2' },
+  alerts: ALERTS.map((a) => ({ ...a, acked: false })),
+  probes: PROBES.map((p) => ({ ...p })),
+  reports: REPORTS.map((r) => ({ ...r })),
+  telemetry: { temp: 42, token: 38, lat: 84, ctx: 27 },
+  logs: []
+}
+
+/**
+ * Replace every server-owned slice with the incoming snapshot.
+ * Local-only UI state (calendar.day selection) is preserved when present.
+ */
+export function applyServerState(snap) {
+  if (!snap) return
+  const localDay = STATE.calendar.day
+  const keys = ['agents', 'workflows', 'kanban', 'items', 'schedules', 'chat', 'dispatch', 'vault', 'email', 'alerts', 'probes', 'reports', 'telemetry', 'logs', 'meta']
+  keys.forEach((k) => {
+    if (snap[k] !== undefined) STATE[k] = snap[k]
+  })
+  if (snap.calendar && snap.calendar.events) {
+    STATE.calendar = { ...snap.calendar, day: localDay }
+  }
+}

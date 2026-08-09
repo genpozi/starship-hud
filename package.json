@@ -1,16 +1,20 @@
 {
   "name": "starship-mission-control",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Starship HUD Mission Control dashboard for multi-agent agentic workflows and daily driver needs",
+  "description": "STELLARIS-7 — starship HUD mission control and multi-agent orchestration harness",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
+    "start": "node --env-file-if-exists=.env server/index.js",
     "preview": "vite preview"
   },
   "dependencies": {
-    "three": "^0.169.0"
+    "express": "^4.21.1",
+    "three": "^0.169.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "vite": "^5.4.8"

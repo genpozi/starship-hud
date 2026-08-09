@@ -1,0 +1,93 @@
+import express from 'express'
+import { createServer } from 'node:http'
+import { WebSocketServer } from 'ws'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { Orchestrator } from './orchestrator.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const PORT = process.env.PORT || 3001
+
+const app = express()
+const server = createServer(app)
+const wss = new WebSocketServer({ server, path: '/ws' })
+
+const orchestrator = new Orchestrator({
+  onBroadcast: (msg) => {
+    const frame = JSON.stringify(msg)
+    wss.clients.forEach((c) => {
+      if (c.readyState === 1) c.send(frame)
+    })
+  }
+})
+
+app.use(express.json())
+
+// --- static: serve built frontend if present, else just the API ---
+const dist = join(__dirname, '..', 'dist')
+app.use(express.static(dist))
+
+// --- realtime state ---
+app.get('/api/state', (_req, res) => res.json(orchestrator.s))
+
+app.get('/api/health', (_req, res) =>
+  res.json({ ok: true, agents: orchestrator.s.agents.length, uptime: process.uptime() })
+)
+
+// --- mutations ---
+app.post('/api/chat', async (req, res) => {
+  const { text } = req.body || {}
+  if (!text || typeof text !== 'string') return res.status(400).json({ ok: false })
+  try {
+    const result = await orchestrator.handleChat(text)
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+app.post('/api/dispatch', (req, res) => {
+  const { task, agent } = req.body || {}
+  if (!task || !agent) return res.status(400).json({ ok: false })
+  orchestrator.dispatchTask(task, agent)
+  res.json({ ok: true })
+})
+
+app.post('/api/kanban/:id/advance', (req, res) => {
+  res.json(orchestrator.advanceKanban(req.params.id))
+})
+
+app.post('/api/alerts/:id/ack', (req, res) => {
+  res.json(orchestrator.ackAlert(req.params.id))
+})
+
+app.post('/api/email/:idx/read', (req, res) => {
+  res.json(orchestrator.readEmail(Number(req.params.idx)))
+})
+
+app.post('/api/calendar/:day', (req, res) => {
+  orchestrator.setCalDay(Number(req.params.day))
+  res.json({ ok: true })
+})
+
+app.post('/api/mission', (req, res) => {
+  const { name, agents } = req.body || {}
+  if (!name || !Array.isArray(agents) || agents.length === 0) {
+    return res.status(400).json({ ok: false })
+  }
+  res.json(orchestrator.createMission({ name, agents }))
+})
+
+// fallback for SPA / non-API routes
+app.get(/^\/(?!api).*/, (_req, res) => {
+  res.sendFile(join(dist, 'index.html'))
+})
+
+wss.on('connection', (ws) => {
+  ws.send(JSON.stringify({ type: 'state', state: orchestrator.s }))
+})
+
+orchestrator.start()
+server.listen(PORT, () => {
+  console.log(`STELLARIS-7 orbit server :: http://localhost:${PORT}`)
+})

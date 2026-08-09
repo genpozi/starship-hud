@@ -4,7 +4,17 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: ['.monkeycode-ai.live']
+    allowedHosts: ['.monkeycode-ai.live'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/ws': {
+        target: 'ws://localhost:3001',
+        ws: true
+      }
+    }
   },
   preview: {
     port: 4173,

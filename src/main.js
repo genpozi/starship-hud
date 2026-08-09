@@ -1,6 +1,8 @@
 import './style.css'
 import { createGalaxy } from './galaxy.js'
-import { SHIP, AGENTS, WORKFLOWS, TOOLS, AGENDA, CHAT_SEED } from './config.js'
+import { SHIP, TOOLS, AGENDA } from './config.js'
+import { STATE, applyServerState } from './store.js'
+import { connect, api, isOnline } from './api.js'
 import {
   renderKanban,
   renderItems,
@@ -14,20 +16,15 @@ import {
   renderAlerts,
   renderHealth,
   renderReports,
-  seedChat,
   pushChat
 } from './views.js'
 
 /**
- * MAIN // Boots the galaxy renderer, drives all HUD updates and the
- * view router. Every view renderer is re-invoked on an interval so the
- * whole mission control stays live.
+ * MAIN // Boots the galaxy renderer, the orbit-server bridge and the HUD
+ * view router. When the STELLARIS-7 backend is reachable the server owns
+ * state (WebSocket snapshots); when it is offline the HUD falls back to a
+ * self-contained simulation so the console never goes dark.
  */
-
-// ---- State (mutable live data) ---- //
-const fleet = AGENTS.map((a) => ({ ...a }))
-const pipeline = WORKFLOWS.map((w) => ({ ...w, steps: [...w.steps] }))
-const logs = []
 
 const toolIcons = {
   code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
@@ -46,25 +43,25 @@ const toolIcons = {
 
 const $ = (sel) => document.querySelector(sel)
 
-// ---- Timestamp helpers ---- //
+// ---- Log helpers (shared by server + sim mode) ---- //
 function stamp() {
   return new Date().toISOString().slice(11, 19)
 }
 function log(level, msg) {
-  logs.push({ t: stamp(), level, msg })
-  if (logs.length > 160) logs.shift()
+  STATE.logs.push({ t: stamp(), level, msg })
+  if (STATE.logs.length > 160) STATE.logs.shift()
   renderLogs()
 }
 window.__log = log
 
 // ============================================================================
-// RENDERERS (mission control)
+// RENDERERS (mission control rollup)
 // ============================================================================
 function renderAgents() {
   const list = $('#agent-list')
   if (!list) return
   list.innerHTML = ''
-  fleet.forEach((a) => {
+  STATE.agents.forEach((a) => {
     const el = document.createElement('div')
     el.className = `agent ${a.state}`
     el.innerHTML = `
@@ -84,7 +81,7 @@ function renderLogs() {
   const box = $('#log-stream')
   if (!box) return
   const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30
-  box.innerHTML = logs
+  box.innerHTML = STATE.logs
     .slice(-40)
     .map((l) => `<div class="log-line"><span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span></div>`)
     .join('')
@@ -94,10 +91,10 @@ function renderLogs() {
 function renderWorkflows() {
   const list = $('#workflow-list')
   if (!list) return
-  const running = pipeline.filter((w) => w.state === 'running').length
-  $('#pipeline-count').textContent = `${running} RUNNING / ${pipeline.length - running} QUEUED`
+  const running = STATE.workflows.filter((w) => w.state === 'running').length
+  $('#pipeline-count').textContent = `${running} RUNNING / ${STATE.workflows.length - running} QUEUED`
   list.innerHTML = ''
-  pipeline.forEach((w) => {
+  STATE.workflows.forEach((w) => {
     const el = document.createElement('div')
     el.className = `workflow ${w.state}`
     el.innerHTML = `
@@ -205,35 +202,28 @@ function renderGauges() {
   `
 }
 
-// ============================================================================
-// LIVE SIMULATION
-// ============================================================================
-const rand = (min, max) => min + Math.random() * (max - min)
 const C = 238.8
-
-let telemetry = { temp: 42, token: 38, lat: 84, ctx: 27 }
-let tokenTotal = 0
-
 function setGauge(id, valEl, pct) {
-  $(`#${id}`).style.strokeDashoffset = C - (C * Math.min(pct, 100)) / 100
-  $(`#${valEl}`).textContent = Math.round(pct)
+  const g = $(`#${id}`)
+  const v = $(`#${valEl}`)
+  if (!g || !v) return
+  g.style.strokeDashoffset = C - (C * Math.min(pct, 100)) / 100
+  v.textContent = Math.round(pct)
 }
 
-function tickTelemetry() {
-  telemetry.temp = Math.max(35, Math.min(88, telemetry.temp + rand(-1.6, 1.6)))
-  telemetry.lat = Math.max(40, Math.min(420, telemetry.lat + rand(-18, 18)))
-  telemetry.ctx = Math.max(15, Math.min(92, telemetry.ctx + rand(-2, 2)))
+function renderGaugeValues() {
+  const t = STATE.telemetry
+  if (!$('#g-temp')) return
+  setGauge('g-temp', 'temp-val', ((t.temp - 30) / 60) * 100)
+  setGauge('g-token', 'token-val', t.token)
+  setGauge('g-lat', 'lat-val', ((t.lat - 30) / 400) * 100)
+  setGauge('g-ctx', 'ctx-val', t.ctx)
+  $('#g-ctx').style.stroke = t.ctx > 75 ? 'var(--warn)' : 'var(--ok)'
+  $('#token-usage').textContent = `${STATE.meta.tokenTotal.toFixed(1)}K`
+}
 
-  if ($('#g-temp')) {
-    setGauge('g-temp', 'temp-val', ((telemetry.temp - 30) / 60) * 100)
-    setGauge('g-token', 'token-val', telemetry.token)
-    setGauge('g-lat', 'lat-val', ((telemetry.lat - 30) / 400) * 100)
-    setGauge('g-ctx', 'ctx-val', telemetry.ctx)
-    $('#g-ctx').style.stroke = telemetry.ctx > 75 ? 'var(--warn)' : 'var(--ok)'
-  }
-
-  tokenTotal += rand(0.8, 3.2)
-  $('#token-usage').textContent = `${tokenTotal.toFixed(1)}K`
+function tickClock() {
+  $('#utc-clock').textContent = new Date().toISOString().slice(11, 19)
 }
 
 function tickFuel() {
@@ -242,52 +232,38 @@ function tickFuel() {
   $('#warp-fill').style.width = `${20 + ((Date.now() / 1000) % 40)}%`
 }
 
-function advanceAgents() {
-  fleet.forEach((a) => {
-    if (a.state === 'idle') {
-      if (Math.random() < 0.06) {
-        a.state = 'active'
-        a.progress = 5
-        a.task = a.id === 'link' ? 'Processing incoming webhook batch' : 'Picking up queued task'
-        log('INFO', `${a.name} → ONLINE`)
-      }
-      return
-    }
-    a.progress = Math.min(100, a.progress + rand(0.4, 2.2))
-    a.tokens += rand(0.05, 0.4)
-    if (a.progress >= 100) {
-      log('OK', `${a.name} completed: ${a.task}`)
-      a.state = 'idle'
-      a.task = 'Standing by'
-      a.progress = 0
-    }
-  })
-}
-
-function advanceWorkflows() {
-  pipeline.forEach((w) => {
-    if (w.state === 'running') {
-      w.progress = Math.min(100, w.progress + rand(0.15, 0.8))
-      if (Math.random() < 0.2) w.curStep = Math.min(w.steps.length - 1, Math.floor((w.progress / 100) * w.steps.length))
-      if (w.progress >= 100) {
-        w.state = 'done'
-        log('OK', `Workflow complete: ${w.name}`)
-      }
-    } else if (w.state === 'queued' && Math.random() < 0.015) {
-      w.state = 'running'
-      log('INFO', `Workflow dispatched: ${w.name}`)
-    }
-  })
-}
-
 function tickCoords() {
-  const [ra, dec, dist] = SHIP.coordinates
+  const [ra, dec, dist] = STATE.meta.coordinates || SHIP.coordinates
   const drift = (Math.sin(Date.now() / 3000) * 0.15).toFixed(2)
   $('#coords').textContent = `${ra} // ${dec} // ${(parseFloat(dist) + parseFloat(drift)).toFixed(1)}`
 }
 
-function tickClock() {
-  $('#utc-clock').textContent = new Date().toISOString().slice(11, 19)
+function renderRollup() {
+  renderAgents()
+  renderWorkflows()
+  renderGaugeValues()
+  renderLogs()
+  $('#agent-count').textContent = `${STATE.agents.filter((a) => a.state !== 'idle').length} ACTIVE / ${STATE.agents.length}`
+  const sys = $('#system-status')
+  const bad = STATE.agents.some((a) => a.state === 'error') || STATE.telemetry.ctx > 80
+  sys.innerHTML = bad
+    ? '<span class="status-dot warn"></span> DEGRADED OPERATIONS'
+    : `<span class="status-dot ${isOnline() ? 'online' : 'warn'}"></span> ${isOnline() ? 'ALL SYSTEMS NOMINAL' : 'STANDBY — OFFLINE SIM'}`
+}
+
+function renderAllViews() {
+  renderKanban()
+  renderItems()
+  renderScheduler()
+  renderChat()
+  renderDispatch()
+  renderGraphs(STATE.telemetry)
+  renderVault()
+  renderEmail()
+  renderCalendar()
+  renderAlerts()
+  renderHealth(STATE.logs)
+  renderReports()
 }
 
 // ============================================================================
@@ -309,24 +285,113 @@ function bindNavigation() {
 }
 
 // ============================================================================
-// CHAT dispatch simulation
+// OFFLINE SIMULATION (fallback when the orbit server is unreachable)
 // ============================================================================
-const CHAT_BANK = [
-  { agent: 'ORCH', text: 'Re-scoring task priorities against mission objectives.' },
-  { agent: 'CODA', text: 'Static analysis pass complete. 3 minor warnings, 0 errors.' },
-  { agent: 'SAGE', text: 'Appending fresh telemetry to weekly digest.' },
-  { agent: 'LINK', text: 'Heartbeat received from all integration channels.' },
-  { agent: 'PILOT', text: 'Canary health checks steady. No rollout pause needed.' },
-  { agent: 'NUDGE', text: 'Agenda sync — no collisions with scheduled blocks.' },
-  { agent: 'ORCH', text: 'Workflow step complete — advancing pipeline.' }
-]
+const rand = (min, max) => min + Math.random() * (max - min)
+let simTimers = []
 
-function chatAmbientLoop() {
-  if (document.getElementById('view-chat').classList.contains('active')) {
-    if (Math.random() < 0.7) {
-      const m = CHAT_BANK[Math.floor(Math.random() * CHAT_BANK.length)]
-      pushChat(m.agent, m.text)
-    }
+function stopSim() {
+  simTimers.forEach(clearInterval)
+  simTimers = []
+}
+
+function startSim() {
+  log('WARN', 'Orbit server unreachable — engaging local simulation')
+  simTimers.push(setInterval(tickClock, 1000))
+  simTimers.push(setInterval(tickFuel, 1000))
+  simTimers.push(setInterval(tickCoords, 1000))
+  simTimers.push(
+    setInterval(() => {
+      const t = STATE.telemetry
+      t.temp = Math.max(35, Math.min(88, t.temp + rand(-1.6, 1.6)))
+      t.lat = Math.max(40, Math.min(420, t.lat + rand(-18, 18)))
+      t.ctx = Math.max(15, Math.min(92, t.ctx + rand(-2, 2)))
+      STATE.meta.tokenTotal += rand(0.8, 3.2)
+      renderRollup()
+    }, 1200)
+  )
+  simTimers.push(
+    setInterval(() => {
+      STATE.agents.forEach((a) => {
+        if (a.state === 'idle') {
+          if (Math.random() < 0.06) {
+            a.state = 'active'
+            a.progress = 5
+            a.task = a.id === 'link' ? 'Processing incoming webhook batch' : 'Picking up queued task'
+            log('INFO', `${a.name} → ONLINE`)
+          }
+          return
+        }
+        a.progress = Math.min(100, a.progress + rand(0.4, 2.2))
+        a.tokens += rand(0.05, 0.4)
+        if (a.progress >= 100) {
+          log('OK', `${a.name} completed: ${a.task}`)
+          a.state = 'idle'
+          a.task = 'Standing by'
+          a.progress = 0
+        }
+      })
+      renderRollup()
+    }, 900)
+  )
+  simTimers.push(
+    setInterval(() => {
+      STATE.workflows.forEach((w) => {
+        if (w.state === 'running') {
+          w.progress = Math.min(100, w.progress + rand(0.15, 0.8))
+          if (Math.random() < 0.2) w.curStep = Math.min(w.steps.length - 1, Math.floor((w.progress / 100) * w.steps.length))
+          if (w.progress >= 100) {
+            w.state = 'done'
+            log('OK', `Workflow complete: ${w.name}`)
+          }
+        } else if (w.state === 'queued' && Math.random() < 0.015) {
+          w.state = 'running'
+          log('INFO', `Workflow dispatched: ${w.name}`)
+        }
+      })
+      renderRollup()
+    }, 1400)
+  )
+  simTimers.push(
+    setInterval(() => {
+      if (Math.random() < 0.4) log('WARN', 'Spike detected in context load — throttling speculative token use')
+    }, 15000)
+  )
+  simTimers.push(
+    setInterval(() => {
+      const events = [
+        ['INFO', 'Heartbeat received from all fleet nodes'],
+        ['DEBUG', 'GC cycle complete · heap steady'],
+        ['OK', 'Telemetry snapshot archived to core bank'],
+        ['INFO', 'Orbital debris sweep complete — all clear']
+      ]
+      const [lvl, msg] = events[Math.floor(Math.random() * events.length)]
+      log(lvl, msg)
+    }, 6000)
+  )
+}
+
+// ============================================================================
+// CHAT dispatch
+// ============================================================================
+function sendChat() {
+  const box = $('#chat-box')
+  const text = box.value.trim()
+  if (!text) return
+  pushChat('USER', text)
+  box.value = ''
+  if (isOnline()) {
+    api.chat(text).catch(() => log('WARN', 'Chat dispatch failed — retry'))
+  } else {
+    setTimeout(() => {
+      const replies = [
+        { agent: 'ORCH', text: 'Acknowledged. Decomposing and assigning to the appropriate fleet member.' },
+        { agent: 'CODA', text: `Queued: "${text.slice(0, 40)}" — picking up after current batch.` },
+        { agent: 'SAGE', text: 'Noted. Adding to research backlog for triage.' }
+      ]
+      const r = replies[Math.floor(Math.random() * replies.length)]
+      pushChat(r.agent, r.text)
+    }, 900)
   }
 }
 
@@ -343,94 +408,44 @@ export function boot() {
   renderGauges()
 
   $('#active-mission').textContent = SHIP.mission
-  $('#agent-count').textContent = `${fleet.filter((a) => a.state !== 'idle').length} ACTIVE / ${fleet.length}`
 
-  seedChat(CHAT_SEED)
-  renderKanban()
-  renderItems()
-  renderScheduler()
-  renderChat()
-  renderDispatch()
-  renderGraphs(telemetry)
-  renderVault()
-  renderEmail()
-  renderCalendar()
-  renderAlerts()
-  renderHealth(logs)
-  renderReports()
+  renderAllViews()
+  renderRollup()
 
   bindNavigation()
 
   const seedLogs = [
     'INFO', 'HUD link established — all subsystems nominal',
     'OK', 'Agent fleet handshake complete (6/6)',
-    'INFO', 'Mission pipeline synced: 4 workflows loaded',
+    'INFO', 'Mission pipeline synced: workflows loaded',
     'OK', 'Galactic core scan initialized'
   ]
   for (let i = 0; i < seedLogs.length; i += 2) log(seedLogs[i], seedLogs[i + 1])
 
-  // chat send handler
   $('#chat-send').addEventListener('click', sendChat)
   $('#chat-box').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendChat()
   })
 
+  // always keep the local cosmetic clocks ticking
   setInterval(tickClock, 1000)
-  setInterval(tickTelemetry, 1200)
   setInterval(tickFuel, 1000)
-  setInterval(advanceAgents, 900)
-  setInterval(advanceWorkflows, 1400)
   setInterval(tickCoords, 1000)
 
-  setInterval(() => {
-    renderAgents()
-    renderWorkflows()
-    renderDispatch()
-    renderGraphs(telemetry)
-    renderHealth(logs)
-    $('#agent-count').textContent = `${fleet.filter((a) => a.state !== 'idle').length} ACTIVE / ${fleet.length}`
-    const bad = fleet.some((a) => a.state === 'error') || telemetry.ctx > 80
-    const sys = $('#system-status')
-    if (bad) {
-      sys.innerHTML = '<span class="status-dot warn"></span> DEGRADED OPERATIONS'
-    } else {
-      sys.innerHTML = '<span class="status-dot online"></span> ALL SYSTEMS NOMINAL'
+  // rollup + all views refresh — in ONLINE mode snapshots arrive via WS,
+  // in OFFLINE mode the sim mutates STATE; both converge on the same renders
+  setInterval(renderRollup, 1000)
+  setInterval(renderAllViews, 1800)
+
+  connect({
+    onOnline: () => {
+      stopSim()
+      log('OK', 'Orbit link established — server state active')
+    },
+    onOffline: () => {
+      startSim()
     }
-  }, 1200)
-
-  setInterval(chatAmbientLoop, 5000)
-
-  setInterval(() => {
-    if (Math.random() < 0.4) log('WARN', 'Spike detected in context load — throttling speculative token use')
-  }, 15000)
-
-  setInterval(() => {
-    const events = [
-      ['INFO', 'Heartbeat received from all fleet nodes'],
-      ['DEBUG', 'GC cycle complete · heap steady'],
-      ['OK', 'Telemetry snapshot archived to core bank'],
-      ['INFO', 'Orbital debris sweep complete — all clear']
-    ]
-    const [lvl, msg] = events[Math.floor(Math.random() * events.length)]
-    log(lvl, msg)
-  }, 6000)
-}
-
-function sendChat() {
-  const box = $('#chat-box')
-  const text = box.value.trim()
-  if (!text) return
-  pushChat('USER', text)
-  box.value = ''
-  setTimeout(() => {
-    const replies = [
-      { agent: 'ORCH', text: 'Acknowledged. Decomposing and assigning to the appropriate fleet member.' },
-      { agent: 'CODA', text: `Queued: "${text.slice(0, 40)}" — picking up after current batch.` },
-      { agent: 'SAGE', text: 'Noted. Adding to research backlog for triage.' }
-    ]
-    const r = replies[Math.floor(Math.random() * replies.length)]
-    pushChat(r.agent, r.text)
-  }, 900)
+  })
 }
 
 boot()
