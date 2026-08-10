@@ -357,11 +357,13 @@ export function renderHealth(logs) {
   const grid = $('#probe-grid')
   if (!grid) return
   grid.innerHTML = STATE.probes.map((p) => {
-    const warn = p.warnAt > 0 && p.value >= p.warnAt
+    const crit = p.critAt > 0 && p.value >= p.critAt
+    const warn = !crit && p.warnAt > 0 && p.value >= p.warnAt
+    const state = crit ? 'crit' : warn ? 'warn' : 'ok'
     return `
-  <div class="probe-cell ${warn ? 'warn' : ''}">
-    <div class="probe-name">${p.name}</div>
-    <div class="probe-val ${warn ? 'warn' : 'ok'}">${p.value}${p.unit}</div>
+  <div class="probe-cell ${crit ? 'crit' : warn ? 'warn' : ''}">
+    <div class="probe-name">${p.name}${crit ? ' ▸ CRIT' : ''}</div>
+    <div class="probe-val ${state}">${p.value}${p.unit}</div>
     <div class="probe-track"><div class="probe-fill" style="width:${p.value}%"></div></div>
   </div>`
   }).join('')

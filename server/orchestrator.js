@@ -2,6 +2,7 @@ import { Store } from './store.js'
 import { buildSeedState } from './seed.js'
 import { plan } from './planner.js'
 import { runSkill } from './skills.js'
+import { PROBES as DEFAULT_PROBES } from '../src/config.js'
 
 /**
  * ORCHESTRATOR // The core engine of the harness.
@@ -43,6 +44,26 @@ export class Orchestrator {
     // agent runtime state (kept off the persisted state objects)
     this._agentJobs = new Map() // agentName -> { job, steps, stepIndex, retries, maxAttempts, inFlight }
     this._chatWorkflows = new Map() // workflowId -> { total, done, failed }
+
+    // alert condition engine state (not persisted; recomputed from state)
+    this._alertSeq = 0
+    this._probeAlerts = new Map() // probeName -> active alert id
+    this._alertMinute = Math.floor(Date.now() / 60000)
+
+    // resume the dynamic-alert counter past any persisted dynN ids
+    for (const a of this.s.alerts) {
+      const m = /^dyn(\d+)$/.exec(a.id || '')
+      if (m) this._alertSeq = Math.max(this._alertSeq, Number(m[1]))
+    }
+
+    // normalize persisted state: backfill probe thresholds from the canonical
+    // config so older state rows pick up fields introduced later (critAt).
+    this.s.probes.forEach((p) => {
+      const def = DEFAULT_PROBES.find((d) => d.name === p.name)
+      if (!def) return
+      if (typeof p.warnAt !== 'number') p.warnAt = def.warnAt || 0
+      if (typeof p.critAt !== 'number') p.critAt = def.critAt || 0
+    })
 
     // lifecycle hooks (all no-op by default)
     this.hooks = {
@@ -233,6 +254,7 @@ export class Orchestrator {
 
   _agentCtx(a) {
     return {
+      agent: a.name,
       s: this.s,
       log: (level, msg) => this.log(level, msg),
       pushChat: (from, text) => this.pushChat(from, text),
@@ -327,6 +349,36 @@ export class Orchestrator {
     else track.failed += 1
   }
 
+  /**
+   * Mission completion → real vault artifacts. Archives a mission report doc
+   * into `state.vault` and publishes a research report entry, both surfaced by
+   * the VAULT / RESEARCH REPORTS views. Persisted via the store.
+   */
+  _logMission(name) {
+    const ts = Date.now()
+    this.s.vault.unshift({
+      id: `v${ts}`,
+      title: `Mission report — ${name}`,
+      type: 'REPORT',
+      tags: ['MISSION', 'ORCH'],
+      size: '24KB',
+      updated: 'just now',
+      agent: 'ORCH'
+    })
+    if (this.s.vault.length > 30) this.s.vault.pop()
+    this.s.reports.unshift({
+      id: `r${ts}`,
+      title: `${name} — run summary`,
+      author: 'ORCH',
+      status: 'draft',
+      tags: ['ORCH', 'MISSION'],
+      updated: 'just now',
+      abstract: `Auto-generated on mission completion. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged to the core bank.`
+    })
+    if (this.s.reports.length > 12) this.s.reports.pop()
+    this.log('OK', `vault: mission report archived — ${name}`)
+  }
+
   // ---- workflows / missions ---- //
   tickWorkflows() {
     const { workflows } = this.s
@@ -343,8 +395,9 @@ export class Orchestrator {
         if (w.state !== 'done' && done >= total) {
           w.state = 'done'
           this.log('OK', `Workflow complete: ${w.name}`)
-          this.pushChat('ORCH', `Mission complete: ${w.name}. Logged to vault.`)
+          this.pushChat('ORCH', `Mission complete: ${w.name}. Report archived to vault.`)
           this.s.meta.tokenTotal += 5
+          this._logMission(w.name)
         }
         changed = true
         return
@@ -357,8 +410,9 @@ export class Orchestrator {
         if (w.progress >= 100) {
           w.state = 'done'
           this.log('OK', `Workflow complete: ${w.name}`)
-          this.pushChat('ORCH', `Mission complete: ${w.name}. Logged to vault.`)
+          this.pushChat('ORCH', `Mission complete: ${w.name}. Report archived to vault.`)
           this.s.meta.tokenTotal += 5
+          this._logMission(w.name)
         }
       } else if (w.state === 'queued' && Math.random() < 0.02) {
         w.state = 'running'
@@ -377,12 +431,80 @@ export class Orchestrator {
     t.ctx = Math.max(15, Math.min(92, t.ctx + rand(-1.5, 1.5)))
     t.token = Math.min(100, t.token + 0.05)
     this.s.meta.tokenTotal += rand(0.4, 1.6)
-    // probes drift
+    // probes drift + condition engine (raise / escalate / clear on thresholds)
     this.s.probes.forEach((p) => {
       if (p.warnAt === 0) return
       p.value = Math.max(5, Math.min(100, p.value + rand(-2.2, 2.2)))
+      this._checkProbe(p)
     })
+    this._refreshAlertTimes()
     this.store.markDirty()
+  }
+
+  /**
+   * Alert condition engine. Raises a `warn` alert when a probe crosses its
+   * `warnAt` threshold, escalates to `crit` past `critAt`, and clears (acks)
+   * the alert with hysteresis once the probe falls 3pts under `warnAt`.
+   */
+  _checkProbe(p) {
+    const activeId = this._probeAlerts.get(p.name)
+    const overCrit = p.critAt > 0 && p.value >= p.critAt
+    const overWarn = p.value >= p.warnAt
+    if (overWarn) {
+      if (activeId) {
+        const a = this.s.alerts.find((x) => x.id === activeId)
+        if (a && overCrit && a.sev !== 'crit') {
+          a.sev = 'crit'
+          a.title = `${p.name} critical threshold crossed`
+          a.detail = `${p.name} at ${p.value}${p.unit} (crit ${p.critAt}${p.unit}).`
+          this.log('WARN', `ALERT ESCALATED crit: ${p.name} at ${p.value}${p.unit}`)
+          this.pushChat('ORCH', `ALERT ESCALATED · ${p.name} CRITICAL at ${p.value}${p.unit}`)
+        }
+        return
+      }
+      const sev = overCrit ? 'crit' : 'warn'
+      const id = this._nextAlertId()
+      this.s.alerts.unshift({
+        id,
+        sev,
+        source: p.name,
+        title: overCrit ? `${p.name} critical threshold crossed` : `${p.name} above warning threshold`,
+        detail: `${p.name} at ${p.value}${p.unit} (threshold ${overCrit ? p.critAt : p.warnAt}${p.unit}).`,
+        time: 'just now',
+        raisedAt: Date.now()
+      })
+      if (this.s.alerts.length > 20) this.s.alerts.pop()
+      this._probeAlerts.set(p.name, id)
+      this.log('WARN', `ALERT ${sev}: ${p.name} at ${p.value}${p.unit}`)
+      if (sev === 'crit') this.pushChat('ORCH', `ALERT ${sev.toUpperCase()} · ${p.name} at ${p.value}${p.unit}`)
+      return
+    }
+    if (activeId && p.value < p.warnAt - 3) {
+      const a = this.s.alerts.find((x) => x.id === activeId)
+      if (a) {
+        a.acked = true
+        a.time = 'resolved'
+        delete a.raisedAt
+      }
+      this._probeAlerts.delete(p.name)
+      this.log('INFO', `alert cleared: ${p.name} back under threshold`)
+    }
+  }
+
+  _nextAlertId() {
+    return `dyn${++this._alertSeq}`
+  }
+
+  /** Refresh relative "Xm ago" labels once per minute for raised alerts. */
+  _refreshAlertTimes() {
+    const nowMin = Math.floor(Date.now() / 60000)
+    if (nowMin === this._alertMinute) return
+    this._alertMinute = nowMin
+    for (const a of this.s.alerts) {
+      if (!a.raisedAt || a.acked) continue
+      const mins = Math.max(1, Math.floor((Date.now() - a.raisedAt) / 60000))
+      a.time = `${mins}m ago`
+    }
   }
 
   // ---- scheduler ---- //
@@ -431,7 +553,7 @@ export class Orchestrator {
   async handleChat(text) {
     this.pushChat('USER', text)
     const steps = await plan(text)
-    const name = text.toUpperCase().slice(0, 28)
+    const name = text.toUpperCase().slice(0, 28).trim()
     const wf = {
       id: `wf${Date.now()}`,
       name,

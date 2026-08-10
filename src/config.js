@@ -259,10 +259,10 @@ export const REPORTS = [
    SYSTEM HEALTH (additional probes)
    ============================================================================ */
 export const PROBES = [
-  { name: 'INGRESS', value: 82, unit: '%', warnAt: 75 },
-  { name: 'SCHEDULER', value: 100, unit: '%', warnAt: 0 },
-  { name: 'VAULT', value: 64, unit: '%', warnAt: 85 },
-  { name: 'CORE BANK', value: 71, unit: '%', warnAt: 80 },
-  { name: 'MODEL API', value: 55, unit: '%', warnAt: 70 },
-  { name: 'RELEASE', value: 100, unit: '%', warnAt: 0 }
+  { name: 'INGRESS', value: 82, unit: '%', warnAt: 75, critAt: 92 },
+  { name: 'SCHEDULER', value: 100, unit: '%', warnAt: 0, critAt: 0 },
+  { name: 'VAULT', value: 64, unit: '%', warnAt: 85, critAt: 95 },
+  { name: 'CORE BANK', value: 71, unit: '%', warnAt: 80, critAt: 92 },
+  { name: 'MODEL API', value: 55, unit: '%', warnAt: 70, critAt: 90 },
+  { name: 'RELEASE', value: 100, unit: '%', warnAt: 0, critAt: 0 }
 ]

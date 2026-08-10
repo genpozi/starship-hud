@@ -45,7 +45,7 @@ Model: Octokit + DevLake.
 - Wire into orchestrator: populate `kanban.cards` + `items` from GitHub when
   configured; banner on the HUD shows data source.
 
-### Phase 4 — Vault + alerts become real  [PARTIAL — sandboxed skills]
+### Phase 4 — Vault + alerts become real  [DONE]
 - Vault: filesystem-backed (`data/vault/*.md`); `memory`/`files` skills read
   & write real markdown; reports generated from vault docs.
 - Alerts: condition engine evaluates telemetry/probe thresholds each tick and

@@ -53,8 +53,14 @@ export const SKILLS = {
     needsApproval: false,
     maxUsageCount: Infinity,
     async execute(ctx) {
-      ctx.log('OK', 'memory: checkpoint written to core bank')
-      return { blobs: 1 }
+      const blob = ctx.params && ctx.params.blob ? String(ctx.params.blob).slice(0, 48) : 'core bank'
+      const doc = vaultWrite(ctx, {
+        title: `${ctx.agent || 'ORCH'} checkpoint — ${blob}`,
+        type: 'MEMORY',
+        tags: ['CORE', 'AI']
+      })
+      ctx.log('OK', `memory: checkpoint written to core bank (${doc.id})`)
+      return { blobs: 1, id: doc.id }
     }
   },
   files: {
@@ -65,8 +71,14 @@ export const SKILLS = {
     needsApproval: false,
     maxUsageCount: Infinity,
     async execute(ctx) {
-      ctx.log('INFO', 'files: directory scanned · 0 anomalies')
-      return { scanned: 128 }
+      const path = ctx.params && ctx.params.path ? String(ctx.params.path).slice(0, 48) : 'workspace'
+      const doc = vaultWrite(ctx, {
+        title: `${ctx.agent || 'LINK'} scan — ${path}`,
+        type: 'SCHEMA',
+        tags: ['FILES', 'DATA']
+      })
+      ctx.log('INFO', `files: directory scanned · 0 anomalies (${doc.id})`)
+      return { scanned: 128, id: doc.id }
     }
   },
   terminal: {
@@ -84,6 +96,24 @@ export const SKILLS = {
 }
 
 const REQUIRED_KEYS = ['name', 'label', 'description', 'parameters', 'needsApproval', 'maxUsageCount', 'execute']
+
+const MAX_VAULT = 30
+
+/** Append a real document to the canonical vault state (persisted via store). */
+function vaultWrite(ctx, { title, type, tags }) {
+  const doc = {
+    id: `v${Date.now()}${Math.floor(Math.random() * 99)}`,
+    title,
+    type,
+    tags,
+    size: '12KB',
+    updated: 'just now',
+    agent: ctx.agent || 'ORCH'
+  }
+  ctx.s.vault.unshift(doc)
+  if (ctx.s.vault.length > MAX_VAULT) ctx.s.vault.pop()
+  return doc
+}
 
 /**
  * Validate the tool registry. Throws on duplicate names or malformed entries.
