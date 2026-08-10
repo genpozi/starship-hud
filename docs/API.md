@@ -4,9 +4,19 @@ Base URL: `http://localhost:3001` (or the proxied origin in dev/preview).
 
 ## WebSocket
 
+Realtime transport: full snapshot on connect + monotonic `seq` + deltas for changed top-level keys. Snapshots do **not** advance the global `seq` (prevents resync churn). The client verifies delta continuity and requests a resync on any gap.
+
 | Path | Frames |
 |------|--------|
-| `/ws` | On connect: full `{type:'state', state}` snapshot. Then ~every 1.5s `{type:'state'}` plus `{type:'chat'}` when the fleet chat grows. |
+| `/ws` | On connect: `{type:'state', seq, state}` snapshot. Then `{type:'delta', seq, changes:{<topLevelKey>:<newValue>}}` for each changed top-level key. `{type:'resync', seq, state}` when the client reports a gap. Server `{type:'ping'}` every ~15s; client replies `{type:'pong'}`. |
+
+Client frame handling in `src/api.js`:
+- `state` → apply snapshot (rebuild full store)
+- `delta` → `seq === expected ? applyDelta : send resync`
+- `resync` → apply authoritative snapshot
+- `ping` → reply `pong`
+
+Events flow through the store: `task:start`/`task:finish` update the agent's `state`; `tool:start`/`tool:finish` advance the workflow `curStep` and bump `progress`. Empty delta frames are skipped.
 
 ## REST
 

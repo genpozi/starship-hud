@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Orchestrator } from './orchestrator.js'
+import { validateSkills } from './skills.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 3001
@@ -20,6 +21,9 @@ const orchestrator = new Orchestrator({
     })
   }
 })
+
+// Validate the tool registry once at startup; a broken registry is fatal.
+validateSkills()
 
 app.use(express.json())
 
@@ -83,11 +87,73 @@ app.get(/^\/(?!api).*/, (_req, res) => {
   res.sendFile(join(dist, 'index.html'))
 })
 
+// ============================================================================
+// REALTIME WS — snapshot on connect, deltas after, ping/pong heartbeat.
+// ============================================================================
 wss.on('connection', (ws) => {
-  ws.send(JSON.stringify({ type: 'state', state: orchestrator.s }))
+  ws.missedPongs = 0
+  // authoritative full snapshot on connect (implicit resync on reconnect)
+  orchestrator.snapshot(ws)
+
+  ws.on('message', (raw) => {
+    let msg
+    try {
+      msg = JSON.parse(raw)
+    } catch {
+      return
+    }
+    if (!msg || typeof msg !== 'object') return
+    if (msg.type === 'pong') {
+      ws.missedPongs = 0
+    } else if (msg.type === 'ping') {
+      // echo pong so a client-side liveness probe gets a reply
+      ws.send(JSON.stringify({ type: 'pong' }))
+    } else if (msg.type === 'resync') {
+      // client detected a seq gap — re-send the current snapshot
+      orchestrator.snapshot(ws)
+    }
+  })
 })
 
+// heartbeat: app-level {type:'ping'} every 15s per client; terminate clients
+// that miss 3 consecutive pongs (half-open detection).
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState !== 1) return
+    ws.missedPongs = (ws.missedPongs || 0) + 1
+    if (ws.missedPongs > 3) {
+      ws.terminate()
+      return
+    }
+    ws.send(JSON.stringify({ type: 'ping' }))
+  })
+}, 15000)
+
+// ============================================================================
+// OPTIONAL GITHUB DATA SOURCE — self-guards on missing token; the server must
+// never crash if the module is missing or broken.
+// ============================================================================
+async function bootstrapGithub() {
+  try {
+    const github = await import('./github.js')
+    if (github && typeof github.startGithubSync === 'function') {
+      github.startGithubSync({ orchestrator })
+    }
+  } catch (err) {
+    console.warn('[orbit] github sync unavailable:', err.message)
+  }
+}
+
 orchestrator.start()
+bootstrapGithub()
+
 server.listen(PORT, () => {
   console.log(`STELLARIS-7 orbit server :: http://localhost:${PORT}`)
+})
+
+process.on('SIGTERM', () => {
+  clearInterval(heartbeat)
+  orchestrator.stop()
+  wss.clients.forEach((c) => c.terminate())
+  server.close(() => process.exit(0))
 })

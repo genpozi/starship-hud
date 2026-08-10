@@ -1,17 +1,28 @@
 /**
- * API // WebSocket state mirror + REST mutations to the orbit server.
+ * API // WebSocket realtime mirror + REST mutations to the orbit server.
  *
- * connect() opens a same-origin WS. Every server snapshot is applied to the
- * client STATE via applyServerState. Mutations fire REST calls; the HUD then
- * re-renders from whatever state the server broadcasts back.
+ * Protocol (snapshot/delta/resync/ping/pong):
+ *   - Server sends a full `snapshot` on (re)connect, then `delta` frames for
+ *     changed top-level slices. Seq is monotonic; a gap triggers `resync`.
+ *   - Server sends `{type:'ping'}` every 15s; we answer `{type:'pong'}`.
+ *   - Reconnects use exponential backoff (500ms → 30s cap).
+ * Mutations fire REST calls; the HUD then re-renders from whatever state the
+ * server broadcasts back.
  */
 
-import { applyServerState } from './store.js'
+import { applyServerState, applyDelta } from './store.js'
 
-const RECONNECT_MS = 3000
+const BASE_BACKOFF_MS = 500
+const MAX_BACKOFF_MS = 30000
+const CONNECT_TIMEOUT_MS = 4000
 let ws = null
 let closedByUs = false
 let online = false
+let lastSeq = 0
+let backoffMs = BASE_BACKOFF_MS
+let reconnectTimer = null
+// link state: 'connecting' (attempt in flight) | 'online' | 'offline'
+let link = 'connecting'
 
 async function post(path, body) {
   const res = await fetch(path, {
@@ -37,34 +48,93 @@ export function isOnline() {
   return online
 }
 
+/** 'connecting' | 'online' | 'offline' — used for the HUD link indicator. */
+export function linkState() {
+  return link
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
+}
+
 export function connect({ onOnline, onOffline } = {}) {
+  link = 'connecting'
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   ws = new WebSocket(`${proto}://${location.host}/ws`)
 
+  // connect timeout: if the link hasn't opened within 4s the orbit is likely
+  // unreachable — force-close so onclose fires and the offline sim engages fast
+  const connectTimer = setTimeout(() => {
+    if (ws && ws.readyState !== WebSocket.OPEN) ws.close()
+  }, CONNECT_TIMEOUT_MS)
+
   ws.onopen = () => {
+    clearTimeout(connectTimer)
     online = true
+    link = 'online'
+    backoffMs = BASE_BACKOFF_MS
     if (onOnline) onOnline()
   }
   ws.onmessage = (ev) => {
+    let msg
     try {
-      const msg = JSON.parse(ev.data)
-      if (msg.type === 'state') applyServerState(msg.state)
+      msg = JSON.parse(ev.data)
     } catch {
-      /* ignore malformed frames */
+      return
+    }
+    if (!msg || typeof msg !== 'object' || !msg.type) return
+    switch (msg.type) {
+      case 'snapshot':
+        // authoritative full state — resets the seq baseline
+        lastSeq = msg.seq || 0
+        applyServerState(msg.state)
+        break
+      case 'delta':
+        if (msg.seq !== lastSeq + 1) {
+          // lost frames — ask for a fresh snapshot and ignore this delta
+          send({ type: 'resync' })
+          break
+        }
+        lastSeq = msg.seq
+        applyDelta(msg.updates)
+        break
+      case 'ping':
+        send({ type: 'pong' })
+        break
+      case 'pong':
+        break
+      case 'event':
+      case 'chat':
+      case 'state':
+        // hint-only frames; the delta carries authoritative truth
+        break
+      default:
+        break
     }
   }
   ws.onclose = () => {
     if (closedByUs) return
     online = false
+    link = 'offline'
     if (onOffline) onOffline()
-    setTimeout(() => connect({ onOnline, onOffline }), RECONNECT_MS)
+    scheduleReconnect({ onOnline, onOffline })
   }
   ws.onerror = () => ws.close()
   return ws
 }
 
+function scheduleReconnect(opts) {
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = setTimeout(() => {
+    connect(opts)
+  }, backoffMs)
+  backoffMs = Math.min(MAX_BACKOFF_MS, backoffMs * 2)
+}
+
 export function disconnect() {
   closedByUs = true
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = null
   if (ws) ws.close()
   online = false
 }

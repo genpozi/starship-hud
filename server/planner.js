@@ -10,7 +10,34 @@
  * environment — see .env.example.
  */
 
+import { SKILLS } from './skills.js'
+
 const hasLLM = () => Boolean(process.env.USER_LLM_API_KEY)
+
+const VALID_TOOLS = new Set(Object.keys(SKILLS))
+
+/**
+ * Sanitize planner output: coerce shape and map any unknown tool names onto
+ * the safe `search` fallback so the step machine never runs an unregistered
+ * tool.
+ */
+function normalizeSteps(steps) {
+  if (!Array.isArray(steps)) return []
+  const seen = new Set()
+  const out = []
+  for (const s of steps) {
+    if (!s || !s.title) continue
+    const title = String(s.title).trim()
+    if (!title || seen.has(title)) continue
+    seen.add(title)
+    out.push({
+      title,
+      agent: String(s.agent || 'ORCH').toUpperCase(),
+      tool: VALID_TOOLS.has(s.tool) ? s.tool : 'search'
+    })
+  }
+  return out
+}
 
 function heuristicPlan(goal) {
   const g = goal.toLowerCase()
@@ -78,10 +105,10 @@ async function llmPlan(goal) {
 export async function plan(goal) {
   if (hasLLM()) {
     try {
-      return await llmPlan(goal)
+      return normalizeSteps(await llmPlan(goal))
     } catch (err) {
       console.warn('[planner] LLM failed, using heuristic:', err.message)
     }
   }
-  return heuristicPlan(goal)
+  return normalizeSteps(heuristicPlan(goal))
 }

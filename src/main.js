@@ -2,7 +2,7 @@ import './style.css'
 import { createGalaxy } from './galaxy.js'
 import { SHIP, TOOLS, AGENDA } from './config.js'
 import { STATE, applyServerState } from './store.js'
-import { connect, api, isOnline } from './api.js'
+import { connect, api, isOnline, linkState } from './api.js'
 import {
   renderKanban,
   renderItems,
@@ -246,9 +246,16 @@ function renderRollup() {
   $('#agent-count').textContent = `${STATE.agents.filter((a) => a.state !== 'idle').length} ACTIVE / ${STATE.agents.length}`
   const sys = $('#system-status')
   const bad = STATE.agents.some((a) => a.state === 'error') || STATE.telemetry.ctx > 80
-  sys.innerHTML = bad
-    ? '<span class="status-dot warn"></span> DEGRADED OPERATIONS'
-    : `<span class="status-dot ${isOnline() ? 'online' : 'warn'}"></span> ${isOnline() ? 'ALL SYSTEMS NOMINAL' : 'STANDBY — OFFLINE SIM'}`
+  const src = `SRC: ${(STATE.meta.dataSource || 'seed').toUpperCase()}`
+  if (bad) {
+    sys.innerHTML = `<span class="status-dot warn"></span> DEGRADED OPERATIONS · ${src}`
+  } else if (linkState() === 'online') {
+    sys.innerHTML = `<span class="status-dot online"></span> ALL SYSTEMS NOMINAL · ${src}`
+  } else if (linkState() === 'connecting') {
+    sys.innerHTML = '<span class="status-dot warn"></span> LINKING // ORBIT UPLINK'
+  } else {
+    sys.innerHTML = '<span class="status-dot warn"></span> STANDBY — OFFLINE SIM'
+  }
 }
 
 function renderAllViews() {

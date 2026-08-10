@@ -66,3 +66,20 @@ export function applyServerState(snap) {
     STATE.calendar = { ...snap.calendar, day: localDay }
   }
 }
+
+/**
+ * Apply a delta frame: assign every changed top-level key into STATE.
+ * Local-only UI state (calendar.day selection) is preserved when present.
+ */
+export function applyDelta(updates) {
+  if (!updates || typeof updates !== 'object') return
+  const localDay = STATE.calendar.day
+  Object.keys(updates).forEach((k) => {
+    if (updates[k] === undefined) return
+    if (k === 'calendar') {
+      STATE.calendar = { ...updates.calendar, day: localDay }
+    } else {
+      STATE[k] = updates[k]
+    }
+  })
+}

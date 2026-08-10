@@ -8,18 +8,52 @@ import { runSkill } from './skills.js'
  *
  * Owns the canonical state (persisted via Store), advances agents and
  * workflows on a heartbeat, evaluates the scheduler, answers chat commands,
- * and pushes snapshots to all connected HUD clients.
+ * and streams snapshot/delta frames to all connected HUD clients.
+ *
+ * REALTIME TRANSPORT
+ *   Snapshot-on-connect, deltas after. A single shared monotonic `_seq` and a
+ *   `_sentRef` (JSON of every top-level slice last emitted) drive the diff;
+ *   clients that fall behind request a resync and get a fresh snapshot.
+ *
+ * AGENT RUNTIME
+ *   Dispatch jobs that carry `steps: [{tool,title}]` are executed by a step
+ *   machine (one step every ~2-3 ticks, progress = steps completed). Tool
+ *   calls fire typed `tool:start`/`tool:finish` events; jobs complete or fail
+ *   bounded by maxAttempts. Seed jobs with no steps keep the classic simulated
+ *   progress advance so the HUD stays alive with no load.
  */
 
 const TICK_MS = 1000
 const AGENT_SPEED = { ORCH: 1.6, CODA: 1.3, PILOT: 1.5, SAGE: 1.1, LINK: 1.8, NUDGE: 0.4 }
 const rand = (min, max) => min + Math.random() * (max - min)
+const noop = () => {}
+const STEP_ODDS = 0.4 // ~one step every 2.5 ticks
+const DEFAULT_MAX_ATTEMPTS = 3
 
 export class Orchestrator {
   constructor({ onBroadcast }) {
     this.store = new Store(buildSeedState)
     this.onBroadcast = onBroadcast
     this.timers = []
+
+    // realtime protocol state
+    this._seq = 0
+    this._sentRef = null
+
+    // agent runtime state (kept off the persisted state objects)
+    this._agentJobs = new Map() // agentName -> { job, steps, stepIndex, retries, maxAttempts, inFlight }
+    this._chatWorkflows = new Map() // workflowId -> { total, done, failed }
+
+    // lifecycle hooks (all no-op by default)
+    this.hooks = {
+      onRunStart: noop,
+      onTurnStart: noop,
+      onToolCall: noop,
+      onToolResult: noop,
+      onRunEnd: noop
+    }
+
+    this.s.meta.dataSource = this.s.meta.dataSource || 'seed'
   }
 
   get s() {
@@ -45,13 +79,86 @@ export class Orchestrator {
     if (this.onBroadcast) this.onBroadcast(msg)
   }
 
+  /**
+   * Emit a typed event frame to all clients. Events are hint-only (the delta
+   * carries the authoritative state) so they never carry a seq and never
+   * advance the shared seq counter.
+   */
+  _emit(kind, fields) {
+    const frame = { type: 'event', kind, ...fields, ts: Date.now() }
+    this.broadcast(frame)
+    return frame
+  }
+
+  // ---- realtime transport ---- //
+  _bumpSeq() {
+    return ++this._seq
+  }
+
+  _refKey(key) {
+    try {
+      return JSON.stringify(this.s[key])
+    } catch {
+      return null
+    }
+  }
+
+  _allKeys() {
+    return Object.keys(this.s)
+  }
+
+  /**
+   * Send a full authoritative snapshot to `client` (or return it). Resets the
+   * shared baseline so subsequent deltas diff against this snapshot.
+   *
+   * NOTE: snapshots do NOT advance the global seq. Only deltas bump `_seq`, so
+   * delta frames stay strictly contiguous for EVERY client regardless of how
+   * many connect or resync (a client that bumps seq on resync would break the
+   * other clients' contiguity and cause a resync cascade).
+   */
+  snapshot(client) {
+    const seq = this._seq
+    this._sentRef = {}
+    for (const key of this._allKeys()) this._sentRef[key] = this._refKey(key)
+    const frame = { type: 'snapshot', seq, state: this.s }
+    if (client && typeof client.send === 'function') client.send(JSON.stringify(frame))
+    return frame
+  }
+
+  /**
+   * Diff the current state against `_sentRef` and broadcast only the changed
+   * top-level slices as a delta frame. Skips empty frames (push on change).
+   */
+  broadcastDelta() {
+    const updates = {}
+    if (!this._sentRef) this._sentRef = {}
+    for (const key of this._allKeys()) {
+      const current = this._refKey(key)
+      if (this._sentRef[key] !== current) {
+        updates[key] = this.s[key]
+        this._sentRef[key] = current
+      }
+    }
+    if (Object.keys(updates).length === 0) return this._seq
+    const seq = this._bumpSeq()
+    this.broadcast({ type: 'delta', seq, updates })
+    return seq
+  }
+
+  /** Re-send a full snapshot to a client that fell out of sync. */
+  requestResync(client) {
+    return this.snapshot(client)
+  }
+
+  // ---- lifecycle ---- //
   start() {
+    this.hooks.onRunStart({ ts: Date.now() })
     this.log('INFO', 'Orchestrator online — all subsystems nominal')
     this.timers.push(setInterval(() => this.tickAgents(), TICK_MS))
     this.timers.push(setInterval(() => this.tickWorkflows(), 1400))
     this.timers.push(setInterval(() => this.tickTelemetry(), 1200))
     this.timers.push(setInterval(() => this.tickScheduler(), 2000))
-    this.timers.push(setInterval(() => this.broadcastState(), 1500))
+    this.timers.push(setInterval(() => this.broadcastDelta(), 1500))
     this.timers.push(setInterval(() => this.ambientChat(), 9000))
     return this
   }
@@ -59,10 +166,8 @@ export class Orchestrator {
   stop() {
     this.timers.forEach(clearInterval)
     this.timers = []
-  }
-
-  broadcastState() {
-    this.broadcast({ type: 'state', state: this.s })
+    this._agentJobs.clear()
+    this._chatWorkflows.clear()
   }
 
   // ---- agents ---- //
@@ -70,19 +175,25 @@ export class Orchestrator {
     const { agents } = this.s
     let changed = false
     agents.forEach((a) => {
+      this.hooks.onTurnStart({ agent: a.name, state: a.state })
       if (a.state === 'idle') {
-        // pick up from dispatch queue if available
         const job = this.s.dispatch.find((d) => d.state === 'waiting' && d.agent === a.name)
         if (job) {
-          job.state = 'assigned'
-          a.state = 'busy'
-          a.task = job.task
-          a.progress = 4
+          this._pickupJob(a, job)
           changed = true
-          this.log('INFO', `${a.name} picked up: ${job.task}`)
         }
         return
       }
+      const ctxObj = this._agentJobs.get(a.name)
+      if (ctxObj && ctxObj.steps.length && !ctxObj.inFlight) {
+        // step machine: complete one step every ~2-3 ticks
+        if (Math.random() < STEP_ODDS) {
+          this._advanceStep(a, ctxObj)
+          changed = true
+        }
+        return
+      }
+      // no job steps (seed/manual dispatch): classic simulated progress
       const speed = AGENT_SPEED[a.id] || 1
       a.progress = Math.min(100, a.progress + rand(0.4, 1.8) * speed)
       a.tokens += rand(0.05, 0.4)
@@ -91,9 +202,9 @@ export class Orchestrator {
         const done = a.task
         this.log('OK', `${a.name} completed: ${done}`)
         this.pushChat(a.name, `Task complete: ${done}`)
-        // retire the dispatch job
         const job = this.s.dispatch.find((d) => d.task === done)
         if (job) job.state = 'done'
+        this.hooks.onRunEnd({ agent: a.name, task: done, ok: true })
         a.state = 'idle'
         a.task = 'Standing by'
         a.progress = 0
@@ -103,11 +214,141 @@ export class Orchestrator {
     if (changed) this.store.markDirty()
   }
 
+  _pickupJob(a, job) {
+    job.state = 'assigned'
+    a.state = 'busy'
+    a.task = job.task
+    a.progress = 4
+    this.log('INFO', `${a.name} picked up: ${job.task}`)
+    this._emit('task:start', { agent: a.name, task: job.task })
+    this._agentJobs.set(a.name, {
+      job,
+      steps: Array.isArray(job.steps) && job.steps.length ? job.steps : [],
+      stepIndex: 0,
+      retries: 0,
+      maxAttempts: job.maxAttempts || DEFAULT_MAX_ATTEMPTS,
+      inFlight: false
+    })
+  }
+
+  _agentCtx(a) {
+    return {
+      s: this.s,
+      log: (level, msg) => this.log(level, msg),
+      pushChat: (from, text) => this.pushChat(from, text),
+      broadcast: (msg) => this.broadcast(msg)
+    }
+  }
+
+  _advanceStep(a, ctxObj) {
+    const { job, steps } = ctxObj
+    if (ctxObj.stepIndex >= steps.length) {
+      this._completeJob(a, ctxObj)
+      return
+    }
+    const step = steps[ctxObj.stepIndex]
+    const tool = step.tool || 'search'
+    const t0 = Date.now()
+    ctxObj.inFlight = true
+    this.hooks.onToolCall({ agent: a.name, tool, step: step.title })
+    this._emit('tool:start', { agent: a.name, tool, step: step.title })
+    runSkill(tool, this._agentCtx(a))
+      .then((res) => {
+        const ms = Date.now() - t0
+        ctxObj.inFlight = false
+        const ok = !(res && res.error)
+        this.hooks.onToolResult({ agent: a.name, tool, ok, ms })
+        this._emit('tool:finish', { agent: a.name, tool, ok, ms })
+        if (!ok) {
+          ctxObj.retries += 1
+          this.log('WARN', `${a.name} tool "${tool}" returned error: ${res.error}`)
+          this.store.markDirty()
+          if (ctxObj.retries > ctxObj.maxAttempts) {
+            this._failJob(a, ctxObj)
+            return
+          }
+          return
+        }
+        ctxObj.retries = 0
+        ctxObj.stepIndex += 1
+        a.progress = Math.round((ctxObj.stepIndex / steps.length) * 100)
+        a.tokens += 0.4
+        this.store.markDirty()
+        if (ctxObj.stepIndex >= steps.length) this._completeJob(a, ctxObj)
+      })
+      .catch((err) => {
+        const ms = Date.now() - t0
+        ctxObj.inFlight = false
+        this.hooks.onToolResult({ agent: a.name, tool, ok: false, ms })
+        this._emit('tool:finish', { agent: a.name, tool, ok: false, ms })
+        ctxObj.retries += 1
+        this.log('WARN', `${a.name} tool "${tool}" threw: ${err.message}`)
+        this.store.markDirty()
+        if (ctxObj.retries > ctxObj.maxAttempts) this._failJob(a, ctxObj)
+      })
+  }
+
+  _completeJob(a, ctxObj) {
+    const { job, steps } = ctxObj
+    a.progress = 100
+    this.log('OK', `${a.name} completed: ${job.task}`)
+    a.tokens += steps.length * 0.4
+    this.s.meta.tokenTotal += 2
+    this.pushChat(a.name, `Task complete: ${job.task}`)
+    this._trackJobDone(job, true)
+    this._agentJobs.delete(a.name)
+    a.state = 'idle'
+    a.task = 'Standing by'
+    a.progress = 0
+    job.state = 'done'
+    this.hooks.onRunEnd({ agent: a.name, task: job.task, ok: true })
+    this._emit('task:finish', { agent: a.name, task: job.task, ok: true })
+  }
+
+  _failJob(a, ctxObj) {
+    const { job } = ctxObj
+    this.log('WARN', `${a.name} failed job: ${job.task} (max attempts reached)`)
+    this.pushChat('ORCH', `${a.name} job failed: ${job.task}`)
+    this._trackJobDone(job, false)
+    this._agentJobs.delete(a.name)
+    a.state = 'idle'
+    a.task = 'Standing by'
+    a.progress = 0
+    job.state = 'failed'
+    this.hooks.onRunEnd({ agent: a.name, task: job.task, ok: false })
+    this._emit('task:finish', { agent: a.name, task: job.task, ok: false })
+  }
+
+  _trackJobDone(job, ok) {
+    if (!job || !job.wfId) return
+    const track = this._chatWorkflows.get(job.wfId)
+    if (!track) return
+    if (ok) track.done += 1
+    else track.failed += 1
+  }
+
   // ---- workflows / missions ---- //
   tickWorkflows() {
     const { workflows } = this.s
     let changed = false
     workflows.forEach((w) => {
+      // chat-created workflows derive progress from completed jobs
+      if (this._chatWorkflows.has(w.id)) {
+        const track = this._chatWorkflows.get(w.id)
+        const total = track.total || 1
+        const done = Math.min(total, track.done + track.failed)
+        w.progress = Math.round((done / total) * 100)
+        w.curStep = done
+        w.steps = Array.from({ length: total }, (_, i) => (i < done ? 1 : 0))
+        if (w.state !== 'done' && done >= total) {
+          w.state = 'done'
+          this.log('OK', `Workflow complete: ${w.name}`)
+          this.pushChat('ORCH', `Mission complete: ${w.name}. Logged to vault.`)
+          this.s.meta.tokenTotal += 5
+        }
+        changed = true
+        return
+      }
       if (w.state === 'running') {
         w.progress = Math.min(100, w.progress + rand(0.15, 0.7))
         w.curStep = Math.min(w.steps.length - 1, Math.floor((w.progress / 100) * w.steps.length))
@@ -146,7 +387,6 @@ export class Orchestrator {
 
   // ---- scheduler ---- //
   tickScheduler() {
-    const now = new Date()
     this.s.schedules.forEach((job) => {
       // every job roughly checks if its minute window has passed; emulate next-run
       if (Math.random() < 0.01) {
@@ -185,7 +425,8 @@ export class Orchestrator {
 
   /**
    * Operator chat command. The orchestrator plans the goal into steps,
-   * creates a workflow and dispatches agents.
+   * creates a workflow and queues one job per step — the step machine picks
+   * them up (no setTimeout handoff).
    */
   async handleChat(text) {
     this.pushChat('USER', text)
@@ -202,13 +443,18 @@ export class Orchestrator {
       eta: `${Math.round(steps.length * 4)} min`
     }
     this.s.workflows.unshift(wf)
+    this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0 })
     this.pushChat('ORCH', `Plan generated — ${steps.length} steps. Dispatching ${wf.agents} agent(s).`)
-    steps.forEach((step, i) => {
-      setTimeout(() => {
-        this.s.dispatch.push({ task: step.title, agent: step.agent, state: 'waiting' })
-        this.log('INFO', `${step.agent} queued: ${step.title}`)
-        runSkill(step.tool, this).then(() => this.store.markDirty())
-      }, i * 2500)
+    steps.forEach((step) => {
+      this.s.dispatch.push({
+        task: step.title,
+        agent: step.agent,
+        state: 'waiting',
+        steps: [{ tool: step.tool, title: step.title }],
+        maxAttempts: DEFAULT_MAX_ATTEMPTS,
+        wfId: wf.id
+      })
+      this.log('INFO', `${step.agent} queued: ${step.title}`)
     })
     this.store.markDirty()
     return { ok: true, steps: steps.length }
