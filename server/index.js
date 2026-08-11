@@ -144,8 +144,24 @@ async function bootstrapGithub() {
   }
 }
 
+// ============================================================================
+// OPTIONAL HERMES DATA SOURCE — bridge to a running Hermes WebUI
+// (http://127.0.0.1:8787 by default). Self-guards on missing config.
+// ============================================================================
+async function bootstrapHermes() {
+  try {
+    const hermes = await import('./hermes.js')
+    if (hermes && typeof hermes.startHermesSync === 'function') {
+      hermes.startHermesSync({ orchestrator })
+    }
+  } catch (err) {
+    console.warn('[orbit] hermes link unavailable:', err.message)
+  }
+}
+
 orchestrator.start()
 bootstrapGithub()
+bootstrapHermes()
 
 server.listen(PORT, () => {
   console.log(`STELLARIS-7 orbit server :: http://localhost:${PORT}`)

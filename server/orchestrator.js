@@ -252,13 +252,16 @@ export class Orchestrator {
     })
   }
 
-  _agentCtx(a) {
+  _agentCtx(a, job, step) {
     return {
       agent: a.name,
       s: this.s,
       log: (level, msg) => this.log(level, msg),
       pushChat: (from, text) => this.pushChat(from, text),
-      broadcast: (msg) => this.broadcast(msg)
+      broadcast: (msg) => this.broadcast(msg),
+      hermes: this.hermes || null,
+      task: job && job.task,
+      step: step && step.title
     }
   }
 
@@ -274,7 +277,7 @@ export class Orchestrator {
     ctxObj.inFlight = true
     this.hooks.onToolCall({ agent: a.name, tool, step: step.title })
     this._emit('tool:start', { agent: a.name, tool, step: step.title })
-    runSkill(tool, this._agentCtx(a))
+    runSkill(tool, this._agentCtx(a, ctxObj.job, step))
       .then((res) => {
         const ms = Date.now() - t0
         ctxObj.inFlight = false

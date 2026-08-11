@@ -1,6 +1,6 @@
 # Hermes WebUI — Integration Analysis & Plan
 
-Date: 2026-08-10 · Status: PLANNED (no code written yet)
+Date: 2026-08-10 · Status: STEP 1-3 SHIPPED (client, skill, planner); 4-7 PLANNED
 
 Research target: [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)
 Goal: make STELLARIS-7's orchestrator delegate real work to Hermes (and
@@ -88,6 +88,38 @@ The clean seam is **orbit server (Node) → Hermes WebUI (HTTP + SSE)**.
 Steps 1 + 2 + 6 first: real chat delegation through the existing step
 machine, tested against the mock. That proves the architecture end-to-end;
 steps 4 and 5 layer on afterwards.
+
+## 6. Implementation status
+
+Shipped (2026-08-10):
+
+- `server/hermes.js` — client: `getConfig`, `createHermesClient` (health /
+  listSessions / syncChat / streamChat-SSE / approvalPending / approvalRespond,
+  optional password auth cookie, lazy reused session), `startHermesSync`
+  status poller that flips `meta.dataSource` to `hermes` and logs link state.
+- `server/skills.js` — `hermes` skill: delegates `ctx.params.prompt` (or step
+  title) to Hermes via `syncChat`, writes a `DELEGATE` vault doc, returns
+  `{delegated, result, tokens}`; graceful simulated fallback when
+  unconfigured/unreachable, `{error}` for retry/maxAttempts handling.
+- `server/planner.js` — `hermes` added to the tool schema (heuristic research/
+  analyze goals gain a "Delegate deep-dive to Hermes" step; LLM prompt updated).
+- `server/orchestrator.js` — `_agentCtx` now carries `hermes`, `task`, `step`;
+  step machine passes job+step context into skill execution.
+- `server/index.js` — `bootstrapHermes()` (self-guarding, mirrors GitHub).
+- `server/mock-hermes.js` — standalone test double (port 8787): `/health`,
+  `/api/sessions`, `/api/session/new`, `/api/chat/start`, `/api/chat/stream`
+  (SSE token/tool/done), blocking `/api/chat`, approvals, `/api/auth/login`.
+- `.env.example` — `USER_HERMES_URL/PASSWORD/MODEL/POLL_MS`.
+
+Verified: 16/16 client+skill tests against the mock (incl. SSE parse, offline
+fallback, simulated fallback); live E2E via orbit server — a "research and
+analyze …" chat produced a 3-step plan, LINK delegated to Hermes
+(`hermes: delegated → …`), vault `DELEGATE` doc written, workflow completed
+100%, `meta.dataSource = "hermes"`; frontend booted clean (12 views, 0 JS
+errors); `npm run build` green.
+
+Remaining (planned): step 4 approval bridge, step 5 reverse ingest, step 7
+HUD surface, operator runbook in this doc.
 
 ## 5. Constraints & notes
 

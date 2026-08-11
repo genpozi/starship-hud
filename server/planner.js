@@ -45,6 +45,9 @@ function heuristicPlan(goal) {
   if (/(search|research|summar|analy)/.test(g)) {
     steps.push({ title: 'Surface research on request', agent: 'SAGE', tool: 'search' })
     steps.push({ title: 'Synthesize findings into a report', agent: 'SAGE', tool: 'memory' })
+    if (/(research|analy)/.test(g)) {
+      steps.push({ title: 'Delegate deep-dive to Hermes', agent: 'LINK', tool: 'hermes' })
+    }
   }
   if (/(build|implement|code|fix|refactor)/.test(g)) {
     steps.push({ title: 'Scaffold implementation', agent: 'CODA', tool: 'shell' })
@@ -82,7 +85,7 @@ async function llmPlan(goal) {
         {
           role: 'system',
           content:
-            'You are the STELLARIS-7 mission planner. Decompose the operator goal into 2-5 concrete orchestrated steps. Reply ONLY with strict JSON: [{"title":"...","agent":"CODA|SAGE|PILOT|LINK|NUDGE|ORCH","tool":"search|shell|coder|memory|files|terminal"}].'
+            'You are the STELLARIS-7 mission planner. Decompose the operator goal into 2-5 concrete orchestrated steps. Reply ONLY with strict JSON: [{"title":"...","agent":"CODA|SAGE|PILOT|LINK|NUDGE|ORCH","tool":"search|shell|coder|memory|files|terminal|hermes"}].'
         },
         { role: 'user', content: goal }
       ],

@@ -92,6 +92,36 @@ export const SKILLS = {
       ctx.log('INFO', 'terminal: pty bridged · idle')
       return { ok: true }
     }
+  },
+  hermes: {
+    name: 'hermes',
+    label: 'HERMES',
+    description: 'Delegate a task to the always-on Hermes agent via its WebUI',
+    parameters: [{ name: 'prompt', type: 'string', required: true, desc: 'Prompt sent to Hermes' }],
+    needsApproval: false,
+    maxUsageCount: Infinity,
+    async execute(ctx) {
+      const prompt = (ctx.params && ctx.params.prompt) || ctx.step || ctx.task || 'Complete the assigned task and report back.'
+      const client = ctx.hermes
+      if (!client || !client.isEnabled()) {
+        ctx.log('WARN', 'hermes: not configured — simulated fallback')
+        return { delegated: false, simulated: true, result: 'Simulated (USER_HERMES_URL not set)' }
+      }
+      try {
+        const res = await client.syncChat(prompt)
+        const result = (res.final_response || '').slice(0, 160)
+        ctx.log('OK', `hermes: delegated → ${result.slice(0, 80)}`)
+        const doc = vaultWrite(ctx, {
+          title: `Hermes delegate — ${prompt.slice(0, 36)}`,
+          type: 'DELEGATE',
+          tags: ['HERMES', 'AI']
+        })
+        return { delegated: true, result, tokens: res.tokens || 0, session_id: res.session_id, doc: doc.id }
+      } catch (err) {
+        ctx.log('WARN', `hermes: call failed — ${err.message}`)
+        return { error: err.message }
+      }
+    }
   }
 }
 
