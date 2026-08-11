@@ -8,6 +8,10 @@
  *   USER_HERMES_MODEL      optional model override (provider default when unset)
  *   USER_HERMES_POLL_MS    health/sessions poll interval (default 180000)
  *
+ * The module is ACTIVE only when USER_HERMES_URL is explicitly set; without it
+ * the client stays disabled (skills fall back to simulated delegation) and the
+ * poller never starts.
+ *
  * The client lazily reuses one WebUI session across syncChat/streamChat calls
  * (Hermes sessions are cheap and carry long-running memory). A status poller
  * flips orchestrator.s.meta.dataSource between "seed" and "hermes" so the HUD
@@ -17,6 +21,7 @@
 const DEFAULT_URL = 'http://127.0.0.1:8787'
 const COOKIE_TTL_MS = 25 * 24 * 3600 * 1000
 const FETCH_TIMEOUT_MS = 15000
+const CHAT_TIMEOUT_MS = 300000
 
 /* ============================================================================
    CONFIG
@@ -26,7 +31,8 @@ export function getConfig() {
   const password = process.env.USER_HERMES_PASSWORD || ''
   const model = process.env.USER_HERMES_MODEL || ''
   const pollMs = Number(process.env.USER_HERMES_POLL_MS) > 0 ? Number(process.env.USER_HERMES_POLL_MS) : 180000
-  return { enabled: Boolean(url), url, password, model, pollMs }
+  const enabled = Boolean(process.env.USER_HERMES_URL)
+  return { enabled, url, password, model, pollMs }
 }
 
 /* ============================================================================
@@ -60,11 +66,12 @@ export function createHermesClient(cfg = getConfig()) {
     if (opts.json !== undefined) headers['Content-Type'] = 'application/json'
     const c = await authCookie()
     if (c) headers.Cookie = c
+    const timeoutMs = opts.timeoutMs !== undefined ? opts.timeoutMs : FETCH_TIMEOUT_MS
     const res = await fetch(`${cfg.url}${path}`, {
       ...opts,
       headers,
       body: opts.json !== undefined ? JSON.stringify(opts.json) : opts.body,
-      signal: opts.signal || AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      signal: opts.signal || (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined)
     })
     if (!res.ok) {
       let msg = `HTTP ${res.status}`
@@ -118,7 +125,8 @@ export function createHermesClient(cfg = getConfig()) {
       const sid = await ensureSession()
       const res = await request('/api/chat', {
         method: 'POST',
-        json: { session_id: sid, message: prompt, model: cfg.model || undefined }
+        json: { session_id: sid, message: prompt, model: cfg.model || undefined },
+        timeoutMs: CHAT_TIMEOUT_MS
       })
       const body = await res.json()
       return {
@@ -138,12 +146,15 @@ export function createHermesClient(cfg = getConfig()) {
       const sid = await ensureSession()
       const start = await request('/api/chat/start', {
         method: 'POST',
-        json: { session_id: sid, message: prompt, model: cfg.model || undefined }
+        json: { session_id: sid, message: prompt, model: cfg.model || undefined },
+        timeoutMs: CHAT_TIMEOUT_MS
       })
       const { stream_id: streamId } = await start.json()
       if (!streamId) throw new Error('hermes: no stream_id returned')
 
-      const res = await request(`/api/chat/stream?id=${encodeURIComponent(streamId)}`)
+      const res = await request(`/api/chat/stream?id=${encodeURIComponent(streamId)}`, {
+        timeoutMs: CHAT_TIMEOUT_MS
+      })
       if (!res.body || typeof res.body.getReader !== 'function') {
         throw new Error('hermes: stream response has no body')
       }

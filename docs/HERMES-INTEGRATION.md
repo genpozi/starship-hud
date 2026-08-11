@@ -118,6 +118,22 @@ analyze …" chat produced a 3-step plan, LINK delegated to Hermes
 100%, `meta.dataSource = "hermes"`; frontend booted clean (12 views, 0 JS
 errors); `npm run build` green.
 
+Stabilization pass (2026-08-11):
+
+- `enabled` now gates on the operator EXPLICITLY setting `USER_HERMES_URL`,
+  not on the default URL — a server with no config no longer polls 127.0.0.1
+  and flips `dataSource` to `hermes` just because a mock/webui happens to run.
+- Chat calls (`syncChat`, `streamChat`, `chat/start`, `chat/stream`) use a
+  5-minute `CHAT_TIMEOUT_MS` instead of the 15s fetch timeout, so real
+  delegations that run for minutes are no longer aborted mid-flight.
+- Bounded growth in the orchestrator: workflows capped at 12 (running ones
+  never evicted), terminal dispatch jobs capped at 30, and orphaned
+  `_chatWorkflows` tracking dropped with pruned workflows.
+- `.env.example` documents the explicit-config activation rule.
+- Verified: gating both ways (disabled→seed, enabled→hermes+delegation),
+  4/4 protocol checks, phase-4 + hermes suites all pass, 16-mission soak
+  held all caps, frontend boot clean.
+
 Remaining (planned): step 4 approval bridge, step 5 reverse ingest, step 7
 HUD surface, operator runbook in this doc.
 

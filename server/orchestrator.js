@@ -424,6 +424,8 @@ export class Orchestrator {
       }
     })
     if (changed) this.store.markDirty()
+    this._pruneWorkflows()
+    this._pruneDispatch()
   }
 
   // ---- telemetry / probes ---- //
@@ -582,7 +584,40 @@ export class Orchestrator {
       this.log('INFO', `${step.agent} queued: ${step.title}`)
     })
     this.store.markDirty()
+    this._pruneWorkflows()
+    this._pruneDispatch()
     return { ok: true, steps: steps.length }
+  }
+
+  /**
+   * Keep newest `WORKFLOW_CAP` workflows; never evict a `running` one (its
+   * jobs may still be in flight). Drops orphaned chat-workflow tracking.
+   */
+  _pruneWorkflows() {
+    const cap = 12
+    const keep = new Set()
+    for (const w of this.s.workflows) {
+      if (keep.size < cap || w.state === 'running') keep.add(w.id)
+    }
+    if (keep.size < this.s.workflows.length) {
+      this.s.workflows = this.s.workflows.filter((w) => keep.has(w.id))
+      this.store.markDirty()
+    }
+    for (const id of this._chatWorkflows.keys()) {
+      if (!keep.has(id)) this._chatWorkflows.delete(id)
+    }
+  }
+
+  /**
+   * Cap terminal (done/failed) dispatch jobs to the newest 30. Waiting and
+   * in-flight jobs are never touched.
+   */
+  _pruneDispatch() {
+    const terminal = this.s.dispatch.filter((j) => j.state === 'done' || j.state === 'failed')
+    if (terminal.length <= 30) return
+    const doomed = new Set(terminal.slice(0, terminal.length - 30))
+    this.s.dispatch = this.s.dispatch.filter((j) => !doomed.has(j))
+    this.store.markDirty()
   }
 
   dispatchTask(task, agent) {
@@ -653,6 +688,8 @@ export class Orchestrator {
     })
     this.log('INFO', `mission created: ${wf.name}`)
     this.store.markDirty()
+    this._pruneWorkflows()
+    this._pruneDispatch()
     return { ok: true, id: wf.id }
   }
 }
