@@ -12,6 +12,89 @@ const $ = (sel) => document.querySelector(sel)
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 // ============================================================================
+// RENDER GATING — skip a view render when its source data is unchanged so the
+// DOM (and any running CSS animations on crit/warn/live rows) is never rebuilt
+// on the idle refresh interval. Fixes constant flicker in the comms surfaces.
+// ============================================================================
+const viewSignatures = {}
+export function changed(name, data) {
+  let sig
+  try {
+    sig = JSON.stringify(data)
+  } catch {
+    sig = String(data)
+  }
+  if (viewSignatures[name] === sig) return false
+  viewSignatures[name] = sig
+  return true
+}
+
+// Incremental stream renderers: append only NEW rows, so existing `.chat-msg`
+// / `.log-line` nodes keep their DOM identity and never replay the `login`
+// entrance animation on the idle refresh. Falls back to a full rebuild when
+// the stream is reset (server restart / snapshot).
+const MAX_CHAT_ROWS = 60
+const MAX_LOG_ROWS = 60
+const chatKey = (m) => `${m.from}\u0000${m.text}\u0000${m.ts || ''}`
+export const logKey = (l) => `${l.t}\u0000${l.level}\u0000${l.msg}`
+
+/** Last index whose key matches (handles repeated identical lines). */
+export function lastIndexMatching(arr, keyFn, key) {
+  let idx = -1
+  for (let i = 0; i < arr.length; i++) {
+    if (keyFn(arr[i]) === key) idx = i
+  }
+  return idx
+}
+
+/** Trim DOM rows down to `max`, dropping the oldest from the front. */
+function trimStream(box, domCount, max) {
+  if (domCount <= max) return domCount
+  const excess = domCount - max
+  for (let i = 0; i < excess; i++) box.removeChild(box.firstChild)
+  return max
+}
+
+/**
+ * Factory for an append-only stream renderer with its own module state.
+ * Returns `(box, rows) => void`. Only the new tail is appended, keeping DOM
+ * node identity (and thus not restarting CSS animations) for existing rows.
+ */
+export function createStreamRenderer(keyFn, makeRow, maxRows, bottomPad = 40) {
+  let lastKey = null
+  let domCount = 0
+  return (box, rows) => {
+    if (!box || !Array.isArray(rows)) return
+    const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - bottomPad
+    let start = 0
+    let full = lastKey === null
+    if (!full) {
+      const idx = lastIndexMatching(rows, keyFn, lastKey)
+      if (idx === -1) full = true
+      else start = idx + 1
+    }
+    if (full) {
+      box.innerHTML = ''
+      domCount = 0
+      if (!rows.length) {
+        lastKey = null
+        return
+      }
+    } else if (start === 0) {
+      box.innerHTML = ''
+      domCount = 0
+    }
+    if (start >= rows.length) return
+    const frag = document.createDocumentFragment()
+    for (let i = start; i < rows.length; i++) frag.appendChild(makeRow(rows[i]))
+    box.appendChild(frag)
+    domCount = trimStream(box, domCount + (rows.length - start), maxRows)
+    lastKey = keyFn(rows[rows.length - 1])
+    if (atBottom) box.scrollTop = box.scrollHeight
+  }
+}
+
+// ============================================================================
 // KANBAN
 // ============================================================================
 export function renderKanban() {
@@ -112,21 +195,22 @@ export function renderScheduler() {
 // ============================================================================
 // CHAT / ORCHESTRATION
 // ============================================================================
+const renderChatStream = createStreamRenderer(chatKey, (m) => {
+  const el = document.createElement('div')
+  el.className = `chat-msg ${m.from === 'USER' ? 'user' : 'agent'}`
+  el.innerHTML = `<div class="chat-from">${m.from}</div><div class="chat-text">${m.text}</div>`
+  return el
+}, MAX_CHAT_ROWS)
+
+const renderHealthLog = createStreamRenderer(logKey, (l) => {
+  const el = document.createElement('div')
+  el.className = 'log-line'
+  el.innerHTML = `<span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span>`
+  return el
+}, MAX_LOG_ROWS)
+
 export function renderChat() {
-  const stream = $('#chat-stream')
-  if (!stream) return
-  const atBottom = stream.scrollTop + stream.clientHeight >= stream.scrollHeight - 40
-  stream.innerHTML = STATE.chat
-    .slice(-60)
-    .map(
-      (m) => `
-    <div class="chat-msg ${m.from === 'USER' ? 'user' : 'agent'}">
-      <div class="chat-from">${m.from}</div>
-      <div class="chat-text">${m.text}</div>
-    </div>`
-    )
-    .join('')
-  if (atBottom) stream.scrollTop = stream.scrollHeight
+  renderChatStream($('#chat-stream'), STATE.chat)
 }
 export function pushChat(from, text) {
   STATE.chat.push({ from, text, ts: Date.now() })
@@ -355,29 +439,23 @@ export function renderAlerts() {
 // ============================================================================
 export function renderHealth(logs) {
   const grid = $('#probe-grid')
-  if (!grid) return
-  grid.innerHTML = STATE.probes.map((p) => {
-    const crit = p.critAt > 0 && p.value >= p.critAt
-    const warn = !crit && p.warnAt > 0 && p.value >= p.warnAt
-    const state = crit ? 'crit' : warn ? 'warn' : 'ok'
-    return `
-  <div class="probe-cell ${crit ? 'crit' : warn ? 'warn' : ''}">
-    <div class="probe-name">${p.name}${crit ? ' ▸ CRIT' : ''}</div>
-    <div class="probe-val ${state}">${p.value}${p.unit}</div>
-    <div class="probe-track"><div class="probe-fill" style="width:${p.value}%"></div></div>
-  </div>`
-  }).join('')
+  if (grid && changed('probes', STATE.probes)) {
+    grid.innerHTML = STATE.probes.map((p) => {
+      const crit = p.critAt > 0 && p.value >= p.critAt
+      const warn = !crit && p.warnAt > 0 && p.value >= p.warnAt
+      const state = crit ? 'crit' : warn ? 'warn' : 'ok'
+      return `
+    <div class="probe-cell ${crit ? 'crit' : warn ? 'warn' : ''}">
+      <div class="probe-name">${p.name}${crit ? ' ▸ CRIT' : ''}</div>
+      <div class="probe-val ${state}">${p.value}${p.unit}</div>
+      <div class="probe-track"><div class="probe-fill" style="width:${p.value}%"></div></div>
+    </div>`
+    }).join('')
+  }
 
   const box = $('#health-log')
   if (!box) return
-  const lines = logs.slice(-60)
-  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40
-  box.innerHTML = lines
-    .map(
-      (l) => `<div class="log-line"><span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span></div>`
-    )
-    .join('')
-  if (atBottom) box.scrollTop = box.scrollHeight
+  renderHealthLog(box, logs)
 }
 
 // ============================================================================

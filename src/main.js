@@ -16,6 +16,9 @@ import {
   renderAlerts,
   renderHealth,
   renderReports,
+  changed,
+  createStreamRenderer,
+  logKey,
   pushChat
 } from './views.js'
 
@@ -58,6 +61,7 @@ window.__log = log
 // RENDERERS (mission control rollup)
 // ============================================================================
 function renderAgents() {
+  if (!changed('agents', STATE.agents)) return
   const list = $('#agent-list')
   if (!list) return
   list.innerHTML = ''
@@ -78,17 +82,23 @@ function renderAgents() {
 }
 
 function renderLogs() {
-  const box = $('#log-stream')
-  if (!box) return
-  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30
-  box.innerHTML = STATE.logs
-    .slice(-40)
-    .map((l) => `<div class="log-line"><span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span></div>`)
-    .join('')
-  if (atBottom) box.scrollTop = box.scrollHeight
+  renderLogStream($('#log-stream'), STATE.logs)
 }
 
+const renderLogStream = createStreamRenderer(
+  logKey,
+  (l) => {
+    const el = document.createElement('div')
+    el.className = 'log-line'
+    el.innerHTML = `<span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span>`
+    return el
+  },
+  40,
+  30
+)
+
 function renderWorkflows() {
+  if (!changed('workflows', STATE.workflows)) return
   const list = $('#workflow-list')
   if (!list) return
   const running = STATE.workflows.filter((w) => w.state === 'running').length
@@ -259,18 +269,19 @@ function renderRollup() {
 }
 
 function renderAllViews() {
-  renderKanban()
-  renderItems()
-  renderScheduler()
+  if (changed('kanban', STATE.kanban)) renderKanban()
+  if (changed('items', STATE.items)) renderItems()
+  if (changed('scheduler', STATE.schedules)) renderScheduler()
   renderChat()
-  renderDispatch()
-  renderGraphs(STATE.telemetry)
-  renderVault()
-  renderEmail()
-  renderCalendar()
-  renderAlerts()
+  if (changed('dispatch', STATE.dispatch)) renderDispatch()
+  if (changed('graphs', STATE.telemetry)) renderGraphs(STATE.telemetry)
+  if (changed('vault', STATE.vault)) renderVault()
+  if (changed('email', STATE.email)) renderEmail()
+  if (changed('calendar', [STATE.calendar.day, STATE.calendar.events])) renderCalendar()
+  if (changed('alerts', STATE.alerts)) renderAlerts()
   renderHealth(STATE.logs)
-  renderReports()
+  if (changed('reports', STATE.reports)) renderReports()
+  if (changed('workflows', STATE.workflows)) renderWorkflows()
 }
 
 // ============================================================================
