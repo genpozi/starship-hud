@@ -160,6 +160,10 @@ async function bootstrapHermes() {
     if (hermes && typeof hermes.startHermesSync === 'function') {
       hermes.startHermesSync({ orchestrator })
     }
+    const ingest = await import('./hermes-ingest.js')
+    if (ingest && typeof ingest.startHermesIngest === 'function') {
+      ingest.startHermesIngest({ orchestrator })
+    }
   } catch (err) {
     console.warn('[orbit] hermes link unavailable:', err.message)
   }

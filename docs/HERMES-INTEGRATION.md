@@ -1,6 +1,6 @@
 # Hermes WebUI — Integration Analysis & Plan
 
-Date: 2026-08-12 · Status: STEP 1-4 SHIPPED (client, skill, planner, approval bridge); 5 & 7 PLANNED
+Date: 2026-08-12 · Status: STEP 1-5 SHIPPED (client, skill, planner, approval bridge, reverse ingest); 7 PLANNED
 
 Research target: [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)
 Goal: make STELLARIS-7's orchestrator delegate real work to Hermes (and
@@ -134,8 +134,45 @@ Stabilization pass (2026-08-11):
   4/4 protocol checks, phase-4 + hermes suites all pass, 16-mission soak
   held all caps, frontend boot clean.
 
-Remaining (planned): step 5 reverse ingest, step 7 HUD surface, operator
-runbook in this doc.
+Remaining (planned): step 7 HUD surface, operator runbook in this doc.
+
+## 6c. Step 5 — reverse ingest (shipped 2026-08-12)
+
+Poll the running Hermes WebUI and merge real agent activity onto the existing
+HUD surfaces (same shapes the seed / GitHub sync produce — zero frontend
+changes). `server/hermes-ingest.js`:
+
+- **sessions → kanban cards + items** — each session becomes a card
+  `he-<session_id>` (`src:'hermes'`, agent `HERMES`, tags `HERMES/SESSION`) and
+  an items row (`type:'SESSION'`). Column derives from session state
+  (archived → `done`, pinned or recently active → `doing`, else `backlog`);
+  priority from `message_count`. **Upsert only — never auto-removes**, so the
+  operator keeps full control: advancing a card off the board removes it.
+- **crons → scheduler** — each cron becomes a row `he-<cron_id>`
+  (`src:'hermes'`); `status` maps to `OK/WARN/FAIL`, `next_run` → next label.
+  Upsert only. The orchestrator scheduler emulator now **skips `src:'hermes'`
+  rows** so it never overwrites authoritative upstream status.
+- **cron failures → alerts** — a cron whose status is `failed`/`warn` raises an
+  alert (`source:'HERMES'`, `sev:'warn'`, detail from the last history entry).
+  Dedup by `sig` (`id + status + last_run`): an identical failure is never
+  re-raised after ack; a genuinely new failure (new `last_run`) raises a fresh
+  alert.
+- **Change detection** — content-hash diffing (sha1 of the fetched bodies)
+  persisted to `data/hermes-ingest.json`; an unchanged payload skips the merge
+  entirely (ETag-style intent without depending on the upstream honoring 304s).
+- **Coexistence with GitHub** — `github.js` gained `mergeReplacement()`, so its
+  full-board replacement preserves `src:'hermes'` cards/items; `meta.dataSource`
+  only flips to `hermes` when GitHub is not the board source.
+- Config: `USER_HERMES_INGEST_MS` (default 60s); gated on `USER_HERMES_URL`.
+- Mock: `GET /api/crons` (3 stable crons incl. one `failed`), 4 pre-seeded
+  sessions on `GET /api/sessions` with `pinned`/`archived`/`updated_at`.
+
+Verified: 36/36 unit tests (merge idempotency + update semantics, alert
+raise/dedup/re-raise, live-mock `syncHermesState` incl. content-hash skip,
+scheduler guard, `mergeReplacement` preservation); E2E — HUD shows the
+`he-` kanban cards, `HERMES` scheduler rows and `HERMES` alert, advancing a
+`he-` card works, acking the `HERMES` alert works, zero JS errors across all
+views; `npm run build` green.
 
 ## 6b. Step 4 — approval bridge (shipped 2026-08-12)
 

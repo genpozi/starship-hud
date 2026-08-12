@@ -8,7 +8,8 @@
  *
  * Endpoints:
  *   GET  /health
- *   GET  /api/sessions
+ *   GET  /api/sessions          -> pre-seeded list + session summaries
+ *   GET  /api/crons             -> stable cron job list
  *   POST /api/session/new
  *   POST /api/chat/start        -> {stream_id}
  *   GET  /api/chat/stream?id=X  -> SSE: token* / tool / done
@@ -34,6 +35,109 @@ const RESPONSES = [
   'Done. Drafted the release notes and queued the canary rollout. All gates green.'
 ]
 const TOOLS = ['web', 'terminal', 'file']
+
+const NOW_SEC = Math.floor(Date.now() / 1000)
+const seedMessages = (count) =>
+  Array.from({ length: count }, (_, i) => ({
+    role: i % 2 ? 'assistant' : 'user',
+    content: 'mock message'
+  }))
+
+const SEED_SESSIONS = [
+  {
+    session_id: 'sess-0001',
+    title: 'Ingress latency deep-dive',
+    workspace: '/workspace/observability',
+    model: 'hermes/claude-sonnet-4',
+    messages: seedMessages(14),
+    created_at: NOW_SEC - 86400 * 2,
+    updated_at: NOW_SEC - 600,
+    pinned: false,
+    archived: false,
+    project_id: null,
+    tool_calls: []
+  },
+  {
+    session_id: 'sess-0002',
+    title: 'Canary v1.4.2 rollout notes',
+    workspace: '/workspace/release',
+    model: 'hermes/gpt-4o',
+    messages: seedMessages(6),
+    created_at: NOW_SEC - 86400 * 5,
+    updated_at: NOW_SEC - 28800,
+    pinned: false,
+    archived: false,
+    project_id: null,
+    tool_calls: []
+  },
+  {
+    session_id: 'sess-0003',
+    title: 'Vector-store ingest design',
+    workspace: '/workspace/knowledge',
+    model: 'hermes/deepseek-r1',
+    messages: seedMessages(3),
+    created_at: NOW_SEC - 86400,
+    updated_at: NOW_SEC - 1800,
+    pinned: true,
+    archived: false,
+    project_id: null,
+    tool_calls: []
+  },
+  {
+    session_id: 'sess-0004',
+    title: 'Context compaction research',
+    workspace: '/workspace/labs',
+    model: 'hermes/qwen3-235b',
+    messages: [{ role: 'user', content: 'mock message' }],
+    created_at: NOW_SEC - 86400 * 12,
+    updated_at: NOW_SEC - 86400 * 3,
+    pinned: false,
+    archived: true,
+    project_id: null,
+    tool_calls: []
+  }
+]
+
+for (const s of SEED_SESSIONS) sessions.set(s.session_id, s)
+
+const CRONS = [
+  {
+    id: 'cr-1',
+    name: 'Daily telemetry digest',
+    cron: '0 9 * * *',
+    enabled: true,
+    last_run: '2026-08-12T09:00:00Z',
+    next_run: '2026-08-13T09:00:00Z',
+    status: 'ok',
+    history: [
+      { at: '2026-08-12T09:00:00Z', status: 'ok' },
+      { at: '2026-08-11T09:00:00Z', status: 'ok' }
+    ]
+  },
+  {
+    id: 'cr-2',
+    name: 'Webhook drain / replay sweep',
+    cron: '*/15 * * * *',
+    enabled: true,
+    last_run: '2026-08-12T14:30:00Z',
+    next_run: '2026-08-12T14:45:00Z',
+    status: 'warn',
+    history: [{ at: '2026-08-12T14:30:00Z', status: 'warn' }]
+  },
+  {
+    id: 'cr-3',
+    name: 'Dependency graph rebuild',
+    cron: '0 * * * *',
+    enabled: true,
+    last_run: '2026-08-12T12:00:00Z',
+    next_run: '2026-08-12T13:00:00Z',
+    status: 'failed',
+    history: [
+      { at: '2026-08-12T12:00:00Z', status: 'failed', error: 'exit status 1: connection reset by peer' },
+      { at: '2026-08-12T11:00:00Z', status: 'ok' }
+    ]
+  }
+]
 
 function makeSession() {
   const id = randomUUID()
@@ -65,10 +169,16 @@ app.get('/api/sessions', (_req, res) => {
     workspace: s.workspace,
     model: s.model,
     message_count: s.messages.length,
-    source_tag: 'mock'
+    source_tag: 'mock',
+    pinned: s.pinned,
+    archived: s.archived,
+    updated_at: s.updated_at,
+    created_at: s.created_at
   }))
   res.json({ sessions: list })
 })
+
+app.get('/api/crons', (_req, res) => res.json({ crons: CRONS }))
 
 app.post('/api/session/new', (req, res) => {
   const s = makeSession()

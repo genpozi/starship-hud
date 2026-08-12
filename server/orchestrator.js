@@ -521,6 +521,9 @@ export class Orchestrator {
   // ---- scheduler ---- //
   tickScheduler() {
     this.s.schedules.forEach((job) => {
+      // hermes-ingested rows are authoritative from the upstream poller; the
+      // seed-only emulator must not overwrite their real status/next-run.
+      if (job.src === 'hermes') return
       // every job roughly checks if its minute window has passed; emulate next-run
       if (Math.random() < 0.01) {
         job.last = Math.random() < 0.9 ? 'OK' : 'WARN'

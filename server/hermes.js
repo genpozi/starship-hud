@@ -31,11 +31,12 @@ export function getConfig() {
   const password = process.env.USER_HERMES_PASSWORD || ''
   const model = process.env.USER_HERMES_MODEL || ''
   const pollMs = Number(process.env.USER_HERMES_POLL_MS) > 0 ? Number(process.env.USER_HERMES_POLL_MS) : 180000
+  const ingestMs = Number(process.env.USER_HERMES_INGEST_MS) > 0 ? Number(process.env.USER_HERMES_INGEST_MS) : 60000
   const enabled = Boolean(process.env.USER_HERMES_URL)
   const approvalMode = ['always', 'never', 'prompt'].includes(process.env.USER_HERMES_APPROVAL)
     ? process.env.USER_HERMES_APPROVAL
     : 'prompt'
-  return { enabled, url, password, model, pollMs, approvalMode }
+  return { enabled, url, password, model, pollMs, ingestMs, approvalMode }
 }
 
 /* ============================================================================
@@ -121,6 +122,13 @@ export function createHermesClient(cfg = getConfig()) {
       const res = await request('/api/sessions')
       const body = await res.json()
       return Array.isArray(body) ? body : body.sessions || []
+    },
+
+    /** Scheduled jobs: GET /api/crons (reverse-ingest source for the scheduler + alerts). */
+    async listCrons() {
+      const res = await request('/api/crons')
+      const body = await res.json()
+      return Array.isArray(body) ? body : body.crons || []
     },
 
     /** Blocking chat: POST /api/chat against one reused session. */

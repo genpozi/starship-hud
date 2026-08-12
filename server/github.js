@@ -145,6 +145,20 @@ function extractRateLimit(res) {
   }
 }
 
+/**
+ * Combine an incoming (GitHub-owned) board with integration-sourced entities
+ * that already live on the same board. The GitHub sync only owns what it
+ * mapped; `src:'hermes'` rows (reverse ingest) are preserved.
+ */
+export function mergeReplacement(existingCards, existingItems, incomingCards, incomingItems) {
+  const keptCards = existingCards.filter((c) => c.src === 'hermes')
+  const keptItems = existingItems.filter((i) => i.src === 'hermes')
+  return {
+    cards: [...keptCards, ...incomingCards],
+    items: [...keptItems, ...incomingItems]
+  }
+}
+
 /* ============================================================================
    FETCH
    ============================================================================ */
@@ -277,8 +291,16 @@ export function startGithubSync({ orchestrator, intervalMs }) {
         orchestrator.log('ERROR', `GitHub sync failed: ${res.error}`)
         return
       }
-      orchestrator.s.kanban.cards = res.cards
-      orchestrator.s.items = res.items
+      // Preserve integration-sourced entities (e.g. Hermes reverse ingest) that
+      // live on the same board; the GitHub sync only owns what it mapped.
+      const merged = mergeReplacement(
+        orchestrator.s.kanban.cards,
+        orchestrator.s.items,
+        res.cards,
+        res.items
+      )
+      orchestrator.s.kanban.cards = merged.cards
+      orchestrator.s.items = merged.items
       orchestrator.s.meta.dataSource = 'github'
       orchestrator.s.meta.lastSync = res.lastSync
       if (orchestrator.store && typeof orchestrator.store.markDirty === 'function') {
