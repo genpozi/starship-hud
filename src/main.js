@@ -16,6 +16,7 @@ import {
   renderAlerts,
   renderHealth,
   renderReports,
+  renderApproval,
   changed,
   createStreamRenderer,
   logKey,
@@ -280,6 +281,7 @@ function renderAllViews() {
   if (changed('calendar', [STATE.calendar.day, STATE.calendar.events])) renderCalendar()
   if (changed('alerts', STATE.alerts)) renderAlerts()
   renderHealth(STATE.logs)
+  renderApproval()
   if (changed('reports', STATE.reports)) renderReports()
   if (changed('workflows', STATE.workflows)) renderWorkflows()
 }
@@ -443,6 +445,14 @@ export function boot() {
   $('#chat-send').addEventListener('click', sendChat)
   $('#chat-box').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendChat()
+  })
+  $('#approval-approve').addEventListener('click', () => {
+    api.approval('approve').catch(() => {})
+    renderApproval()
+  })
+  $('#approval-deny').addEventListener('click', () => {
+    api.approval('deny').catch(() => {})
+    renderApproval()
   })
 
   // always keep the local cosmetic clocks ticking

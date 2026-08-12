@@ -75,6 +75,10 @@ export class Orchestrator {
     }
 
     this.s.meta.dataSource = this.s.meta.dataSource || 'seed'
+
+    // approval bridge state (Hermes delegation approvals; operator responds via HUD)
+    if (!this.s.approval) this.s.approval = { pending: null, history: [] }
+    this.approvalTimeoutMs = Number(process.env.USER_HERMES_APPROVAL_TIMEOUT) > 0 ? Number(process.env.USER_HERMES_APPROVAL_TIMEOUT) : 120000
   }
 
   get s() {
@@ -260,6 +264,8 @@ export class Orchestrator {
       pushChat: (from, text) => this.pushChat(from, text),
       broadcast: (msg) => this.broadcast(msg),
       hermes: this.hermes || null,
+      approvalMode: this.approvalMode || 'prompt',
+      awaitApproval: (payload) => this._awaitApproval(payload, a.name),
       task: job && job.task,
       step: step && step.title
     }
@@ -649,6 +655,60 @@ export class Orchestrator {
       return { ok: true }
     }
     return { ok: false }
+  }
+
+  /**
+   * Hermes approval bridge. Surfaces an approval request to the HUD and blocks
+   * (up to approvalTimeoutMs) until the operator responds via respondApproval.
+   * Resolves with 'approve' | 'deny' | 'timeout'. The pending request and a
+   * bounded history live in `s.approval` so the HUD renders the card.
+   */
+  _awaitApproval(payload, agent) {
+    const req = {
+      id: `ap${Date.now()}`,
+      tool: (payload && payload.tool) || 'tool',
+      summary: (payload && payload.summary) || (payload && payload.title) || 'Hermes requests approval',
+      detail: (payload && payload.detail) || '',
+      from: agent,
+      choice: null,
+      at: Date.now()
+    }
+    this.s.approval.pending = req
+    this.log('WARN', `approval requested by ${agent}: ${req.summary}`)
+    this.broadcast({ type: 'approval', pending: req })
+    this.store.markDirty()
+    return new Promise((resolve) => {
+      const started = Date.now()
+      const timer = setInterval(() => {
+        if (req.choice) {
+          clearInterval(timer)
+          resolve(req.choice)
+          return
+        }
+        if (Date.now() - started >= this.approvalTimeoutMs) {
+          clearInterval(timer)
+          resolve('timeout')
+        }
+      }, 500)
+    }).then((choice) => {
+      if (this.s.approval.pending === req) this.s.approval.pending = null
+      this.s.approval.history.unshift({ ...req, resolvedAt: Date.now() })
+      if (this.s.approval.history.length > 20) this.s.approval.history.pop()
+      this.log('INFO', `approval ${choice}: ${req.summary}`)
+      this.broadcast({ type: 'approval', pending: null })
+      this.store.markDirty()
+      return choice
+    })
+  }
+
+  /** Operator response from the HUD: 'approve' | 'deny' against the pending request. */
+  respondApproval(choice) {
+    const req = this.s.approval && this.s.approval.pending
+    if (!req) return { ok: false, error: 'no pending approval' }
+    const resolved = choice === 'deny' ? 'deny' : 'approve'
+    req.choice = resolved
+    this.store.markDirty()
+    return { ok: true, id: req.id, choice: resolved }
   }
 
   readEmail(idx) {

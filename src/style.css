@@ -773,6 +773,36 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 .chat-stream::-webkit-scrollbar { width: 4px; }
 .chat-stream::-webkit-scrollbar-thumb { background: var(--cyan-dim); }
 .chat-msg { max-width: 78%; padding: 8px 12px; border: 1px solid rgba(0, 240, 255, 0.16); background: rgba(0, 240, 255, 0.04); animation: login 0.3s var(--ease-out); }
+.approval-card {
+  flex: none;
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 179, 71, 0.45);
+  background: rgba(255, 179, 71, 0.06);
+  box-shadow: 0 0 14px rgba(255, 179, 71, 0.15);
+}
+.approval-card.hidden { display: none; }
+.approval-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.approval-sev { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--amber); animation: blink 1.2s infinite; }
+.approval-agent { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--text-faint); }
+.approval-summary { font-size: 13px; font-weight: 600; color: var(--amber); margin: 8px 0 3px; }
+.approval-detail { font-size: 11px; line-height: 1.4; color: var(--text-main); opacity: 0.85; }
+.approval-actions { display: flex; gap: 8px; margin-top: 10px; }
+.approval-btn {
+  flex: 1;
+  padding: 7px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  color: var(--text-main);
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid var(--cyan-dim);
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+.approval-btn.approve:hover { filter: brightness(1.25); box-shadow: 0 0 12px rgba(0, 240, 255, 0.45); }
+.approval-btn.deny { border-color: var(--crit-dim); color: var(--crit); }
+.approval-btn.deny:hover { filter: brightness(1.25); box-shadow: 0 0 12px rgba(255, 77, 94, 0.45); }
 .chat-msg.agent { align-self: flex-start; border-left: 2px solid var(--cyan); }
 .chat-msg.user { align-self: flex-end; border-left: 2px solid var(--amber); background: rgba(255, 179, 71, 0.05); }
 .chat-from { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--cyan); margin-bottom: 3px; }

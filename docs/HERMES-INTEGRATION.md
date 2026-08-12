@@ -1,6 +1,6 @@
 # Hermes WebUI — Integration Analysis & Plan
 
-Date: 2026-08-10 · Status: STEP 1-3 SHIPPED (client, skill, planner); 4-7 PLANNED
+Date: 2026-08-12 · Status: STEP 1-4 SHIPPED (client, skill, planner, approval bridge); 5 & 7 PLANNED
 
 Research target: [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)
 Goal: make STELLARIS-7's orchestrator delegate real work to Hermes (and
@@ -134,8 +134,48 @@ Stabilization pass (2026-08-11):
   4/4 protocol checks, phase-4 + hermes suites all pass, 16-mission soak
   held all caps, frontend boot clean.
 
-Remaining (planned): step 4 approval bridge, step 5 reverse ingest, step 7
-HUD surface, operator runbook in this doc.
+Remaining (planned): step 5 reverse ingest, step 7 HUD surface, operator
+runbook in this doc.
+
+## 6b. Step 4 — approval bridge (shipped 2026-08-12)
+
+Map Hermes `approval` SSE events to a HUD approval card; operator approve/deny
+flows back to Hermes via `POST /api/approval/respond`.
+
+- `server/orchestrator.js` — new `approval: { pending, history }` state slice
+  (surfaced in server seed, snapshots, and the client store); `_awaitApproval
+  (payload, agent)` blocks the skill step while surfacing the card + WARN log
+  + `{type:'approval'}` broadcast; a 500ms poller resolves on the operator's
+  choice (`approve` | `deny` | `timeout`, timeout defaults to approve so long
+  delegations aren't stuck); `respondApproval(choice)` writes the operator's
+  choice for the awaiting step; history capped at 20. `approvalTimeoutMs`
+  configurable via `USER_HERMES_APPROVAL_TIMEOUT` (default 120s).
+- `server/skills.js` — the `hermes` skill now delegates through `streamChat`
+  with an `onApproval` handler driven by `USER_HERMES_APPROVAL`:
+  `always` → respond `always` immediately, `never` → respond `never`,
+  `prompt` (default) → `ctx.awaitApproval(data)` then respond `once` (approve)
+  or `never` (deny); falls back to `syncChat` on stream failure.
+- `server/hermes.js` — `getConfig()` exposes `approvalMode`.
+- `server/index.js` — `POST /api/approval/respond` (`{choice}`), 400 on
+  anything other than `approve|deny`.
+- `server/mock-hermes.js` — stream emits an `approval` event on alternating
+  calls and holds the SSE stream open until the pending request is responded
+  to, then emits tool + done.
+- Frontend — `#approval-card` (amber-blink) above `.chat-input`;
+  `renderApproval()` in `src/views.js`; APPROVE/DENY bindings in `src/main.js`;
+  `api.approval(choice)` in `src/api.js`. Card is signature-gated through the
+  existing delta pipeline, so idle ticks never rebuild it.
+- `.env.example` — `USER_HERMES_APPROVAL` (`always|never|prompt`),
+  `USER_HERMES_APPROVAL_TIMEOUT`.
+
+Verified: 25/25 client+skill+orchestrator tests against the mock (approval
+callback, orchestrator bridge resolve/clear/history, respond-route guard,
+offline/simulated fallback); E2E against the orbit server — chat goal → hermes
+step → approval card appears → APPROVE (and separately DENY) → stream
+completes → card hides → workflow 100% → vault `DELEGATE` doc written →
+`approval.history` records the choice; non-approval parity run completes with
+no card; 12-view sweep + interaction suite zero JS errors; `npm run build`
+green.
 
 ## 5. Constraints & notes
 

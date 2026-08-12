@@ -32,7 +32,10 @@ export function getConfig() {
   const model = process.env.USER_HERMES_MODEL || ''
   const pollMs = Number(process.env.USER_HERMES_POLL_MS) > 0 ? Number(process.env.USER_HERMES_POLL_MS) : 180000
   const enabled = Boolean(process.env.USER_HERMES_URL)
-  return { enabled, url, password, model, pollMs }
+  const approvalMode = ['always', 'never', 'prompt'].includes(process.env.USER_HERMES_APPROVAL)
+    ? process.env.USER_HERMES_APPROVAL
+    : 'prompt'
+  return { enabled, url, password, model, pollMs, approvalMode }
 }
 
 /* ============================================================================
@@ -238,6 +241,7 @@ export function startHermesSync({ orchestrator }) {
 
   const client = createHermesClient(cfg)
   orchestrator.hermes = client // skills read ctx.hermes
+  orchestrator.approvalMode = cfg.approvalMode // skills read ctx.approvalMode
   orchestrator.s.meta.dataSource = orchestrator.s.meta.dataSource || 'seed'
 
   const tick = async () => {

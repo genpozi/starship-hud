@@ -107,8 +107,32 @@ export const SKILLS = {
         ctx.log('WARN', 'hermes: not configured — simulated fallback')
         return { delegated: false, simulated: true, result: 'Simulated (USER_HERMES_URL not set)' }
       }
+      const mode = ctx.approvalMode || 'prompt'
+      const handleApproval = async (data) => {
+        try {
+          if (mode === 'always') {
+            await client.approvalRespond('always')
+            return
+          }
+          if (mode === 'never') {
+            await client.approvalRespond('never')
+            return
+          }
+          const choice = await ctx.awaitApproval(data)
+          if (choice === 'approve') await client.approvalRespond('once')
+          else await client.approvalRespond('never')
+        } catch (e) {
+          ctx.log('WARN', `hermes: approval handling failed — ${e.message}`)
+        }
+      }
       try {
-        const res = await client.syncChat(prompt)
+        let res
+        try {
+          res = await client.streamChat(prompt, { onApproval: handleApproval })
+        } catch (streamErr) {
+          ctx.log('WARN', `hermes: stream failed (${streamErr.message}) — falling back to blocking chat`)
+          res = await client.syncChat(prompt)
+        }
         const result = (res.final_response || '').slice(0, 160)
         ctx.log('OK', `hermes: delegated → ${result.slice(0, 80)}`)
         const doc = vaultWrite(ctx, {

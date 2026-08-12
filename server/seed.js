@@ -55,6 +55,7 @@ export function buildSeedState() {
     probes: PROBES.map((p) => ({ ...p })),
     reports: REPORTS.map((r) => ({ ...r })),
     telemetry: { temp: 42, token: 38, lat: 84, ctx: 27 },
+    approval: { pending: null, history: [] },
     logs: []
   }
 }

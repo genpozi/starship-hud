@@ -232,6 +232,26 @@ export function renderDispatch() {
 }
 
 // ============================================================================
+// OPERATOR APPROVAL (Hermes delegation bridge)
+// ============================================================================
+export function renderApproval() {
+  const card = $('#approval-card')
+  if (!card) return
+  const p = STATE.approval && STATE.approval.pending
+  if (!p) {
+    card.classList.add('hidden')
+    return
+  }
+  card.classList.remove('hidden')
+  const agent = $('#approval-agent')
+  const summary = $('#approval-summary')
+  const detail = $('#approval-detail')
+  if (agent) agent.textContent = (p.from || 'HERMES') + ' ▸ tool: ' + (p.tool || 'tool')
+  if (summary) summary.textContent = p.summary || 'Hermes requests approval'
+  if (detail) detail.textContent = p.detail || ''
+}
+
+// ============================================================================
 // GRAPHS
 // ============================================================================
 function sparklineSvg(values, opts = {}) {

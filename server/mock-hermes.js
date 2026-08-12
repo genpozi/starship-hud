@@ -91,25 +91,47 @@ app.get('/api/chat/stream', (req, res) => {
 
   const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
   let tick = 0
+  const finish = () => {
+    emit('tool', { name: TOOLS[counter % TOOLS.length], preview: 'Running a tool call' })
+    setTimeout(() => {
+      emit('done', {
+        session: {
+          session_id: sid,
+          title: 'Mock hermes session',
+          workspace: '/tmp/opencode/mock-workspace',
+          model: 'mock/hermes-1',
+          messages: [
+            { role: 'user', content: 'user message' },
+            { role: 'assistant', content: RESPONSES[counter % RESPONSES.length] }
+          ]
+        }
+      })
+      res.end()
+    }, 30)
+  }
   const sendTokens = setInterval(() => {
     if (tick >= 5) {
       clearInterval(sendTokens)
-      emit('tool', { name: TOOLS[counter % TOOLS.length], preview: 'Running a tool call' })
-      setTimeout(() => {
-        emit('done', {
-          session: {
-            session_id: sid,
-            title: 'Mock hermes session',
-            workspace: '/tmp/opencode/mock-workspace',
-            model: 'mock/hermes-1',
-            messages: [
-              { role: 'user', content: 'user message' },
-              { role: 'assistant', content: RESPONSES[counter % RESPONSES.length] }
-            ]
+      const needsApproval = counter % 2 === 1
+      if (needsApproval) {
+        pendingApproval = {
+          id: `ap-${counter}`,
+          tool: TOOLS[counter % TOOLS.length],
+          summary: 'Allow executing this command?',
+          detail: 'git push origin master — operator approval required for privileged action'
+        }
+        emit('approval', pendingApproval)
+        // hold the stream until /api/approval/respond clears the pending request
+        const wait = setInterval(() => {
+          if (!pendingApproval) {
+            clearInterval(wait)
+            finish()
           }
-        })
-        res.end()
-      }, 30)
+        }, 100)
+        req.on('close', () => clearInterval(wait))
+        return
+      }
+      finish()
       return
     }
     tick += 1

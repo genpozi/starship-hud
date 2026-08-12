@@ -224,6 +224,18 @@
                   <span class="panel-tag live">LIVE</span>
                 </div>
                 <div id="chat-stream" class="chat-stream"></div>
+                <div id="approval-card" class="approval-card hidden" data-approved="0">
+                  <div class="approval-head">
+                    <span class="approval-sev">▸ OPERATOR APPROVAL REQUIRED</span>
+                    <span class="approval-agent" id="approval-agent"></span>
+                  </div>
+                  <div class="approval-summary" id="approval-summary"></div>
+                  <div class="approval-detail" id="approval-detail"></div>
+                  <div class="approval-actions">
+                    <button id="approval-deny" class="approval-btn deny">DENY</button>
+                    <button id="approval-approve" class="approval-btn approve">APPROVE</button>
+                  </div>
+                </div>
                 <div class="chat-input">
                   <input id="chat-box" type="text" placeholder="Dispatch to fleet ▸ type a command..." autocomplete="off" autocapitalize="off" spellcheck="false" />
                   <button id="chat-send">SEND</button>

@@ -41,7 +41,8 @@ export const api = {
   ackAlert: (id) => post(`/api/alerts/${encodeURIComponent(id)}/ack`),
   readEmail: (idx) => post(`/api/email/${idx}/read`),
   setCalDay: (day) => post(`/api/calendar/${day}`),
-  createMission: (name, agents) => post('/api/mission', { name, agents })
+  createMission: (name, agents) => post('/api/mission', { name, agents }),
+  approval: (choice) => post('/api/approval/respond', { choice })
 }
 
 export function isOnline() {

@@ -65,6 +65,12 @@ app.post('/api/alerts/:id/ack', (req, res) => {
   res.json(orchestrator.ackAlert(req.params.id))
 })
 
+app.post('/api/approval/respond', (req, res) => {
+  const { choice } = req.body || {}
+  if (!['approve', 'deny'].includes(choice)) return res.status(400).json({ ok: false, error: 'choice must be approve|deny' })
+  res.json(orchestrator.respondApproval(choice))
+})
+
 app.post('/api/email/:idx/read', (req, res) => {
   res.json(orchestrator.readEmail(Number(req.params.idx)))
 })
