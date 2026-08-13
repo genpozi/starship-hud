@@ -134,7 +134,81 @@ Stabilization pass (2026-08-11):
   4/4 protocol checks, phase-4 + hermes suites all pass, 16-mission soak
   held all caps, frontend boot clean.
 
-Remaining (planned): step 7 HUD surface, operator runbook in this doc.
+Remaining (planned): operator runbook — now the section below.
+
+## 6a. Step 7 — HUD surface (shipped 2026-08-13) + operator runbook
+
+Hermes-originated data is rendered by the *existing* HUD renderers — the
+surfaces were designed to consume the same shapes the seed and GitHub sync
+produce, so reverse ingest required zero new views. What step 7 adds is
+**visibility**: everything sourced from Hermes gets a cyan `he` accent so the
+operator can tell at a glance what is real upstream activity vs. seed/GitHub.
+
+- **Data source banner** — `meta.dataSource` flips to `hermes` and the system
+  status line reads `ALL SYSTEMS NOMINAL · SRC: HERMES` (verified in E2E).
+- **Kanban cards** — `src:'hermes'` cards get class `he`: brighter cyan border,
+  gradient background, cyan tags (`HERMES/SESSION` already emitted as chips).
+- **Scheduler rows** — `src:'hermes'` cron rows get cyan job name + agent.
+- **Alerts** — `source:'HERMES'` alerts get a cyan tint row + bolded source.
+- Renderers emit the `he` class purely from state fields (`src`/`source`) — no
+  state mutations, so the delta/flicker invariants are unaffected.
+- `src/views.js` (renderKanban/renderScheduler/renderAlerts), `src/style.css`.
+
+### Operator runbook
+
+Enable the integration (all `USER_*` envs are operator-supplied):
+
+```bash
+USER_HERMES_URL=http://127.0.0.1:8787    # point at a running hermes-webui
+USER_HERMES_PASSWORD=...                  # only if the webui requires /api/auth/login
+USER_HERMES_MODEL=...                     # optional label for the HERMES agent
+USER_HERMES_POLL_MS=180000                # link-health + dataSource poller (default 3m)
+USER_HERMES_INGEST_MS=60000               # reverse-ingest poll (default 1m)
+USER_HERMES_APPROVAL=prompt               # always|never|prompt (default prompt)
+USER_HERMES_APPROVAL_TIMEOUT=120000       # idle approval auto-approves after this (default 2m)
+```
+
+Running the built-in mock (no real webui needed to demo):
+
+```bash
+node server/mock-hermes.js                # :8787  /health /api/sessions /api/crons ...
+```
+
+What you will see on the HUD within ~one ingest cycle:
+
+- `SRC: HERMES` in the system status line.
+- Kanban cards `he-<session>` with `HERMES/SESSION` tags (cyan accent);
+  advancing one moves it BACKLOG → IN PROGRESS → DONE.
+- `SESSION` rows in OPEN ITEMS.
+- `he-<cron>` rows in SCHEDULED TASKS with real `OK/WARN/FAIL` status; the seed
+  emulator never overwrites them.
+- A `HERMES` alert when a cron is failing; ack it once and it stays acked
+  unless the failure is genuinely new.
+- Type a research/analyze chat goal → a `hermes` delegation step appears →
+  (in `prompt` mode) an amber approval card above the chat input → APPROVE or
+  DENY, and the workflow finishes with a vault `DELEGATE` doc.
+
+Offline / unconfigured behavior:
+
+- No `USER_HERMES_URL` → link stays disabled, board stays on the seed,
+  `dataSource` remains `seed`; delegations run in simulated-fallback mode.
+- Webui unreachable while configured → `startHermesSync` logs the link state,
+  the client retries on the next poll; the HUD keeps its last-known data.
+
+Troubleshooting:
+
+- No `he-` cards after startup → check `USER_HERMES_URL` is set (gating rule),
+  confirm the webui is listening, then confirm `data/hermes-ingest.json` was
+  written (that file holds the content-hash state; it is gitignored).
+- Alerts not appearing → the failing cron must report `status != ok`; the alert
+  is deduped on `sig`, so delete the row via the advance tool or wait for a new
+  `last_run` to re-raise.
+- Coexisting with GitHub → full GitHub replacement preserves `src:'hermes'`
+  cards/items via `mergeReplacement()`; `dataSource` stays `github` unless
+  GitHub is not the board source.
+- Approval card stuck → it auto-approves after `USER_HERMES_APPROVAL_TIMEOUT`;
+  raise the timeout for long delegations.
+
 
 ## 6c. Step 5 — reverse ingest (shipped 2026-08-12)
 

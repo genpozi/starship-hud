@@ -114,7 +114,7 @@ export function renderKanban() {
         ${cards
           .map(
             (c) => `
-          <div class="kan-card ${col.id === 'done' ? 'done' : ''}" title="Click to advance" data-id="${c.id}">
+          <div class="kan-card ${col.id === 'done' ? 'done' : ''}${c.src === 'hermes' ? ' he' : ''}" title="Click to advance" data-id="${c.id}">
             <div class="kan-title">${c.title}</div>
             <div class="kan-tags">${c.tags.map((t) => `<span class="kan-tag">${t}</span>`).join('')}</div>
             <div class="kan-meta">
@@ -181,7 +181,7 @@ export function renderScheduler() {
     </div>
     ${STATE.schedules.map(
       (j) => `
-    <div class="cron-row">
+    <div class="cron-row${j.src === 'hermes' ? ' he' : ''}">
       <span class="cron-name">${j.name}</span>
       <span class="cron-cron">${j.cron}</span>
       <span class="cron-agent">◈ ${j.agent}</span>
@@ -431,7 +431,7 @@ export function renderAlerts() {
   feed.innerHTML = STATE.alerts
     .map(
       (a) => `
-  <div class="alert-row ${a.acked ? 'acked' : ''}" data-id="${a.id}" title="${a.acked ? 'Acknowledged' : 'Click to ack'}">
+  <div class="alert-row ${a.acked ? 'acked' : ''}${a.source === 'HERMES' ? ' he' : ''}" data-id="${a.id}" title="${a.acked ? 'Acknowledged' : 'Click to ack'}">
     <span class="alert-sev ${a.sev}">${a.sev.toUpperCase()}</span>
     <span class="alert-source">${a.source}</span>
     <div>
