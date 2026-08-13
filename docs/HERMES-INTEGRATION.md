@@ -134,7 +134,8 @@ Stabilization pass (2026-08-11):
   4/4 protocol checks, phase-4 + hermes suites all pass, 16-mission soak
   held all caps, frontend boot clean.
 
-Remaining (planned): operator runbook — now the section below.
+All planned steps 1–7 are now shipped; the operator runbook is the section
+below.
 
 ## 6a. Step 7 — HUD surface (shipped 2026-08-13) + operator runbook
 
