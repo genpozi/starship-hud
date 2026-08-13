@@ -9,7 +9,9 @@
     "dev:server": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
     "start": "node --env-file-if-exists=.env server/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node test/run-all.mjs",
+    "probe": "node server/hermes-contract.js"
   },
   "dependencies": {
     "express": "^4.21.1",

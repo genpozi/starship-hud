@@ -59,13 +59,13 @@ function saveEtags(etags) {
 }
 
 /* ============================================================================
-   MAPPING HELPERS
+   MAPPING HELPERS (exported for unit tests; server internals)
    ============================================================================ */
-function labelNames(entry) {
+export function labelNames(entry) {
   return (entry.labels || []).map((l) => (typeof l === 'string' ? l : l.name || '')).filter(Boolean)
 }
 
-function derivePrio(labels) {
+export function derivePrio(labels) {
   const lower = labels.map((l) => l.toLowerCase())
   for (const l of lower) {
     if (l.startsWith('priority:')) {
@@ -78,12 +78,12 @@ function derivePrio(labels) {
   return 'P2'
 }
 
-function truncate(title) {
+export function truncate(title) {
   const t = String(title || 'untitled').trim()
   return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX) : t
 }
 
-function mapCol(entry) {
+export function mapCol(entry) {
   const isPr = Boolean(entry.pull_request)
   const state = String(entry.state || 'open').toLowerCase()
   if (state === 'closed' || entry.merged === true) return COL_DONE
@@ -95,7 +95,7 @@ function mapCol(entry) {
   return COL_BACKLOG
 }
 
-function mapItem(entry) {
+export function mapItem(entry) {
   const isPr = Boolean(entry.pull_request)
   const state = String(entry.state || 'open').toLowerCase()
   let status = 'open'
@@ -105,7 +105,7 @@ function mapItem(entry) {
   return status
 }
 
-function toBoard(entries, lastSync) {
+export function toBoard(entries, lastSync) {
   const cards = []
   const items = []
   for (const e of entries) {

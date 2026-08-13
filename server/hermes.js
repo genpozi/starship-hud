@@ -40,6 +40,42 @@ export function getConfig() {
 }
 
 /* ============================================================================
+   SHAPE HELPERS — real hermes-webui builds vary in field names/shapes; every
+   parser below is tolerant and falls back across the known variants so one
+   instance's serialization quirks never break the bridge.
+   ============================================================================ */
+const pick = (obj, keys) => {
+  if (!obj || typeof obj !== 'object') return undefined
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null) return obj[k]
+  }
+  return undefined
+}
+
+const asArray = (body, keys) => {
+  if (Array.isArray(body)) return body
+  if (body && typeof body === 'object') {
+    for (const k of keys) {
+      if (Array.isArray(body[k])) return body[k]
+    }
+  }
+  return []
+}
+
+const lastMessageContent = (session) => {
+  const msgs = pick(session, ['messages', 'history', 'conversation'])
+  if (!Array.isArray(msgs)) return ''
+  for (let i = msgs.length - 1; i >= 0; i -= 1) {
+    const m = msgs[i] || {}
+    const c = pick(m, ['content', 'text', 'response'])
+    if (typeof c === 'string' && c.trim()) return c
+  }
+  return ''
+}
+
+const sessionIdFrom = (body) => pick(body, ['session_id', 'id', 'sid']) || pick(body, ['session'])?.session_id || pick(body, ['session'])?.id || ''
+
+/* ============================================================================
    CLIENT
    ============================================================================ */
 export function createHermesClient(cfg = getConfig()) {
@@ -94,7 +130,7 @@ export function createHermesClient(cfg = getConfig()) {
     if (sessionId) return sessionId
     const res = await request('/api/session/new', { method: 'POST', json: {} })
     const body = await res.json()
-    sessionId = body.session?.session_id || null
+    sessionId = sessionIdFrom(body)
     if (!sessionId) throw new Error('hermes: no session_id returned')
     return sessionId
   }
@@ -121,14 +157,14 @@ export function createHermesClient(cfg = getConfig()) {
     async listSessions() {
       const res = await request('/api/sessions')
       const body = await res.json()
-      return Array.isArray(body) ? body : body.sessions || []
+      return asArray(body, ['sessions', 'data', 'results'])
     },
 
     /** Scheduled jobs: GET /api/crons (reverse-ingest source for the scheduler + alerts). */
     async listCrons() {
       const res = await request('/api/crons')
       const body = await res.json()
-      return Array.isArray(body) ? body : body.crons || []
+      return asArray(body, ['crons', 'jobs', 'schedules', 'data'])
     },
 
     /** Blocking chat: POST /api/chat against one reused session. */
@@ -140,12 +176,16 @@ export function createHermesClient(cfg = getConfig()) {
         timeoutMs: CHAT_TIMEOUT_MS
       })
       const body = await res.json()
+      const session = body.session || body
+      const finalResponse =
+        pick(body, ['final_response', 'response', 'reply', 'output', 'text']) ||
+        lastMessageContent(session)
       return {
         session_id: sid,
-        final_response: body.final_response || '',
-        completed: Boolean(body.completed),
-        tokens: body.tokens || 0,
-        messages: body.messages || []
+        final_response: String(finalResponse || ''),
+        completed: Boolean(body.completed ?? body.ok ?? Boolean(finalResponse)),
+        tokens: Number(body.tokens || body.total_tokens || body.usage?.total_tokens || 0),
+        messages: pick(body, ['messages', 'history']) || []
       }
     },
 
@@ -212,11 +252,15 @@ export function createHermesClient(cfg = getConfig()) {
       }
 
       if (!last) throw new Error('hermes: stream ended without done event')
+      const session = last.session || last
+      const finalResponse =
+        pick(last, ['final_response', 'response', 'reply', 'output', 'text']) ||
+        lastMessageContent(session)
       return {
-        session_id: sid,
-        final_response: last.session?.messages?.slice(-1)[0]?.content || '',
+        session_id: sessionIdFrom(session) || sid,
+        final_response: String(finalResponse || ''),
         completed: true,
-        session: last.session
+        session
       }
     },
 
@@ -224,7 +268,9 @@ export function createHermesClient(cfg = getConfig()) {
       try {
         const res = await request('/api/approval/pending')
         const body = await res.json()
-        return body.pending || null
+        const pending = pick(body, ['pending', 'approval', 'request'])
+        if (!pending) return null
+        return typeof pending === 'object' ? pending : { id: String(pending) }
       } catch {
         return null
       }

@@ -1,0 +1,49 @@
+# STELLARIS-7 — orbit server + optional hermes-webui mock.
+# Production: set the operator env in a .env file (or shell) and run
+#   docker compose up -d orbit
+# Demo (no external services): run the bundled mock alongside:
+#   docker compose up -d --build mock orbit
+#
+# Operator-supplied credentials (see .env.example) are passed through only
+# when present; the images never embed secrets.
+
+services:
+  orbit:
+    build: .
+    image: starship-orbit:2.0.0
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_OWNER: ${GITHUB_OWNER:-}
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_POLL_MS: ${GITHUB_POLL_MS:-180000}
+      USER_HERMES_URL: ${USER_HERMES_URL:-}
+      USER_HERMES_PASSWORD: ${USER_HERMES_PASSWORD:-}
+      USER_HERMES_MODEL: ${USER_HERMES_MODEL:-}
+      USER_HERMES_POLL_MS: ${USER_HERMES_POLL_MS:-180000}
+      USER_HERMES_INGEST_MS: ${USER_HERMES_INGEST_MS:-60000}
+      USER_HERMES_APPROVAL: ${USER_HERMES_APPROVAL:-prompt}
+      USER_HERMES_APPROVAL_TIMEOUT: ${USER_HERMES_APPROVAL_TIMEOUT:-120000}
+      USER_LLM_API_KEY: ${USER_LLM_API_KEY:-}
+      USER_LLM_BASE_URL: ${USER_LLM_BASE_URL:-}
+      USER_LLM_MODEL: ${USER_LLM_MODEL:-}
+    volumes:
+      - orbit-data:/app/data
+
+  mock:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: node server/mock-hermes.js
+    volumes:
+      - ./server:/app/server:ro
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: 8787
+
+volumes:
+  orbit-data:

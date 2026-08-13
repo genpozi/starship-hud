@@ -71,6 +71,18 @@ function truncate(title) {
   return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX) : t
 }
 
+/** Normalize updated_at/created_at/next_run into epoch SECONDS regardless of
+ *  the upstream format (epoch seconds, epoch ms, or ISO-8601 string). */
+function toEpochSec(value) {
+  if (value === undefined || value === null || value === '') return 0
+  const n = Number(value)
+  if (Number.isFinite(n)) {
+    return n < 1e11 ? Math.floor(n) : Math.floor(n / 1000)
+  }
+  const t = Date.parse(String(value))
+  return Number.isFinite(t) ? Math.floor(t / 1000) : 0
+}
+
 function sessionPrio(msgCount) {
   const n = Number(msgCount) || 0
   if (n >= 10) return 'P1'
@@ -81,7 +93,7 @@ function sessionPrio(msgCount) {
 function sessionCol(s) {
   if (s.archived === true) return COL_DONE
   if (s.pinned === true) return COL_DOING
-  const updated = Number(s.updated_at) || 0
+  const updated = toEpochSec(s.updated_at)
   if (updated && Date.now() / 1000 - updated < 6 * 3600) return COL_DOING
   return COL_BACKLOG
 }
@@ -92,17 +104,18 @@ function sessionStatus(s) {
 }
 
 function mapSession(s) {
+  const id = s.session_id || s.id || s.sid
   const title = truncate(s.title)
   const prio = sessionPrio(s.message_count)
   const card = {
-    id: `he-${s.session_id}`,
+    id: `he-${id}`,
     col: sessionCol(s),
     title,
     agent: 'HERMES',
     prio,
     tags: ['HERMES', 'SESSION'],
     src: SRC,
-    heSession: s.session_id
+    heSession: id
   }
   const item = {
     id: card.id,
@@ -121,12 +134,17 @@ function formatNext(nextRun) {
   if (!nextRun) return '—'
   const m = /T(\d{2}):(\d{2})/.exec(String(nextRun))
   if (m) return `${m[1]}:${m[2]}`
+  const sec = toEpochSec(nextRun)
+  if (sec) {
+    const d = new Date(sec * 1000)
+    if (!Number.isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
   return String(nextRun)
 }
 
 function cronLast(c) {
   const status = String(c.status || '').toLowerCase()
-  if (status === 'failed') return 'FAIL'
+  if (status === 'failed' || status === 'error') return 'FAIL'
   if (status === 'warn' || status === 'warning') return 'WARN'
   if (status === 'ok' || status === 'success') return 'OK'
   const last = c.last_status || c.last_run_status
@@ -135,12 +153,13 @@ function cronLast(c) {
 }
 
 function mapCron(c) {
+  const id = c.id || c.cron_id || c.job_id
   return {
-    id: `he-${c.id}`,
-    name: String(c.name || 'untitled cron'),
-    cron: String(c.cron || ''),
+    id: `he-${id}`,
+    name: String(c.name || c.title || 'untitled cron'),
+    cron: String(c.cron || c.schedule || ''),
     agent: 'HERMES',
-    next: formatNext(c.next_run),
+    next: formatNext(c.next_run || c.next_run_at || c.next),
     dur: '—',
     last: cronLast(c),
     src: SRC
@@ -149,11 +168,12 @@ function mapCron(c) {
 
 function isFailed(c) {
   const status = String(c.status || '').toLowerCase()
-  return status === 'failed' || status === 'warn' || status === 'warning'
+  return status === 'failed' || status === 'error' || status === 'warn' || status === 'warning'
 }
 
 function alertSig(c) {
-  return `${c.id}:${String(c.status || '').toLowerCase()}:${c.last_run || ''}`
+  const id = c.id || c.cron_id || c.job_id
+  return `${id}:${String(c.status || '').toLowerCase()}:${c.last_run || ''}`
 }
 
 function failureDetail(c) {
@@ -172,7 +192,7 @@ export function mergeSessions(sessions, state) {
   let added = 0
   let updated = 0
   for (const s of sessions || []) {
-    if (!s || !s.session_id) continue
+    if (!s || (!s.session_id && !s.id && !s.sid)) continue
     const { card, item } = mapSession(s)
     const exCard = state.kanban.cards.find((c) => c.id === card.id)
     if (exCard) {
@@ -210,7 +230,7 @@ export function mergeCrons(crons, state) {
   let added = 0
   let updated = 0
   for (const c of crons || []) {
-    if (!c || !c.id) continue
+    if (!c || (!c.id && !c.cron_id && !c.job_id)) continue
     const row = mapCron(c)
     const ex = state.schedules.find((j) => j.id === row.id)
     if (ex) {
@@ -238,15 +258,16 @@ export function mergeCrons(crons, state) {
 export function raiseFailureAlerts(crons, state, now = Date.now()) {
   let raised = 0
   for (const c of crons || []) {
-    if (!c || !c.id || !isFailed(c)) continue
+    if (!c || (!c.id && !c.cron_id && !c.job_id) || !isFailed(c)) continue
+    const id = c.id || c.cron_id || c.job_id
     const sig = alertSig(c)
     if (state.alerts.some((a) => a.sig === sig)) continue
-    const count = state.alerts.filter((a) => a.id && a.id.startsWith(`hea-${c.id}-`)).length
+    const count = state.alerts.filter((a) => a.id && a.id.startsWith(`hea-${id}-`)).length
     state.alerts.unshift({
-      id: `hea-${c.id}-${count + 1}`,
+      id: `hea-${id}-${count + 1}`,
       sev: 'warn',
       source: 'HERMES',
-      title: `Cron ${String(c.status).toLowerCase()}: ${String(c.name || c.id)}`,
+      title: `Cron ${String(c.status).toLowerCase()}: ${String(c.name || c.title || id)}`,
       detail: failureDetail(c),
       time: 'just now',
       acked: false,

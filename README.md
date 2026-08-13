@@ -74,6 +74,30 @@ Open the local URL printed by Vite (default `http://localhost:5173`). Use the **
 > will then ask the model to decompose operator goals into orchestrated steps.
 > Without a key it uses the deterministic heuristic planner — fully offline.
 
+### Quick start with the Hermes demo (no external services)
+
+```bash
+# One command: mock hermes-webui (:8787) + orbit (:3001) + Vite dev (:5173)
+./scripts/demo.sh
+
+# Headless validation — 6 test suites (client, ingest, phase-4, github, planner, skills)
+npm test
+
+# Validate a live Hermes WebUI against the bridge contract before enabling it
+./scripts/probe.sh --url http://127.0.0.1:8787
+```
+
+### Optional data sources (operator-supplied creds in `.env`)
+
+| Source | Env vars | Effect |
+| --- | --- | --- |
+| **GitHub** | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` | Issues + PRs replace the seed board (hermes rows preserved) |
+| **Hermes WebUI** | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL` | Real agent delegation + approval bridge + reverse ingest of sessions/crons |
+| **LLM planner** | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` | LLM goal decomposition (heuristic offline fallback) |
+
+Run `npm run probe -- --url <hermes-url>` against a real instance first; see
+`docs/HERMES-INTEGRATION.md` (operator runbook) and `docs/DEPLOYMENT.md`.
+
 ---
 
 ## Project structure
