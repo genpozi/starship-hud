@@ -1,6 +1,6 @@
 # Hermes WebUI — Integration Analysis & Plan
 
-Date: 2026-08-12 · Status: STEP 1-5 SHIPPED (client, skill, planner, approval bridge, reverse ingest); 7 PLANNED
+Date: 2026-08-13 · Status: STEPS 1-7 SHIPPED (client, skill, planner, approval bridge, reverse ingest, mock+tests+docs, HUD surface) — operator runbook below
 
 Research target: [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)
 Goal: make STELLARIS-7's orchestrator delegate real work to Hermes (and

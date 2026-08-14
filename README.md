@@ -100,6 +100,17 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 
 ---
 
+## Documentation
+
+| Doc | What it covers |
+| --- | --- |
+| `docs/ARCHITECTURE.md` | runtime modes, data flow, module map, WS protocol, adding integrations |
+| `docs/API.md` | full REST + WebSocket reference, state shape |
+| `docs/DEVELOPER.md` | developer guide — data model, skills, mutations, testing, debugging |
+| `docs/HERMES-INTEGRATION.md` | operator runbook for the Hermes bridge + GitHub sync |
+| `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
+| `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
+
 ## Project structure
 
 ```
@@ -107,17 +118,30 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 ├── index.html            # HUD shell markup + all view containers
 ├── package.json
 ├── vite.config.js        # dev server + build config + /api /ws proxy
-├── .env.example          # optional LLM planner credentials (user-supplied)
+├── .env.example          # operator credentials (user-supplied, never committed)
+├── Dockerfile            # multi-stage, non-root, healthcheck
+├── docker-compose.yml    # orbit + optional mock, orbit-data volume
+├── CONTRIBUTING.md
 ├── docs/
 │   ├── ARCHITECTURE.md   # runtime modes, data flow, module guide
-│   └── API.md            # REST + WebSocket reference
+│   ├── API.md            # REST + WebSocket reference
+│   ├── DEVELOPER.md      # developer guide (extend, test, debug)
+│   ├── HERMES-INTEGRATION.md
+│   └── DEPLOYMENT.md
 ├── server/               # STELLARIS-7 orbit backend
 │   ├── index.js          # express + ws entry point
 │   ├── orchestrator.js   # heartbeat engine + all mutations
 │   ├── planner.js        # LLM-backed (optional) + heuristic planning
-│   ├── skills.js         # sandboxed tool registry
+│   ├── skills.js         # sandboxed tool registry (incl. hermes skill)
 │   ├── store.js          # JSON persistence (data/state.json)
-│   └── seed.js           # seeds state from src/config.js
+│   ├── seed.js           # seeds state from src/config.js
+│   ├── github.js         # optional GitHub → board sync
+│   ├── hermes.js         # hermes-webui client + sync loop
+│   ├── hermes-ingest.js  # reverse ingest: sessions/crons → board
+│   ├── hermes-contract.js# npm run probe — live-WebUI validation
+│   └── mock-hermes.js    # hermes-webui test double
+├── test/                 # 6 suites + run-all.mjs (spawns fresh mock)
+├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router
     ├── store.js          # canonical client STATE + server snapshots
