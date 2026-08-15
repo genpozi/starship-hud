@@ -19,7 +19,9 @@ export const AGENTS = [
     state: 'active',
     task: 'Decomposing goal into sub-missions',
     progress: 78,
-    tokens: 48.2
+    tokens: 48.2,
+    summary: 'Mission control — I decompose operator goals into orchestrated multi-agent plans.',
+    capabilities: ['planning', 'dispatch', 'workflow', 'search']
   },
   {
     id: 'coda',
@@ -28,7 +30,9 @@ export const AGENTS = [
     state: 'busy',
     task: 'Implementing vector-store ingest service',
     progress: 62,
-    tokens: 31.9
+    tokens: 31.9,
+    summary: 'I scaffold, implement, review and unit-test source changes across the fleet.',
+    capabilities: ['shell', 'coder', 'search', 'memory']
   },
   {
     id: 'pilot',
@@ -37,7 +41,9 @@ export const AGENTS = [
     state: 'busy',
     task: 'Rolling out canary build v1.4.2',
     progress: 44,
-    tokens: 12.4
+    tokens: 12.4,
+    summary: 'I stage, release and monitor canary rollouts and release gates.',
+    capabilities: ['shell', 'terminal', 'search', 'coder']
   },
   {
     id: 'sage',
@@ -46,7 +52,9 @@ export const AGENTS = [
     state: 'active',
     task: 'Summarizing weekly telemetry digest',
     progress: 91,
-    tokens: 22.7
+    tokens: 22.7,
+    summary: 'I research, summarize and synthesize telemetry and findings into reports.',
+    capabilities: ['search', 'memory', 'coder', 'hermes']
   },
   {
     id: 'link',
@@ -55,7 +63,9 @@ export const AGENTS = [
     state: 'idle',
     task: 'Standing by for incoming webhooks',
     progress: 0,
-    tokens: 8.1
+    tokens: 8.1,
+    summary: 'I maintain integrations, webhooks and the reverse-ingest bridge to Hermes.',
+    capabilities: ['hermes', 'files', 'memory', 'shell']
   },
   {
     id: 'nudge',
@@ -64,7 +74,9 @@ export const AGENTS = [
     state: 'idle',
     task: 'Awaiting agenda triggers',
     progress: 0,
-    tokens: 3.5
+    tokens: 3.5,
+    summary: 'I track agendas, reminders and scheduling priorities.',
+    capabilities: ['memory', 'files', 'search']
   }
 ]
 

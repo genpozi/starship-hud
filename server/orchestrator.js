@@ -2,7 +2,9 @@ import { Store } from './store.js'
 import { buildSeedState } from './seed.js'
 import { plan } from './planner.js'
 import { runSkill } from './skills.js'
+import { synthesizeReply } from './replies.js'
 import { PROBES as DEFAULT_PROBES } from '../src/config.js'
+import { AGENTS as AGENTS_DEFAULTS } from '../src/config.js'
 
 /**
  * ORCHESTRATOR // The core engine of the harness.
@@ -63,6 +65,17 @@ export class Orchestrator {
       if (!def) return
       if (typeof p.warnAt !== 'number') p.warnAt = def.warnAt || 0
       if (typeof p.critAt !== 'number') p.critAt = def.critAt || 0
+    })
+
+    // normalize persisted state: backfill agent identity fields (summary /
+    // capabilities) so older state rows can answer persona queries even if
+    // they predate the identity model.
+    const crewById = Object.fromEntries(AGENTS_DEFAULTS.map((a) => [a.id, a]))
+    this.s.agents.forEach((a) => {
+      const def = crewById[a.id]
+      if (!def) return
+      if (typeof a.summary !== 'string') a.summary = def.summary || ''
+      if (!Array.isArray(a.capabilities)) a.capabilities = def.capabilities || []
     })
 
     // lifecycle hooks (all no-op by default)
@@ -541,18 +554,13 @@ export class Orchestrator {
   }
 
   ambientChat() {
-    const bank = [
-      ['ORCH', 'Re-scoring task priorities against mission objectives.'],
-      ['CODA', 'Static analysis pass complete. 3 minor warnings, 0 errors.'],
-      ['SAGE', 'Appending fresh telemetry to weekly digest.'],
-      ['LINK', 'Heartbeat received from all integration channels.'],
-      ['PILOT', 'Canary health checks steady. No rollout pause needed.'],
-      ['NUDGE', 'Agenda sync — no collisions with scheduled blocks.']
-    ]
-    if (Math.random() < 0.7) {
-      const [who, text] = bank[Math.floor(Math.random() * bank.length)]
-      this.pushChat(who, text)
-    }
+    // Ambient chatter is drawn from each agent's own task/state (persona-aware)
+    // instead of a fixed bank, so idle lines never contradict the board.
+    const idle = this.s.agents.filter((a) => a.state === 'idle' || a.state === 'active')
+    if (!idle.length || Math.random() >= 0.7) return
+    const a = idle[Math.floor(Math.random() * idle.length)]
+    const task = a.task && a.task !== 'Standing by' ? a.task.toLowerCase() : 'the current cycle'
+    this.pushChat(a.name, `Standing by — holding on ${task} while the fleet advances.`)
   }
 
   // ==========================================================================
@@ -560,13 +568,38 @@ export class Orchestrator {
   // ==========================================================================
 
   /**
+   * Detect a direct agent mention in an operator prompt: "@CODA …",
+   * "CODA, …", "CODA …" at start, or "hey CODA". Returns the matching agent
+   * name (from the canonical crew) or null.
+   */
+  _detectMention(text) {
+    if (!text) return null
+    const names = (this.s.agents || []).map((a) => a.name).sort((a, b) => b.length - a.length)
+    const t = String(text).trim()
+    const upper = t.toUpperCase()
+    for (const name of names) {
+      const n = name.toUpperCase()
+      // @NAME, NAME:, NAME,, leading "NAME …", "NAME …" anywhere after "hey"
+      const re = new RegExp(`(?:^|[@\\s])(?:${n})(?=[:,\\s]|$)`)
+      if (re.test(upper)) return name
+    }
+    return null
+  }
+
+  /**
    * Operator chat command. The orchestrator plans the goal into steps,
    * creates a workflow and queues one job per step — the step machine picks
-   * them up (no setTimeout handoff).
+   * them up (no setTimeout handoff). If the operator addressed a specific
+   * agent, the plan and the reply are pinned to that agent; otherwise the
+   * first step's owner answers.
    */
   async handleChat(text) {
     this.pushChat('USER', text)
-    const steps = await plan(text)
+    const target = this._detectMention(text)
+    let steps = await plan(text)
+    if (target) {
+      steps = steps.map((s) => ({ ...s, agent: target }))
+    }
     const name = text.toUpperCase().slice(0, 28).trim()
     const wf = {
       id: `wf${Date.now()}`,
@@ -580,7 +613,6 @@ export class Orchestrator {
     }
     this.s.workflows.unshift(wf)
     this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0 })
-    this.pushChat('ORCH', `Plan generated — ${steps.length} steps. Dispatching ${wf.agents} agent(s).`)
     steps.forEach((step) => {
       this.s.dispatch.push({
         task: step.title,
@@ -592,10 +624,13 @@ export class Orchestrator {
       })
       this.log('INFO', `${step.agent} queued: ${step.title}`)
     })
+    const replyFrom = target || steps[0]?.agent || 'ORCHESTRATOR'
+    const reply = await synthesizeReply({ goal: text, agent: replyFrom, steps, state: this.s })
+    this.pushChat(replyFrom, reply)
     this.store.markDirty()
     this._pruneWorkflows()
     this._pruneDispatch()
-    return { ok: true, steps: steps.length }
+    return { ok: true, steps: steps.length, agent: replyFrom }
   }
 
   /**

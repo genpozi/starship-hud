@@ -16,7 +16,7 @@ The dashboard is organized into **12 views**, each a focused screen for a use ca
 | 2 | **Kanban** | Board with Backlog / In Progress / In Review / Done columns; click a card to advance it |
 | 3 | **Open Items** | Issue / PR / task tracker — ID, type, priority, owner, status |
 | 4 | **Scheduler** | Cron / recurring job registry — schedule, agent, next run, duration, last result |
-| 5 | **Chat** | Agent orchestration console — fleet chat + dispatch console + live command input |
+| 5 | **Chat** | Agent orchestration console — fleet chat + dispatch console + live command input; `@AGENT` mentions get grounded, in-character replies |
 | 6 | **Graphs** | Analytics — token usage, task throughput, context pressure, success rate |
 | 7 | **Vault** | Knowledge core — documents, schemas, runbooks with tags |
 | 8 | **Email** | Inbox with reading pane — click a row to open the message |
@@ -132,6 +132,8 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 │   ├── index.js          # express + ws entry point
 │   ├── orchestrator.js   # heartbeat engine + all mutations
 │   ├── planner.js        # LLM-backed (optional) + heuristic planning
+│   ├── knowledge.js      # retrieval layer (vault/reports/cards/...)
+│   ├── replies.js        # conversational reply synthesis
 │   ├── skills.js         # sandboxed tool registry (incl. hermes skill)
 │   ├── store.js          # JSON persistence (data/state.json)
 │   ├── seed.js           # seeds state from src/config.js
@@ -140,7 +142,7 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 │   ├── hermes-ingest.js  # reverse ingest: sessions/crons → board
 │   ├── hermes-contract.js# npm run probe — live-WebUI validation
 │   └── mock-hermes.js    # hermes-webui test double
-├── test/                 # 6 suites + run-all.mjs (spawns fresh mock)
+├── test/                 # 7 suites + run-all.mjs (spawns fresh mock)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router

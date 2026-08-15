@@ -14,6 +14,7 @@
  *   github       — issue/PR → board mapping + hermes preservation
  *   planner      — heuristic plan decomposition (no external LLM)
  *   skills       — registry validation + skill executors
+ *   chat         — mention routing + reply synthesis + knowledge grounding (self-isolating)
  */
 
 import { spawn } from 'node:child_process'
@@ -24,7 +25,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url))
 const REPO = join(ROOT, '..')
 const MOCK_PORT = '8788'
 const MOCK_URL = `http://127.0.0.1:${MOCK_PORT}`
-const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills']
+const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills', 'chat']
 
 function runNode(script) {
   return new Promise((resolve) => {

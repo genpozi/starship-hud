@@ -68,6 +68,24 @@ Model: eDEX-UI / augmented-ui / Dynamic-SciFi kit / galaxy-explorer.
   screenshot suite of every surface; OFFLINE-sim regression check.
 - Docs, commit, push, preview, report.
 
+### Phase 7 — Chat optimization (agent identity + grounded replies)  [DONE]
+Motivation: operator-per-agent evaluation showed only keyword-matched goals
+landed on the right agent; there was no mention routing, no conversational
+answer, no knowledge grounding, no self-model, and no honest ambiguity path.
+- Phase 0: `test/chat.test.mjs` diagnosis harness → 13 checks asserting the
+  chat contract (mention routing, answering, grounding, awareness,
+  ambiguity). Baselined 11 failures.
+- Phase 1: agent identity (`summary` + `capabilities` in `src/config.js`,
+  backfilled on boot) + `server/knowledge.js` retrieval layer; `search`/
+  `memory` skills grounded in it.
+- Phase 2: `server/replies.js` reply synthesis (LLM if keyed, else heuristic)
+  → `handleChat` replies with a grounded, in-character answer.
+- Phase 3: `@AGENT` mention detection pins plan + reply owner to that agent.
+- Phase 4: ambient + offline chat replies drawn from persona/knowledge
+  instead of hardcoded banks.
+- Phase 5: chat suite wired into `run-all.mjs` (regression guard), docs
+  updated, `npm test` + `npm run build` green. Final state: 13/13 PASS.
+
 ## Execution order & parallelism
 
 | Batch | Workstreams (parallel) | Owns |

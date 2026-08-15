@@ -1,3 +1,5 @@
+import { retrieve } from './knowledge.js'
+
 /**
  * SKILLS // Typed tool registry agents use to execute steps.
  *
@@ -17,8 +19,14 @@ export const SKILLS = {
     needsApproval: false,
     maxUsageCount: Infinity,
     async execute(ctx) {
-      ctx.log('INFO', 'search: query executed · 14 results ranked')
-      return { results: 14 }
+      const query = (ctx.params && ctx.params.query) || ctx.step || ctx.task || ''
+      const hits = retrieve(ctx.s, query, { limit: 5 })
+      if (!hits.length) {
+        ctx.log('INFO', 'search: query executed · 0 relevant hits in current knowledge')
+        return { results: 0, hits: [] }
+      }
+      ctx.log('INFO', `search: query executed · ${hits.length} relevant hits`)
+      return { results: hits.length, hits: hits.map((h) => h.title) }
     }
   },
   shell: {
@@ -54,13 +62,14 @@ export const SKILLS = {
     maxUsageCount: Infinity,
     async execute(ctx) {
       const blob = ctx.params && ctx.params.blob ? String(ctx.params.blob).slice(0, 48) : 'core bank'
+      const recall = retrieve(ctx.s, blob, { limit: 3 })
       const doc = vaultWrite(ctx, {
         title: `${ctx.agent || 'ORCH'} checkpoint — ${blob}`,
         type: 'MEMORY',
         tags: ['CORE', 'AI']
       })
       ctx.log('OK', `memory: checkpoint written to core bank (${doc.id})`)
-      return { blobs: 1, id: doc.id }
+      return { blobs: 1, id: doc.id, recall: recall.map((h) => h.title) }
     }
   },
   files: {

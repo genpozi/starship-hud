@@ -15,6 +15,8 @@ the console never goes dark.
 │  src/views.js  12 renderers  │           │  server/store.js     persistence  │
 │  src/api.js    ws + rest     │           │  server/planner.js   LLM/heuristic│
 │  src/galaxy.js three.js bg   │           │  server/skills.js    tool registry│
+│  server/knowledge.js retrieval    │
+│  server/replies.js   reply synth  │
 │  src/config.js seed + consts │           │  server/seed.js      seed state   │
 │                              │           │  server/github.js   GitHub source │
 │                              │           │  server/hermes.js   Hermes client │
@@ -49,6 +51,10 @@ the console never goes dark.
 4. Operator interactions (chat, kanban advance, alert ack, approval respond,
    email read, calendar, mission create, manual dispatch) POST to `/api/*`. The
    server mutates canonical state and the next broadcast reflects it back.
+   Chat is special: `handleChat` detects a direct `@AGENT` mention, pins the
+   plan + reply owner to that agent, plans the goal into steps, and immediately
+   replies with a synthesized, knowledge-grounded answer (`replies.js`) —
+   the operator gets an actual answer, not just a queued task.
 5. Optional data sources poll on their own cadence and write onto the same
    board shape: **GitHub** (issues/PRs) replaces the seed board;
    **Hermes WebUI** (sessions/crons) reverse-ingests onto kanban/items/
@@ -67,9 +73,17 @@ the console never goes dark.
   when `USER_LLM_API_KEY` is set, otherwise the deterministic heuristic engine.
   Output is sanitized (`normalizeSteps`) so the step machine never runs an
   unregistered tool.
+- **knowledge.js** — read-only retrieval layer over canonical state (vault
+  docs, reports, kanban cards, items, schedules, probes). `retrieve()` returns
+  ranked hits; `digest()` summarizes. Pure function of state.
+- **replies.js** — conversational reply synthesis. `synthesizeReply()` renders
+  a grounded, in-character answer (agent persona + knowledge hits) via the LLM
+  when keyed, else a deterministic heuristic — including honest "I don't have
+  a clear read" for ambiguous goals.
 - **skills.js** — typed tool registry (`search`, `shell`, `coder`, `memory`,
   `files`, `terminal`, `hermes`). Executors receive a `ctx` (`s`, `log`,
-  `pushChat`, `hermes`, `approvalMode`) and mutate shared state. The `hermes`
+  `pushChat`, `hermes`, `approvalMode`) and mutate shared state. `search` and
+  `memory` now ground their results in `knowledge.js`. The `hermes`
   skill delegates to a real WebUI through `streamChat`/`syncChat`, handles
   approvals per `USER_HERMES_APPROVAL`, and falls back to simulated delegation.
 - **store.js** — JSON persistence (`data/state.json`) with debounced flush;
@@ -106,7 +120,9 @@ the console never goes dark.
   Hermes-sourced entities get a cyan `he` accent (`.kan-card.he`,
   `.cron-row.he`, `.alert-row.he`).
 - **main.js** — boot, mission-control rollup renderers, view router, approval
-  card wiring, and the OFFLINE simulation fallback.
+  card wiring, and the OFFLINE simulation fallback. Offline chat replies are
+  synthesized in-character from `STATE` (persona + vault) instead of canned
+  lines.
 - **galaxy.js** — the Three.js background (spiral galaxy, nebula, starfield,
   ringed planets).
 - **config.js** — canonical constants + seed data (agents, columns, cards,

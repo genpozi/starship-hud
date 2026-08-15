@@ -46,7 +46,7 @@ All mutations return JSON; success mutations broadcast the new state.
 
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
-| POST | `/api/chat` | `{text}` | Operator goal. Plans into steps, creates a workflow, queues agents. Returns `{ok, steps}`. |
+| POST | `/api/chat` | `{text}` | Operator goal. Detects a direct `@AGENT` mention (pins plan + reply owner), plans into steps, creates a workflow, queues agents, and replies with a synthesized answer. Returns `{ok, steps, agent}`. |
 | POST | `/api/dispatch` | `{task, agent}` | Manually queue a task for an agent. |
 | POST | `/api/kanban/:id/advance` | — | Move card `id` to the next column (removes if already `done`). |
 | POST | `/api/alerts/:id/ack` | — | Acknowledge alert `id`. |
@@ -73,7 +73,7 @@ snapshots and deltas.
     "pending": null | { "id", "tool", "summary", "detail", "from", "choice", "at" },
     "history": [ ...resolved approvals, newest first, bounded 20 ]
   },
-  "agents":     [{ "id", "name", "role", "state", "task", "progress", "tokens" }],
+  "agents":     [{ "id", "name", "role", "state", "task", "progress", "tokens", "summary", "capabilities": [] }],
   "workflows":  [{ "id", "name", "state", "progress", "steps", "curStep", "agents", "eta" }],
   "kanban":     { "columns": [...], "cards": [ { "id", "title", "col", "priority", "src" } ], "done": [...] },
   "items":      [ { "id", "label", "status", "src" } ],
@@ -94,27 +94,13 @@ and drives the cyan `he` accent on Hermes-sourced rows.
 ## Examples
 
 ```bash
-# Operator goal → planner decomposes into orchestrated steps
+# Operator goal → planner decomposes into orchestrated steps; the addressed
+# agent replies with a synthesized, knowledge-grounded answer
 curl -X POST http://localhost:3001/api/chat \
   -H 'Content-Type: application/json' \
-  -d '{"text":"build and deploy a canary for the surface module"}'
-# {"ok":true,"steps":4}
-
-# Manual agent dispatch
-curl -X POST http://localhost:3001/api/dispatch \
-  -H 'Content-Type: application/json' \
-  -d '{"task":"sweep stale vault blobs","agent":"LINK"}'
-# {"ok":true}
-
-# Resolve a pending Hermes approval
-curl -X POST http://localhost:3001/api/approval/respond \
-  -H 'Content-Type: application/json' \
-  -d '{"choice":"approve"}'
-# {"ok":true,"id":"ap...","choice":"approve"}
-
-# Create a mission
-curl -X POST http://localhost:3001/api/mission \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"SURFACE SWEEP","agents":["LINK","NOVA"]}'
-# {"ok":true}
+  -d '{"text":"@CODA who are you and what can you do?"}'
+# {"ok":true,"steps":3,"agent":"CODA"}
+# chat gains: <CODA> I'm CODA, software engineer. I scaffold, implement, review
+# and unit-test source changes across the fleet. On the tool side I can handle
+# shell, coder, search, memory.
 ```

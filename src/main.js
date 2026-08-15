@@ -404,13 +404,16 @@ function sendChat() {
     api.chat(text).catch(() => log('WARN', 'Chat dispatch failed — retry'))
   } else {
     setTimeout(() => {
-      const replies = [
-        { agent: 'ORCH', text: 'Acknowledged. Decomposing and assigning to the appropriate fleet member.' },
-        { agent: 'CODA', text: `Queued: "${text.slice(0, 40)}" — picking up after current batch.` },
-        { agent: 'SAGE', text: 'Noted. Adding to research backlog for triage.' }
-      ]
-      const r = replies[Math.floor(Math.random() * replies.length)]
-      pushChat(r.agent, r.text)
+      // offline: reply in-character from the fleet state (persona + knowledge),
+      // never a random canned line, so the sim stays coherent with the board
+      const agent = STATE.agents.find((a) => /@?(CODA|ORCH|PILOT|SAGE|LINK|NUDGE)/i.test(text) && a.name !== 'ORCHESTRATOR')
+        || STATE.agents.find((a) => a.state !== 'idle')
+        || STATE.agents[0]
+      const topic = text.replace(/@\w+/gi, '').trim().split(' ').filter((w) => w.length > 4).slice(0, 4).join(' ')
+      const doc = topic ? STATE.vault.find((d) => d.title.toLowerCase().includes(topic.toLowerCase())) : null
+      const task = agent.task !== 'Standing by' ? `Picking that up after ${agent.task.toLowerCase()}.` : 'Clearing a slot for it now.'
+      const grounded = doc ? ` We have ${doc.title} on file if that helps.` : ''
+      pushChat(agent.name, `Acknowledged. ${task}${grounded}`)
     }, 900)
   }
 }

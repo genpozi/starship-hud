@@ -23,8 +23,11 @@ src/
   style.css           console styling
 server/
   index.js            Express + WS bootstrap, REST routes, env guards
-  orchestrator.js     heartbeat engine, mutations, probe alerts, approvals
+  orchestrator.js     heartbeat engine, mutations, probe alerts, approvals,
+                      chat mention routing + reply dispatch
   planner.js          LLM (if keyed) or heuristic goal decomposition
+  knowledge.js        read-only retrieval over state (vault/reports/cards/...)
+  replies.js          conversational reply synthesis (persona + knowledge)
   skills.js           typed tool registry (search/shell/coder/memory/files/terminal/hermes)
   store.js            debounced JSON persistence (data/state.json)
   seed.js             derives server initial state from src/config.js
@@ -36,7 +39,7 @@ server/
 test/
   run-all.mjs         spawns a fresh mock, runs every suite as a child process
   hermes.test.mjs, hermes-ingest.test.mjs, phase4.test.mjs,
-  github.test.mjs, planner.test.mjs, skills.test.mjs
+  github.test.mjs, planner.test.mjs, skills.test.mjs, chat.test.mjs
 scripts/              demo.sh (mock+orbit+vite), probe.sh (contract check)
 Dockerfile            multi-stage, non-root, healthcheck
 docker-compose.yml    orbit + optional mock, orbit-data volume
@@ -57,7 +60,7 @@ exact fields.
 | `kanban` | card advance, github/hermes ingest | kanban |
 | `items` | github/hermes ingest, dispatches | items |
 | `schedules` | heartbeat, hermes ingest | scheduler |
-| `chat` | chat handler, skills (`pushChat`) | chat |
+| `chat` | chat handler, skills (`pushChat`), reply synthesizer | chat |
 | `dispatch` | dispatch handler | mission |
 | `alerts` | probe engine, ingest (signature-deduped) | alerts |
 | `approval` | approval bridge (`pending`/`history`) | approval card |
@@ -67,6 +70,36 @@ exact fields.
 
 `src` on kanban cards, items, schedules, and alerts is
 `seed | github | hermes` and drives the cyan Hermes accent class.
+
+### Chat pipeline (operator → agent reply)
+
+```
+POST /api/chat {text}
+  → orchestrator.handleChat(text)
+      → _detectMention(text)              "@CODA ..." / "CODA, ..." → agent
+      → plan(text)                         planner.js keyword/LLM steps
+        → steps pinned to the mentioned agent when present
+      → workflow + dispatch jobs queued
+      → synthesizeReply({goal, agent, steps, state})   replies.js
+          persona = agent.summary/capabilities          (identity model)
+          hits   = knowledge.retrieve(state, goal)      (grounding)
+          LLM mode if USER_LLM_API_KEY, else heuristic
+      → pushChat(agent, reply)              the operator's actual answer
+  → step machine runs jobs → "Task complete: ..." status lines
+```
+
+### Agent identity + knowledge
+
+- `AGENTS` in `src/config.js` carry `summary` (self-description) and
+  `capabilities[]` (tool names). `server/replies.js` renders these in reply.
+- Persisted state is backfilled with these fields on boot (constructor
+  normalization), so pre-identity state rows still answer persona queries.
+- `server/knowledge.js` indexes vault docs, reports, kanban cards, items,
+  schedules, and probes on demand. `retrieve(state, query)` → ranked hits;
+  `digest(state)` → summary lines. The `search`/`memory` skills ground their
+  results in it, and `replies.js` uses it so answers cite real content.
+- Offline (browser) chat replies are synthesized in-character from `STATE`
+  too, so the sim never falls back to canned lines.
 
 ### Sources of truth
 
@@ -90,7 +123,10 @@ exact fields.
 
 Add a mutation: implement a method on the `Orchestrator` (mutate `this.s`,
 `markDirty()`, optionally `broadcast`), then register the REST route in
-`server/index.js`, and add an `api.*` helper in `src/api.js`.
+`server/index.js`, and add an `api.*` helper in `src/api.js`. Chat is a
+composite mutation: it plans + dispatches + synthesizes a reply — extend
+`replies.js` for reply behavior and `knowledge.js` for what agents can ground
+answers on.
 
 ### Skills (`server/skills.js`)
 
@@ -112,11 +148,25 @@ The registry is an array of typed tool definitions. Each entry:
 
 - Executors receive a `ctx` with `s` (canonical state), `log`, `pushChat`,
   `hermes` (client or `null`), and `approvalMode`.
+- `search` and `memory` ground their results through `knowledge.js`
+  (`retrieve(ctx.s, query)`) instead of returning fixed numbers.
 - The `hermes` skill delegates to the real WebUI through `streamChat` /
   `syncChat`, honors `USER_HERMES_APPROVAL`, and falls back to simulated
   delegation when `USER_HERMES_URL` is unset.
 - Add a skill, then point the planner's toolset at it, then cover it in
   `test/skills.test.mjs`.
+
+### Replies (`server/replies.js`)
+
+- `synthesizeReply({ goal, agent, steps, state })` → string. Builds the agent
+  persona from `state.agents`, retrieves knowledge hits for the goal, then:
+  - LLM mode (`USER_LLM_API_KEY`): persona + hits + steps injected into a
+    small reply prompt; falls back on any error.
+  - Heuristic mode: persona self-description for identity questions, cited
+    knowledge hits + plan for actionable goals, and an honest "I'm not sure —
+    could you clarify?" for ambiguous ones.
+- Never throws. Deterministic in heuristic mode (knowledge hits tie-break by
+  source order).
 
 ### Planner (`server/planner.js`)
 
@@ -193,6 +243,9 @@ npm run build     # vite build — must stay green
   exported. Failures are surfaced per suite; exit code 1 on any red.
 - Suites that touch `data/state.json` move it aside and restore it, so they are
   self-isolating.
+- `test/chat.test.mjs` (Phase 0 diagnosis → now a regression guard) asserts the
+  chat contract: `@AGENT` mention routing, a grounded conversational answer, and
+  honest ambiguity handling. Run standalone with `node test/chat.test.mjs`.
 - New capability ⇒ new suite (or extend an existing one); keep `npm test`
   green and the probe PASSing for the surfaces you touched.
 
