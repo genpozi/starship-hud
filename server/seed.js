@@ -7,6 +7,7 @@ import {
   OPEN_ITEMS,
   SCHEDULED_TASKS,
   CHAT_SEED,
+  DISPATCH_SEED,
   VAULT_DOCS,
   EMAILS,
   CALENDAR_EVENTS,
@@ -37,13 +38,7 @@ export function buildSeedState() {
     items: OPEN_ITEMS.map((i) => ({ ...i })),
     schedules: SCHEDULED_TASKS.map((s) => ({ ...s })),
     chat: CHAT_SEED.map((m) => ({ ...m, ts: Date.now() })),
-    dispatch: [
-      { task: 'Review failing CI job: e2e-surface', agent: 'CODA', state: 'assigned' },
-      { task: 'Investigate ingress latency p99', agent: 'PILOT', state: 'assigned' },
-      { task: 'Draft cycle 42 planning notes', agent: 'NUDGE', state: 'waiting' },
-      { task: 'Sweep vault for stale blobs', agent: 'LINK', state: 'waiting' },
-      { task: 'Compile context-compaction digest', agent: 'SAGE', state: 'assigned' }
-    ],
+    dispatch: DISPATCH_SEED.map((d) => ({ ...d })),
     vault: VAULT_DOCS.map((d) => ({ ...d })),
     email: EMAILS.map((e) => ({ ...e })),
     calendar: {
@@ -54,7 +49,7 @@ export function buildSeedState() {
     alerts: ALERTS.map((a) => ({ ...a, acked: false })),
     probes: PROBES.map((p) => ({ ...p })),
     reports: REPORTS.map((r) => ({ ...r })),
-    telemetry: { temp: 42, token: 38, lat: 84, ctx: 27 },
+    telemetry: { temp: 42, token: 38, lat: 84, ctx: 27, jobs: { done: 0, failed: 0 }, hist: [] },
     approval: { pending: null, history: [] },
     logs: []
   }

@@ -32,8 +32,8 @@ Model: CrewAI / OpenAI Agents / LangGraph.
   through existing `log/pushChat/broadcast`.
 - Supervisor handoffs replace raw `setTimeout` dispatch; workflow advance
   gated on handoff job completion.
-- Typed event stream (`task:*`, `tool:*`, `interrupt`) broadcast alongside
-  state so the HUD can animate agent work.
+- Tool-level activity folded into the authoritative `logs` slice (delta-driven)
+  so the HUD animates agent work without hint-only event frames.
 - **State shape stays compatible** — no frontend renderer breakage.
 
 ### Phase 3 — GitHub integration (real data)  [DONE]
@@ -62,10 +62,22 @@ Model: eDEX-UI / augmented-ui / Dynamic-SciFi kit / galaxy-explorer.
   adaptive quality watchdog.
 - Chrome: diegetic header + per-view footer data line.
 
-### Phase 6 — Verification & ship  [IN PROGRESS — verified, committing]
-- REST + WS integration tests; headless render of all 12 views (zero JS
-  errors); interaction tests (chat→mission, kanban, alerts, email, dispatch);
-  screenshot suite of every surface; OFFLINE-sim regression check.
+### Phase 6 — Verification & ship  [DONE]
+- REST + WS integration tests (`test/integration.test.mjs`) booting a real
+  orbit server on an isolated port + data dir: full REST surface (state, chat,
+  dispatch, kanban, alerts, email, calendar, mission, approval, malformed
+  JSON) and the realtime protocol (snapshot on connect, delta flow, ping/pong,
+  resync-on-gap). Wired into `npm test`.
+- Headless render of every HUD view body (`test/views.test.mjs`) via a
+  dependency-free DOM shim — zero JS errors, container populated per surface,
+  plus stream-renderer incremental-append and escapeHtml guards.
+- Cleanup batch: removed dead `toggleAgenda`/`requestResync` stubs, folded the
+  typed `task:*`/`tool:*` event stream into the authoritative `logs` slice,
+  deduped the dispatch seed into `DISPATCH_SEED` in `src/config.js`.
+- Hardening: calendar day range validation, LLM planner agent-name validation
+  (hallucinated names → ORCHESTRATOR), malformed-JSON 400 handler, and lazy
+  galaxy chunk (546 kB → 41 kB initial + async 505 kB).
+- OFFLINE-sim regression covered by existing suites + live preview checks.
 - Docs, commit, push, preview, report.
 
 ### Phase 7 — Chat optimization (agent identity + grounded replies)  [DONE]

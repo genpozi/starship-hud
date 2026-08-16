@@ -1,5 +1,16 @@
 import { Orchestrator } from '../server/orchestrator.js'
 
+import { existsSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
+
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
+const STATE_FILE = join(REPO, 'data', 'state.json')
+const STATE_BACKUP = join(tmpdir(), 'phase4-test.state.json')
+if (existsSync(STATE_FILE)) renameSync(STATE_FILE, STATE_BACKUP)
+
 const results = []
 const pass = (name, cond) => {
   results.push(`${cond ? 'PASS' : 'FAIL'} ${name}`)
@@ -70,12 +81,14 @@ const newest2 = o.s.vault[0]
 pass('files skill appends vault doc', o.s.vault[0].type === 'SCHEMA' && newest2.agent === 'SAGE')
 
 // ---- 9. mission completion archives report + vault doc ----
-const wCount = o.s.reports.length
+// reports are capped at 12 (orchestrator), so assert the new report lands at
+// the front rather than assuming the count grew by exactly one.
 o._logMission('test-canary-deploy')
-pass('mission completion adds report', o.s.reports.length === wCount + 1 && o.s.reports[0].title.includes('test-canary-deploy'))
+pass('mission completion adds report', !!o.s.reports[0] && o.s.reports[0].title.includes('test-canary-deploy'))
 pass('mission completion adds vault doc', o.s.vault[0].type === 'REPORT')
 
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))
 console.log(fails.length ? `\n${fails.length} FAILURES` : '\nALL PASS')
+if (existsSync(STATE_BACKUP)) renameSync(STATE_BACKUP, STATE_FILE)
 process.exit(fails.length ? 1 : 0)

@@ -199,6 +199,14 @@ export const SCHEDULED_TASKS = [
 /* ============================================================================
    ORCHESTRATION / CHAT
    ============================================================================ */
+export const DISPATCH_SEED = [
+  { task: 'Review failing CI job: e2e-surface', agent: 'CODA', state: 'assigned' },
+  { task: 'Investigate ingress latency p99', agent: 'PILOT', state: 'assigned' },
+  { task: 'Draft cycle 42 planning notes', agent: 'NUDGE', state: 'waiting' },
+  { task: 'Sweep vault for stale blobs', agent: 'LINK', state: 'waiting' },
+  { task: 'Compile context-compaction digest', agent: 'SAGE', state: 'assigned' }
+]
+
 export const CHAT_SEED = [
   { from: 'USER', text: 'Orchestrator — decompose the monthly hygiene sweep and surface a plan.' },
   { from: 'ORCH', text: 'Acknowledged. Decomposing into 4 sub-missions: surface analysis, dependency rebuild, release gate, archive. Dispatching to fleet.' },

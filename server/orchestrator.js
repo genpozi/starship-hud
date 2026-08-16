@@ -118,14 +118,17 @@ export class Orchestrator {
   }
 
   /**
-   * Emit a typed event frame to all clients. Events are hint-only (the delta
-   * carries the authoritative state) so they never carry a seq and never
-   * advance the shared seq counter.
+   * Emit a typed activity line into the authoritative log stream. The HUD's
+   * log view is rendered from `state.logs` (delta-driven), so tool-level
+   * activity is folded here instead of being broadcast as hint-only frames the
+   * client discards.
    */
-  _emit(kind, fields) {
-    const frame = { type: 'event', kind, ...fields, ts: Date.now() }
-    this.broadcast(frame)
-    return frame
+  _emitActivity(agent, tool, step, ok, ms) {
+    if (ok == null) {
+      this.log('INFO', `${agent} → ${tool}: ${step}`)
+    } else {
+      this.log(ok ? 'OK' : 'WARN', `${agent} ${tool} ${ok ? `done in ${ms}ms` : 'FAILED'}`)
+    }
   }
 
   // ---- realtime transport ---- //
@@ -183,11 +186,6 @@ export class Orchestrator {
     return seq
   }
 
-  /** Re-send a full snapshot to a client that fell out of sync. */
-  requestResync(client) {
-    return this.snapshot(client)
-  }
-
   // ---- lifecycle ---- //
   start() {
     this.hooks.onRunStart({ ts: Date.now() })
@@ -215,7 +213,9 @@ export class Orchestrator {
     agents.forEach((a) => {
       this.hooks.onTurnStart({ agent: a.name, state: a.state })
       if (a.state === 'idle') {
-        const job = this.s.dispatch.find((d) => d.state === 'waiting' && d.agent === a.name)
+        // pick up both queued (`waiting`) and pre-assigned (`assigned`) jobs —
+        // seed rows ship in the assigned state and must not be orphaned forever.
+        const job = this.s.dispatch.find((d) => (d.state === 'waiting' || d.state === 'assigned') && d.agent === a.name)
         if (job) {
           this._pickupJob(a, job)
           changed = true
@@ -223,9 +223,11 @@ export class Orchestrator {
         return
       }
       const ctxObj = this._agentJobs.get(a.name)
-      if (ctxObj && ctxObj.steps.length && !ctxObj.inFlight) {
-        // step machine: complete one step every ~2-3 ticks
-        if (Math.random() < STEP_ODDS) {
+      if (ctxObj && ctxObj.steps.length) {
+        // step machine: complete one step every ~2-3 ticks. While a step's
+        // promise is in flight we never touch progress/tokens (the classic
+        // simulated-progress branch below would otherwise corrupt them).
+        if (!ctxObj.inFlight && Math.random() < STEP_ODDS) {
           this._advanceStep(a, ctxObj)
           changed = true
         }
@@ -258,7 +260,6 @@ export class Orchestrator {
     a.task = job.task
     a.progress = 4
     this.log('INFO', `${a.name} picked up: ${job.task}`)
-    this._emit('task:start', { agent: a.name, task: job.task })
     this._agentJobs.set(a.name, {
       job,
       steps: Array.isArray(job.steps) && job.steps.length ? job.steps : [],
@@ -295,14 +296,14 @@ export class Orchestrator {
     const t0 = Date.now()
     ctxObj.inFlight = true
     this.hooks.onToolCall({ agent: a.name, tool, step: step.title })
-    this._emit('tool:start', { agent: a.name, tool, step: step.title })
+    this._emitActivity(a.name, tool, step.title)
     runSkill(tool, this._agentCtx(a, ctxObj.job, step))
       .then((res) => {
         const ms = Date.now() - t0
         ctxObj.inFlight = false
         const ok = !(res && res.error)
         this.hooks.onToolResult({ agent: a.name, tool, ok, ms })
-        this._emit('tool:finish', { agent: a.name, tool, ok, ms })
+        this._emitActivity(a.name, tool, step.title, ok, ms)
         if (!ok) {
           ctxObj.retries += 1
           this.log('WARN', `${a.name} tool "${tool}" returned error: ${res.error}`)
@@ -324,7 +325,7 @@ export class Orchestrator {
         const ms = Date.now() - t0
         ctxObj.inFlight = false
         this.hooks.onToolResult({ agent: a.name, tool, ok: false, ms })
-        this._emit('tool:finish', { agent: a.name, tool, ok: false, ms })
+        this._emitActivity(a.name, tool, step.title, false, ms)
         ctxObj.retries += 1
         this.log('WARN', `${a.name} tool "${tool}" threw: ${err.message}`)
         this.store.markDirty()
@@ -346,7 +347,6 @@ export class Orchestrator {
     a.progress = 0
     job.state = 'done'
     this.hooks.onRunEnd({ agent: a.name, task: job.task, ok: true })
-    this._emit('task:finish', { agent: a.name, task: job.task, ok: true })
   }
 
   _failJob(a, ctxObj) {
@@ -360,11 +360,15 @@ export class Orchestrator {
     a.progress = 0
     job.state = 'failed'
     this.hooks.onRunEnd({ agent: a.name, task: job.task, ok: false })
-    this._emit('task:finish', { agent: a.name, task: job.task, ok: false })
   }
 
   _trackJobDone(job, ok) {
-    if (!job || !job.wfId) return
+    if (!job) return
+    // aggregate job outcomes feed the graphs throughput/success surfaces
+    this.s.telemetry.jobs = this.s.telemetry.jobs || { done: 0, failed: 0 }
+    if (ok) this.s.telemetry.jobs.done += 1
+    else this.s.telemetry.jobs.failed += 1
+    if (!job.wfId) return
     const track = this._chatWorkflows.get(job.wfId)
     if (!track) return
     if (ok) track.done += 1
@@ -455,6 +459,18 @@ export class Orchestrator {
     t.ctx = Math.max(15, Math.min(92, t.ctx + rand(-1.5, 1.5)))
     t.token = Math.min(100, t.token + 0.05)
     this.s.meta.tokenTotal += rand(0.4, 1.6)
+    // rolling sample window feeds the graphs view (time-series, not static)
+    t.hist = t.hist || []
+    t.hist.push({
+      ts: Date.now(),
+      temp: Math.round(t.temp * 10) / 10,
+      lat: Math.round(t.lat),
+      ctx: Math.round(t.ctx),
+      token: Math.round(t.token),
+      tokenTotal: Math.round(this.s.meta.tokenTotal * 10) / 10,
+      jobs: { ...(t.jobs || { done: 0, failed: 0 }) }
+    })
+    if (t.hist.length > 90) t.hist.splice(0, t.hist.length - 90)
     // probes drift + condition engine (raise / escalate / clear on thresholds)
     this.s.probes.forEach((p) => {
       if (p.warnAt === 0) return
@@ -571,18 +587,38 @@ export class Orchestrator {
    * Detect a direct agent mention in an operator prompt: "@CODA …",
    * "CODA, …", "CODA …" at start, or "hey CODA". Returns the matching agent
    * name (from the canonical crew) or null.
+   *
+   * Two forms, to avoid false positives on common English words that collide
+   * with agent names (link/pilot/sage):
+   *   - "@NAME"       explicit mention anywhere — case-insensitive.
+   *   - bare "NAME"   matches ONLY when the operator capitalized it in the
+   *                   original text, so "link up the services" never routes
+   *                   to LINK but "LINK, sync the boards" does.
+   * Short alias "ORCH" resolves to the full name ORCHESTRATOR.
    */
   _detectMention(text) {
     if (!text) return null
-    const names = (this.s.agents || []).map((a) => a.name).sort((a, b) => b.length - a.length)
+    const crew = this.s.agents || []
+    const names = crew.map((a) => a.name).sort((a, b) => b.length - a.length)
     const t = String(text).trim()
     const upper = t.toUpperCase()
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const resolve = (n) => {
+      const full = crew.find((a) => a.name.toUpperCase() === n)
+      if (full) return full.name
+      if (n === 'ORCH') return 'ORCHESTRATOR'
+      return null
+    }
     for (const name of names) {
       const n = name.toUpperCase()
-      // @NAME, NAME:, NAME,, leading "NAME …", "NAME …" anywhere after "hey"
-      const re = new RegExp(`(?:^|[@\\s])(?:${n})(?=[:,\\s]|$)`)
-      if (re.test(upper)) return name
+      // @NAME anywhere (lowercase @link is still an explicit mention)
+      if (new RegExp(`@${esc(n)}(?=\\W|$)`).test(upper)) return resolve(n)
+      // bare capitalized mention — only if the operator actually wrote it upper
+      if (new RegExp(`(?:^|[\\s])${esc(n)}(?=[:,\\s]|$)`).test(t)) return resolve(n)
     }
+    // aliases that are not a full crew name (@ORCH, "ORCH," — note the crew
+    // full name ORCHESTRATOR is matched above, so ORCH only fires standalone)
+    if (/(?:^|[\s])ORCH(?=[:,\s]|$)/.test(t) || /@ORCH(?=\W|$)/.test(upper)) return 'ORCHESTRATOR'
     return null
   }
 
@@ -759,13 +795,12 @@ export class Orchestrator {
     return { ok: false }
   }
 
-  toggleAgenda(idx) {
-    return { ok: false } // agenda is local UI state; keep server immutable
-  }
-
   setCalDay(day) {
-    this.s.calendar.day = day
+    const d = Number(day)
+    if (!Number.isInteger(d) || d < 0 || d > 6) return { ok: false }
+    this.s.calendar.day = d
     this.store.markDirty()
+    return { ok: true }
   }
 
   createMission(payload) {

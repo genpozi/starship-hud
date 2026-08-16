@@ -27,6 +27,14 @@ validateSkills()
 
 app.use(express.json())
 
+// malformed JSON bodies → JSON error instead of the default HTML error page
+app.use((err, _req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ ok: false, error: 'invalid JSON body' })
+  }
+  next(err)
+})
+
 // --- static: serve built frontend if present, else just the API ---
 const dist = join(__dirname, '..', 'dist')
 app.use(express.static(dist))
@@ -76,7 +84,8 @@ app.post('/api/email/:idx/read', (req, res) => {
 })
 
 app.post('/api/calendar/:day', (req, res) => {
-  orchestrator.setCalDay(Number(req.params.day))
+  const result = orchestrator.setCalDay(Number(req.params.day))
+  if (!result.ok) return res.status(400).json({ ok: false })
   res.json({ ok: true })
 })
 
@@ -180,6 +189,7 @@ server.listen(PORT, () => {
 process.on('SIGTERM', () => {
   clearInterval(heartbeat)
   orchestrator.stop()
+  orchestrator.store.flush()
   wss.clients.forEach((c) => c.terminate())
   server.close(() => process.exit(0))
 })

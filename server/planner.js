@@ -17,9 +17,17 @@ const hasLLM = () => Boolean(process.env.USER_LLM_API_KEY)
 const VALID_TOOLS = new Set(Object.keys(SKILLS))
 
 /**
- * Sanitize planner output: coerce shape and map any unknown tool names onto
- * the safe `search` fallback so the step machine never runs an unregistered
- * tool.
+ * Crew names the step machine can actually dispatch to. Anything else the LLM
+ * hallucinates is remapped to the orchestrator so jobs are never orphaned.
+ */
+const VALID_AGENTS = new Set(['ORCHESTRATOR', 'CODA', 'PILOT', 'SAGE', 'LINK', 'NUDGE'])
+
+/**
+ * Sanitize planner output: coerce shape, map unknown tool names onto the safe
+ * `search` fallback, resolve the short alias "ORCH" to the crew's real name
+ * "ORCHESTRATOR", and remap hallucinated agent names onto ORCHESTRATOR so
+ * dispatched jobs are never orphaned. The step machine only runs registered
+ * tools and agents that actually exist.
  */
 function normalizeSteps(steps) {
   if (!Array.isArray(steps)) return []
@@ -30,9 +38,12 @@ function normalizeSteps(steps) {
     const title = String(s.title).trim()
     if (!title || seen.has(title)) continue
     seen.add(title)
+    let agent = String(s.agent || 'ORCH').toUpperCase()
+    if (agent === 'ORCH') agent = 'ORCHESTRATOR'
+    if (!VALID_AGENTS.has(agent)) agent = 'ORCHESTRATOR'
     out.push({
       title,
-      agent: String(s.agent || 'ORCH').toUpperCase(),
+      agent,
       tool: VALID_TOOLS.has(s.tool) ? s.tool : 'search'
     })
   }

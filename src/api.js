@@ -104,10 +104,8 @@ export function connect({ onOnline, onOffline } = {}) {
         break
       case 'pong':
         break
-      case 'event':
       case 'chat':
-      case 'state':
-        // hint-only frames; the delta carries authoritative truth
+        // hint-only frame; the delta carries authoritative truth
         break
       default:
         break

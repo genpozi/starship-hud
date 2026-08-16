@@ -1,8 +1,7 @@
 import './style.css'
-import { createGalaxy } from './galaxy.js'
-import { SHIP, TOOLS, AGENDA } from './config.js'
 import { STATE, applyServerState } from './store.js'
 import { connect, api, isOnline, linkState } from './api.js'
+import { TOOLS, SHIP, AGENDA } from './config.js'
 import {
   renderKanban,
   renderItems,
@@ -19,6 +18,7 @@ import {
   renderApproval,
   changed,
   createStreamRenderer,
+  escapeHtml,
   logKey,
   pushChat
 } from './views.js'
@@ -71,11 +71,11 @@ function renderAgents() {
     el.className = `agent ${a.state}`
     el.innerHTML = `
       <div class="agent-top">
-        <span class="agent-name">${a.name}</span>
-        <span class="agent-state ${a.state}">${a.state.toUpperCase()}</span>
+        <span class="agent-name">${escapeHtml(a.name)}</span>
+        <span class="agent-state ${a.state}">${escapeHtml(a.state).toUpperCase()}</span>
       </div>
-      <div class="agent-role"><span>${a.role}</span><span>${a.tokens.toFixed(1)}K TK</span></div>
-      <div class="agent-task">${a.state === 'idle' ? 'STANDING BY' : a.task}</div>
+      <div class="agent-role"><span>${escapeHtml(a.role)}</span><span>${a.tokens.toFixed(1)}K TK</span></div>
+      <div class="agent-task">${a.state === 'idle' ? 'STANDING BY' : escapeHtml(a.task)}</div>
       <div class="agent-progress"><div class="agent-progress-fill" style="width:${a.progress}%"></div></div>
     `
     list.appendChild(el)
@@ -91,7 +91,7 @@ const renderLogStream = createStreamRenderer(
   (l) => {
     const el = document.createElement('div')
     el.className = 'log-line'
-    el.innerHTML = `<span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span>`
+    el.innerHTML = `<span class="log-ts">${escapeHtml(l.t)}</span><span class="log-lvl ${l.level}">${escapeHtml(l.level)}</span><span class="log-msg">${escapeHtml(l.msg)}</span>`
     return el
   },
   40,
@@ -110,12 +110,12 @@ function renderWorkflows() {
     el.className = `workflow ${w.state}`
     el.innerHTML = `
       <div class="wf-head">
-        <span class="wf-name">${w.name}</span>
-        <span class="wf-state ${w.state}">${w.state.toUpperCase()}</span>
+        <span class="wf-name">${escapeHtml(w.name)}</span>
+        <span class="wf-state ${w.state}">${escapeHtml(w.state).toUpperCase()}</span>
       </div>
       <div class="wf-meta">
-        <span>AGENTS: ${w.agents}</span>
-        <span>ETA: ${w.eta}</span>
+        <span>AGENTS: ${escapeHtml(w.agents)}</span>
+        <span>ETA: ${escapeHtml(w.eta)}</span>
         <span>${w.progress}%</span>
       </div>
       <div class="wf-bar"><div class="wf-bar-fill" style="width:${w.progress}%"></div></div>
@@ -136,7 +136,7 @@ function renderTools() {
     el.innerHTML = `
       <span class="tool-status ${t.status}"></span>
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${toolIcons[t.icon]}</svg>
-      <span class="tool-name">${t.name.toUpperCase()}</span>
+      <span class="tool-name">${escapeHtml(t.name).toUpperCase()}</span>
     `
     el.addEventListener('click', () => {
       el.style.borderColor = 'var(--line-amber)'
@@ -156,9 +156,9 @@ function renderAgenda() {
     const el = document.createElement('div')
     el.className = 'agenda-item'
     el.innerHTML = `
-      <span class="agenda-time">${item.time}</span>
+      <span class="agenda-time">${escapeHtml(item.time)}</span>
       <span class="agenda-check"><svg viewBox="0 0 24 24" fill="none" stroke-width="4"><path d="M20 6 9 17l-5-5"/></svg></span>
-      <span class="agenda-text">${item.text}</span>
+      <span class="agenda-text">${escapeHtml(item.text)}</span>
       <span class="agenda-type ${item.type === 'mil' ? 'mil' : 'dep'}">${item.type === 'mil' ? 'MILESTONE' : 'DEPLOY'}</span>
     `
     el.addEventListener('click', () => el.classList.toggle('done'))
@@ -257,7 +257,7 @@ function renderRollup() {
   $('#agent-count').textContent = `${STATE.agents.filter((a) => a.state !== 'idle').length} ACTIVE / ${STATE.agents.length}`
   const sys = $('#system-status')
   const bad = STATE.agents.some((a) => a.state === 'error') || STATE.telemetry.ctx > 80
-  const src = `SRC: ${(STATE.meta.dataSource || 'seed').toUpperCase()}`
+  const src = `SRC: ${escapeHtml((STATE.meta.dataSource || 'seed').toUpperCase())}`
   if (bad) {
     sys.innerHTML = `<span class="status-dot warn"></span> DEGRADED OPERATIONS · ${src}`
   } else if (linkState() === 'online') {
@@ -327,6 +327,17 @@ function startSim() {
       t.lat = Math.max(40, Math.min(420, t.lat + rand(-18, 18)))
       t.ctx = Math.max(15, Math.min(92, t.ctx + rand(-2, 2)))
       STATE.meta.tokenTotal += rand(0.8, 3.2)
+      t.hist = t.hist || []
+      t.hist.push({
+        ts: Date.now(),
+        temp: Math.round(t.temp * 10) / 10,
+        lat: Math.round(t.lat),
+        ctx: Math.round(t.ctx),
+        token: Math.round(t.token),
+        tokenTotal: Math.round(STATE.meta.tokenTotal * 10) / 10,
+        jobs: { ...(t.jobs || { done: 0, failed: 0 }) }
+      })
+      if (t.hist.length > 90) t.hist.splice(0, t.hist.length - 90)
       renderRollup()
     }, 1200)
   )
@@ -394,6 +405,20 @@ function startSim() {
 // ============================================================================
 // CHAT dispatch
 // ============================================================================
+/** Mirrors the server's mention detection so OFFLINE replies route the same
+ *  way: @NAME anywhere (case-insensitive) or a bare capitalized crew name. */
+function offlineMention(text) {
+  const t = String(text || '').trim()
+  const upper = t.toUpperCase()
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  for (const n of ['ORCHESTRATOR', 'CODA', 'PILOT', 'SAGE', 'LINK', 'NUDGE']) {
+    if (new RegExp(`@${esc(n)}(?=\\W|$)`).test(upper)) return n
+    if (new RegExp(`(?:^|[\\s])${esc(n)}(?=[:,\\s]|$)`).test(t)) return n
+  }
+  if (/(?:^|[\s])ORCH(?=[:,\s]|$)/.test(t) || /@ORCH(?=\W|$)/.test(upper)) return 'ORCHESTRATOR'
+  return null
+}
+
 function sendChat() {
   const box = $('#chat-box')
   const text = box.value.trim()
@@ -406,7 +431,8 @@ function sendChat() {
     setTimeout(() => {
       // offline: reply in-character from the fleet state (persona + knowledge),
       // never a random canned line, so the sim stays coherent with the board
-      const agent = STATE.agents.find((a) => /@?(CODA|ORCH|PILOT|SAGE|LINK|NUDGE)/i.test(text) && a.name !== 'ORCHESTRATOR')
+      const mentioned = offlineMention(text)
+      const agent = (mentioned && STATE.agents.find((a) => a.name === mentioned))
         || STATE.agents.find((a) => a.state !== 'idle')
         || STATE.agents[0]
       const topic = text.replace(/@\w+/gi, '').trim().split(' ').filter((w) => w.length > 4).slice(0, 4).join(' ')
@@ -421,8 +447,11 @@ function sendChat() {
 // ============================================================================
 // BOOT
 // ============================================================================
-export function boot() {
-  createGalaxy($('#galaxy-canvas'))
+export async function boot() {
+  // galaxy is a heavy Three.js chunk — load it async so the initial bundle
+  // stays lean and the HUD shell paints immediately
+  const galaxy = await import('./galaxy.js')
+  galaxy.createGalaxy($('#galaxy-canvas'))
 
   renderAgents()
   renderWorkflows()

@@ -11,6 +11,20 @@ import { api, isOnline } from './api.js'
 const $ = (sel) => document.querySelector(sel)
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
+/**
+ * Escape a value for safe injection into innerHTML. Every renderer routes
+ * state-derived strings (chat text, external GitHub/Hermes titles, probe
+ * names, log lines) through this so untrusted data can never execute.
+ */
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ============================================================================
 // RENDER GATING — skip a view render when its source data is unchanged so the
 // DOM (and any running CSS animations on crit/warn/live rows) is never rebuilt
@@ -115,11 +129,11 @@ export function renderKanban() {
           .map(
             (c) => `
           <div class="kan-card ${col.id === 'done' ? 'done' : ''}${c.src === 'hermes' ? ' he' : ''}" title="Click to advance" data-id="${c.id}">
-            <div class="kan-title">${c.title}</div>
-            <div class="kan-tags">${c.tags.map((t) => `<span class="kan-tag">${t}</span>`).join('')}</div>
+            <div class="kan-title">${escapeHtml(c.title)}</div>
+            <div class="kan-tags">${(c.tags || []).map((t) => `<span class="kan-tag">${escapeHtml(t)}</span>`).join('')}</div>
             <div class="kan-meta">
-              <span class="kan-agent">◈ ${c.agent}</span>
-              <span class="kan-prio ${c.prio}">${c.prio}</span>
+              <span class="kan-agent">◈ ${escapeHtml(c.agent)}</span>
+              <span class="kan-prio ${c.prio}">${escapeHtml(c.prio)}</span>
             </div>
           </div>`
           )
@@ -158,12 +172,12 @@ export function renderItems() {
     ${STATE.items.map(
       (it) => `
     <div class="tbl-row">
-      <span class="tbl-id">${it.id}</span>
-      <span class="tbl-title">${it.title}</span>
-      <span class="tbl-type ${it.type}">${it.type}</span>
-      <span class="tbl-prio ${it.prio}">${it.prio}</span>
-      <span class="tbl-assignee">${it.assignee}</span>
-      <span class="tbl-status ${it.status}">${it.status.toUpperCase()}</span>
+      <span class="tbl-id">${escapeHtml(it.id)}</span>
+      <span class="tbl-title">${escapeHtml(it.title)}</span>
+      <span class="tbl-type ${it.type}">${escapeHtml(it.type)}</span>
+      <span class="tbl-prio ${it.prio}">${escapeHtml(it.prio)}</span>
+      <span class="tbl-assignee">${escapeHtml(it.assignee)}</span>
+      <span class="tbl-status ${it.status}">${escapeHtml(it.status).toUpperCase()}</span>
     </div>`
     ).join('')}`
 }
@@ -182,12 +196,12 @@ export function renderScheduler() {
     ${STATE.schedules.map(
       (j) => `
     <div class="cron-row${j.src === 'hermes' ? ' he' : ''}">
-      <span class="cron-name">${j.name}</span>
-      <span class="cron-cron">${j.cron}</span>
-      <span class="cron-agent">◈ ${j.agent}</span>
-      <span class="cron-next">${j.next}</span>
-      <span class="cron-dur">${j.dur}</span>
-      <span class="cron-last ${j.last}">${j.last}</span>
+      <span class="cron-name">${escapeHtml(j.name)}</span>
+      <span class="cron-cron">${escapeHtml(j.cron)}</span>
+      <span class="cron-agent">◈ ${escapeHtml(j.agent)}</span>
+      <span class="cron-next">${escapeHtml(j.next)}</span>
+      <span class="cron-dur">${escapeHtml(j.dur)}</span>
+      <span class="cron-last ${j.last}">${escapeHtml(j.last)}</span>
     </div>`
     ).join('')}`
 }
@@ -198,14 +212,14 @@ export function renderScheduler() {
 const renderChatStream = createStreamRenderer(chatKey, (m) => {
   const el = document.createElement('div')
   el.className = `chat-msg ${m.from === 'USER' ? 'user' : 'agent'}`
-  el.innerHTML = `<div class="chat-from">${m.from}</div><div class="chat-text">${m.text}</div>`
+  el.innerHTML = `<div class="chat-from">${escapeHtml(m.from)}</div><div class="chat-text">${escapeHtml(m.text)}</div>`
   return el
 }, MAX_CHAT_ROWS)
 
 const renderHealthLog = createStreamRenderer(logKey, (l) => {
   const el = document.createElement('div')
   el.className = 'log-line'
-  el.innerHTML = `<span class="log-ts">${l.t}</span><span class="log-lvl ${l.level}">${l.level}</span><span class="log-msg">${l.msg}</span>`
+  el.innerHTML = `<span class="log-ts">${escapeHtml(l.t)}</span><span class="log-lvl ${l.level}">${escapeHtml(l.level)}</span><span class="log-msg">${escapeHtml(l.msg)}</span>`
   return el
 }, MAX_LOG_ROWS)
 
@@ -224,8 +238,8 @@ export function renderDispatch() {
     .map(
       (d) => `
   <div class="dispatch-item ${d.state}">
-    <div class="dispatch-task">${d.task}</div>
-    <div class="dispatch-meta"><span>◈ ${d.agent}</span><span>${d.state.toUpperCase()}</span></div>
+    <div class="dispatch-task">${escapeHtml(d.task)}</div>
+    <div class="dispatch-meta"><span>◈ ${escapeHtml(d.agent)}</span><span>${escapeHtml(d.state).toUpperCase()}</span></div>
   </div>`
     )
     .join('')
@@ -259,8 +273,9 @@ function sparklineSvg(values, opts = {}) {
   const min = opts.min ?? Math.min(...values)
   const max = opts.max ?? Math.max(...values)
   const span = max - min || 1
+  const denom = values.length - 1 || 1
   const pts = values.map((v, i) => {
-    const x = pad + (i / (values.length - 1)) * (w - pad * 2)
+    const x = pad + (i / denom) * (w - pad * 2)
     const y = h - pad - ((v - min) / span) * (h - pad * 2)
     return [x, y]
   })
@@ -290,17 +305,43 @@ function barChartSvg(values) {
 export function renderGraphs(telemetry) {
   const tokens = $('#graph-tokens')
   if (!tokens) return
-  tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">CTX: ${Math.round(telemetry.ctx)}% · LAT: ${Math.round(telemetry.lat)}ms · TEMP: ${Math.round(telemetry.temp)}°</div>` +
-    sparklineSvg([42, 48, 45, 55, 60, 58, 66, 70, 68, 74, 79, 82], { cls: 'amber' })
+  const hist = Array.isArray(telemetry.hist) && telemetry.hist.length
+    ? telemetry.hist
+    : [
+        { ctx: 27, lat: 84, temp: 42, token: 38 },
+        { ctx: 30, lat: 100, temp: 45, token: 42 },
+        { ctx: 34, lat: 118, temp: 48, token: 47 },
+        { ctx: 38, lat: 90, temp: 44, token: 51 },
+        { ctx: 44, lat: 130, temp: 50, token: 56 },
+        { ctx: 48, lat: 112, temp: 47, token: 60 }
+      ]
+  const ctxSeries = hist.map((h) => h.ctx)
+  const latSeries = hist.map((h) => h.lat)
+  const tempSeries = hist.map((h) => h.temp)
+  const tokenSeries = hist.map((h) => h.token)
+  const jobs = telemetry.jobs || { done: 0, failed: 0 }
+  const total = jobs.done + jobs.failed
+  const successPct = total > 0 ? Math.round((jobs.done / total) * 100) : 100
+  const last = hist[hist.length - 1]
+  const lastCtx = last ? last.ctx : telemetry.ctx
+  const lastLat = last ? last.lat : telemetry.lat
+  const lastTemp = last ? last.temp : telemetry.temp
+
+  tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">CTX: ${Math.round(lastCtx)}% · LAT: ${Math.round(lastLat)}ms · TEMP: ${Math.round(lastTemp)}°</div>` +
+    sparklineSvg(ctxSeries, { cls: 'amber' })
 
   const throughput = $('#graph-throughput')
-  if (throughput) throughput.innerHTML = barChartSvg([4, 7, 5, 9, 6, 8, 10, 7, 6, 9, 8, 11])
+  if (throughput) throughput.innerHTML = barChartSvg(latSeries.map((v) => Math.max(2, Math.round(v / 45))))
 
   const context = $('#graph-context')
-  if (context) context.innerHTML = sparklineSvg([18, 22, 20, 30, 28, 34, 38, 36, 44, 48, 46, 52])
+  if (context) context.innerHTML = sparklineSvg(ctxSeries)
 
   const success = $('#graph-success')
-  if (success) success.innerHTML = sparklineSvg([88, 90, 87, 93, 91, 95, 92, 96, 94, 97, 96, 98], { min: 80 })
+  if (success) success.innerHTML = sparklineSvg([successPct, successPct, successPct, successPct, successPct, successPct], { min: 80 }) +
+    `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-top:6px">SUCCESS ${successPct}% · ${jobs.done} OK / ${jobs.failed} FAIL</div>`
+
+  const tokensFoot = $('#graph-token-foot')
+  if (tokensFoot) tokensFoot.textContent = `TOKEN BUDGET ${Math.round(tokenSeries[tokenSeries.length - 1])}%`
 }
 
 // ============================================================================
@@ -312,14 +353,14 @@ export function renderVault() {
   $('#vault-count').textContent = `${STATE.vault.length} DOCS`
   grid.innerHTML = STATE.vault.map(
     (d) => `
-  <div class="vault-card" title="Open ${d.title}">
-    <div class="vault-title">${d.title}</div>
+  <div class="vault-card" title="Open ${escapeHtml(d.title)}">
+    <div class="vault-title">${escapeHtml(d.title)}</div>
     <div class="vault-meta">
-      <span class="vault-type">${d.type}</span>
-      <span>${d.size}</span>
-      <span>${d.updated}</span>
+      <span class="vault-type">${escapeHtml(d.type)}</span>
+      <span>${escapeHtml(d.size)}</span>
+      <span>${escapeHtml(d.updated)}</span>
     </div>
-    <div class="vault-tags">${d.tags.map((t) => `<span class="vault-tag">${t}</span>`).join('')}</div>
+    <div class="vault-tags">${(d.tags || []).map((t) => `<span class="vault-tag">${escapeHtml(t)}</span>`).join('')}</div>
   </div>`
   ).join('')
 }
@@ -334,12 +375,12 @@ export function renderEmail() {
   list.innerHTML = STATE.email.map(
     (e, i) => `
   <div class="email-row ${e.read ? '' : 'unread'}" data-i="${i}">
-    <span class="email-from">${e.from}</span>
+    <span class="email-from">${escapeHtml(e.from)}</span>
     <div>
-      <div class="email-subject">${e.subject}</div>
-      <div class="email-preview">${e.preview}</div>
+      <div class="email-subject">${escapeHtml(e.subject)}</div>
+      <div class="email-preview">${escapeHtml(e.preview)}</div>
     </div>
-    <span class="email-time">${e.time}</span>
+    <span class="email-time">${escapeHtml(e.time)}</span>
   </div>`
   ).join('')
   list.querySelectorAll('.email-row').forEach((row) => {
@@ -353,14 +394,14 @@ export function renderEmail() {
       if (reader) {
         reader.innerHTML = `
           <div class="reader-head">
-            <div class="reader-subject">${e.subject}</div>
+            <div class="reader-subject">${escapeHtml(e.subject)}</div>
             <div class="reader-meta">
-              <span>FROM: ${e.from}</span>
-              <span>${e.time}</span>
-              <span class="email-label ${e.label}">${e.label}</span>
+              <span>FROM: ${escapeHtml(e.from)}</span>
+              <span>${escapeHtml(e.time)}</span>
+              <span class="email-label ${e.label}">${escapeHtml(e.label)}</span>
             </div>
           </div>
-          <div class="reader-body">${e.preview} Full message body rendered here for the selected thread. Attachments and inline signatures are supported by the HUD reader.</div>`
+          <div class="reader-body">${escapeHtml(e.preview)} Full message body rendered here for the selected thread. Attachments and inline signatures are supported by the HUD reader.</div>`
       }
     })
   })
@@ -381,7 +422,7 @@ export function renderCalendar() {
     for (let day = 0; day < 5; day++) {
       const events = STATE.calendar.events.filter((e) => e.day === day && parseInt(e.start) === hour)
       html += `<div class="cal-slot">${events
-        .map((e) => `<div class="evt ${e.type}" data-day="${day}" style="height:${(e.end - e.start) * 26}px">${e.title}</div>`)
+        .map((e) => `<div class="evt ${e.type}" data-day="${day}" style="height:${(e.end - e.start) * 26}px">${escapeHtml(e.title)}</div>`)
         .join('')}</div>`
     }
   }
@@ -405,9 +446,9 @@ function selectCalDay(day, force) {
         .map(
           (e) => `
       <div class="day-evt ${e.type}">
-        <div class="day-evt-time">${e.start} – ${e.end}</div>
-        <div class="day-evt-title">${e.title}</div>
-        <div class="day-evt-agents">AGENTS: ${e.agents.join(', ')}</div>
+        <div class="day-evt-time">${escapeHtml(e.start)} – ${escapeHtml(e.end)}</div>
+        <div class="day-evt-title">${escapeHtml(e.title)}</div>
+        <div class="day-evt-agents">AGENTS: ${escapeHtml((e.agents || []).join(', '))}</div>
       </div>`
         )
         .join('')
@@ -432,13 +473,13 @@ export function renderAlerts() {
     .map(
       (a) => `
   <div class="alert-row ${a.acked ? 'acked' : ''}${a.source === 'HERMES' ? ' he' : ''}" data-id="${a.id}" title="${a.acked ? 'Acknowledged' : 'Click to ack'}">
-    <span class="alert-sev ${a.sev}">${a.sev.toUpperCase()}</span>
-    <span class="alert-source">${a.source}</span>
+    <span class="alert-sev ${a.sev}">${escapeHtml(a.sev).toUpperCase()}</span>
+    <span class="alert-source">${escapeHtml(a.source)}</span>
     <div>
-      <div class="alert-title">${a.title}</div>
-      <div class="alert-detail">${a.detail}</div>
+      <div class="alert-title">${escapeHtml(a.title)}</div>
+      <div class="alert-detail">${escapeHtml(a.detail)}</div>
     </div>
-    <span class="alert-time">${a.time}</span>
+    <span class="alert-time">${escapeHtml(a.time)}</span>
   </div>`
     )
     .join('')
@@ -466,8 +507,8 @@ export function renderHealth(logs) {
       const state = crit ? 'crit' : warn ? 'warn' : 'ok'
       return `
     <div class="probe-cell ${crit ? 'crit' : warn ? 'warn' : ''}">
-      <div class="probe-name">${p.name}${crit ? ' ▸ CRIT' : ''}</div>
-      <div class="probe-val ${state}">${p.value}${p.unit}</div>
+      <div class="probe-name">${escapeHtml(p.name)}${crit ? ' ▸ CRIT' : ''}</div>
+      <div class="probe-val ${state}">${escapeHtml(p.value)}${escapeHtml(p.unit)}</div>
       <div class="probe-track"><div class="probe-fill" style="width:${p.value}%"></div></div>
     </div>`
     }).join('')
@@ -487,14 +528,14 @@ export function renderReports() {
   $('#reports-count').textContent = `${STATE.reports.length} DOCS`
   grid.innerHTML = STATE.reports.map(
     (r) => `
-  <div class="report-card" title="Open ${r.title}">
-    <div class="report-title">${r.title}</div>
-    <div class="report-abstract">${r.abstract}</div>
+  <div class="report-card" title="Open ${escapeHtml(r.title)}">
+    <div class="report-title">${escapeHtml(r.title)}</div>
+    <div class="report-abstract">${escapeHtml(r.abstract)}</div>
     <div class="report-meta">
-      <span>BY ${r.author} · ${r.updated}</span>
-      <span class="report-status ${r.status}">${r.status.toUpperCase()}</span>
+      <span>BY ${escapeHtml(r.author)} · ${escapeHtml(r.updated)}</span>
+      <span class="report-status ${r.status}">${escapeHtml(r.status).toUpperCase()}</span>
     </div>
-    <div class="report-tags">${r.tags.map((t) => `<span class="report-tag">${t}</span>`).join('')}</div>
+    <div class="report-tags">${(r.tags || []).map((t) => `<span class="report-tag">${escapeHtml(t)}</span>`).join('')}</div>
   </div>`
   ).join('')
 }

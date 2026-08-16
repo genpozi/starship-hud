@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = join(__dirname, '..', 'data')
+const DATA_DIR = process.env.STELLARIS_DATA_DIR ? join(process.env.STELLARIS_DATA_DIR) : join(__dirname, '..', 'data')
 const STATE_FILE = join(DATA_DIR, 'state.json')
 
 /**
@@ -39,6 +39,15 @@ export class Store {
     this.dirty = true
     clearTimeout(this.timer)
     this.timer = setTimeout(() => this._flush(), 1500)
+  }
+
+  /** Synchronously flush any pending write (used on clean shutdown). */
+  flush() {
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+    if (this.dirty) this._flush()
   }
 
   _flush() {
