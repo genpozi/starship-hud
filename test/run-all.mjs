@@ -24,6 +24,8 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const REPO = join(ROOT, '..')
@@ -31,12 +33,17 @@ const MOCK_PORT = '8788'
 const MOCK_URL = `http://127.0.0.1:${MOCK_PORT}`
 const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills', 'chat', 'regression', 'views', 'integration']
 
+// A fresh per-run data dir, so no suite ever touches the live demo's
+// data/state.json (which a running orbit server flushes to continuously).
+// Suites that also boot their own isolated server keep their own dir.
+const DATA_DIR = mkdtempSync(join(tmpdir(), 'stellaris-test-'))
+
 function runNode(script) {
   return new Promise((resolve) => {
     const p = spawn('node', [script], {
       cwd: REPO,
       stdio: ['ignore', 'inherit', 'inherit'],
-      env: { ...process.env, MOCK_URL, USER_HERMES_URL: MOCK_URL }
+      env: { ...process.env, MOCK_URL, USER_HERMES_URL: MOCK_URL, STELLARIS_DATA_DIR: DATA_DIR }
     })
     p.on('exit', (code) => resolve(code === 0))
   })
@@ -77,6 +84,7 @@ try {
   }
 } finally {
   mock.kill('SIGTERM')
+  rmSync(DATA_DIR, { recursive: true, force: true })
 }
 
 console.log(failed ? 'OVERALL: FAILURES' : 'OVERALL: ALL SUITES GREEN')

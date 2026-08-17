@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
-const STATE_FILE = join(REPO, 'data', 'state.json')
+const STATE_FILE = process.env.STELLARIS_DATA_DIR
+  ? join(process.env.STELLARIS_DATA_DIR, 'state.json')
+  : join(REPO, 'data', 'state.json')
 const STATE_BACKUP = join(tmpdir(), 'phase4-test.state.json')
 if (existsSync(STATE_FILE)) renameSync(STATE_FILE, STATE_BACKUP)
 

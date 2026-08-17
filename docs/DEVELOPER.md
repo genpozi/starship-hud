@@ -226,6 +226,8 @@ board source.
 | `USER_HERMES_INGEST_MS` | reverse-ingest poll interval |
 | `USER_HERMES_APPROVAL` | `prompt` (HUD card) \| `always` \| `never` |
 | `USER_HERMES_APPROVAL_TIMEOUT` | max ms before an approval times out |
+| `PORT` | orbit HTTP/WS port (default `3001`) |
+| `STELLARIS_DATA_DIR` | runtime state dir (default `<repo>/data`); lets tests / parallel instances isolate state |
 
 Without any of them the harness runs fully offline with seed data
 (`meta.dataSource: 'seed'`).
@@ -233,16 +235,25 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-npm test          # run-all.mjs → fresh mock on :8788 → all 6 suites
+npm test          # run-all.mjs → fresh mock on :8788 → all 10 suites
 npm run probe     # validate a live Hermes WebUI (add --url / --password)
 npm run build     # vite build — must stay green
 ```
 
-- `test/run-all.mjs` spawns a **fresh** mock (deterministic approval parity),
-  then runs each suite as its own child with `MOCK_URL` + `USER_HERMES_URL`
-  exported. Failures are surfaced per suite; exit code 1 on any red.
-- Suites that touch `data/state.json` move it aside and restore it, so they are
-  self-isolating.
+- `test/run-all.mjs` spawns a **fresh** mock (deterministic approval parity) and
+  sets a fresh `STELLARIS_DATA_DIR` for every suite, so no test ever touches the
+  live demo's `data/state.json` (which a running orbit server flushes to
+  continuously). Each suite runs as its own child with `MOCK_URL` +
+  `USER_HERMES_URL` exported. Failures are surfaced per suite; exit code 1 on
+  any red.
+- The 10 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
+  `skills`, `chat`, `regression`, `views`, `integration`. `views` headless-
+  renders every HUD view via a DOM shim; `integration` boots a real orbit
+  server on an isolated port + `STELLARIS_DATA_DIR` and exercises the full
+  REST + WebSocket surface.
+- Suites that directly construct an `Orchestrator` compute their `STATE_FILE`
+  from `STELLARIS_DATA_DIR` when set, otherwise they move `data/state.json`
+  aside and restore it — either way they are self-isolating.
 - `test/chat.test.mjs` (Phase 0 diagnosis → now a regression guard) asserts the
   chat contract: `@AGENT` mention routing, a grounded conversational answer, and
   honest ambiguity handling. Run standalone with `node test/chat.test.mjs`.

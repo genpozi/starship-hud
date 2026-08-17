@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest an enhancement or new capability
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature. Keep it scoped to a single idea so it
+        can be evaluated and implemented cleanly.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What gap are you trying to fill? What is the operator scenario?
+      placeholder: As an operator, I want to ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working (UI surface, API route, data source, etc.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or alternative designs you considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does this live?
+      options:
+        - Frontend view / HUD
+        - Orbit server / API / WebSocket
+        - Data source integration (GitHub, Hermes, LLM)
+        - Developer tooling / tests / docs
+        - Not sure
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I can implement this myself and would open a PR
+          required: false
+        - label: I'd like maintainers to implement this
+          required: false

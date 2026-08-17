@@ -82,8 +82,9 @@ Quick facts:
 ## 5. Tests & verification
 
 ```bash
-npm test          # 6 suites: hermes client, reverse ingest, phase-4 engine,
-                  # github mapping, planner, skills (spawns a fresh mock)
+npm test          # 10 suites: hermes client, reverse ingest, phase-4 engine,
+                  # github mapping, planner, skills, chat, regression, views,
+                  # integration (spawns a fresh mock)
 npm run build     # frontend bundle must compile
 ```
 

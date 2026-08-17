@@ -83,7 +83,10 @@ snapshots and deltas.
   "calendar":   { "events": [...], "day": 0, "weekLabel": "CYCLE 42 / W-2" },
   "alerts":     [ { "id", "level", "msg", "src", "ack" } ],
   "probes":     [...], "reports": [...],
-  "telemetry":  { "temp", "token", "lat", "ctx" },
+  "telemetry":  { "temp", "token", "lat", "ctx",
+                  "jobs": { "done", "failed" },
+                  "hist":  [ { "ts", "temp", "lat", "ctx", "token",
+                               "tokenTotal", "jobs" } ] },
   "logs":       [{ "t", "level", "msg" }]
 }
 ```

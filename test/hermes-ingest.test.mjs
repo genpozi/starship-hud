@@ -11,7 +11,9 @@ import { mergeReplacement } from '../server/github.js'
 // Isolate the suite from whatever state.json was persisted (the server, prior
 // runs, etc.): move it aside for the duration, restore it at the end.
 const REPO = dirname(fileURLToPath(import.meta.url)) + '/..'
-const STATE_FILE = join(REPO, 'data', 'state.json')
+const STATE_FILE = process.env.STELLARIS_DATA_DIR
+  ? join(process.env.STELLARIS_DATA_DIR, 'state.json')
+  : join(REPO, 'data', 'state.json')
 const STATE_BACKUP = join(tmpdir(), 'hermes-ingest-test.state.json')
 if (existsSync(STATE_FILE)) renameSync(STATE_FILE, STATE_BACKUP)
 

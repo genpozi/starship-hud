@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url'
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const ETAGS_FILE = join(__dirname, '..', 'data', 'github-etags.json')
+const DATA_DIR = process.env.STELLARIS_DATA_DIR ? join(process.env.STELLARIS_DATA_DIR) : join(__dirname, '..', 'data')
+const ETAGS_FILE = join(DATA_DIR, 'github-etags.json')
 
 const API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2022-11-28'

@@ -98,6 +98,23 @@ answer, no knowledge grounding, no self-model, and no honest ambiguity path.
 - Phase 5: chat suite wired into `run-all.mjs` (regression guard), docs
   updated, `npm test` + `npm run build` green. Final state: 13/13 PASS.
 
+## Final — Premium repo format & operator docs  [DONE]
+- `LICENSE` (MIT), `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.editorconfig`.
+- `.github/`: CI workflow (Node 20/22 test+build, Docker build), bug report +
+  feature request issue templates, PR template, template `config.yml`.
+- `CHANGELOG.md` (Keep a Changelog, 1.0.0 → 2.0.0 → Unreleased).
+- `.env.example` completed with `PORT`, `STELLARIS_DATA_DIR`, `MOCK_PASSWORD`;
+  `docker-compose.yml` passes `MOCK_PASSWORD` through.
+- README: CI/test badges, docs table + project tree updated for all repo meta
+  files, suite count corrected (10); `docs/DEVELOPER.md` + `docs/DEPLOYMENT.md`
+  suite counts and env tables corrected; `docs/API.md` documents the
+  `telemetry.hist` + `telemetry.jobs` shapes.
+- All YAML validated; `npm test` (10/10) + `npm run build` green; pushed.
+- Test isolation fix: `run-all.mjs` now sets a fresh `STELLARIS_DATA_DIR` per
+  run and `hermes-ingest.js`/`github.js` persistence respects it — eliminates
+  the flake where a live demo orbit server recreated `data/state.json` mid-test
+  and poisoned `freshOrchestrator()` seeds.
+
 ## Execution order & parallelism
 
 | Batch | Workstreams (parallel) | Owns |

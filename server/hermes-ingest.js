@@ -30,7 +30,8 @@ import { fileURLToPath } from 'node:url'
 import { getConfig } from './hermes.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const INGEST_FILE = join(__dirname, '..', 'data', 'hermes-ingest.json')
+const DATA_DIR = process.env.STELLARIS_DATA_DIR ? join(process.env.STELLARIS_DATA_DIR) : join(__dirname, '..', 'data')
+const INGEST_FILE = join(DATA_DIR, 'hermes-ingest.json')
 
 const TITLE_MAX = 64
 const SRC = 'hermes'

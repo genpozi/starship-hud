@@ -2,7 +2,11 @@
 
 A dynamic, richly animated **starship HUD dashboard** for **multi-agent agentic workflows** and **daily driver** operations. Rendered over a live **3D procedural galaxy** (spiral galaxy, nebula, starfield, ringed planets) built with Three.js.
 
-![stack](https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff) ![license](https://img.shields.io/badge/license-MIT-ffb347)
+[![CI](https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg)](https://github.com/genpozi/starship-hud/actions/workflows/ci.yml)
+![stack](https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff)
+![license](https://img.shields.io/badge/license-MIT-ffb347)
+![tests](https://img.shields.io/badge/tests-10%20suites-39ff88)
+[![node](https://img.shields.io/badge/node-20%2B-83a598)](https://nodejs.org)
 
 ---
 
@@ -80,7 +84,8 @@ Open the local URL printed by Vite (default `http://localhost:5173`). Use the **
 # One command: mock hermes-webui (:8787) + orbit (:3001) + Vite dev (:5173)
 ./scripts/demo.sh
 
-# Headless validation — 6 test suites (client, ingest, phase-4, github, planner, skills)
+# Headless validation — 10 suites (client, ingest, phase-4, github, planner,
+# skills, chat, regression, views, integration)
 npm test
 
 # Validate a live Hermes WebUI against the bridge contract before enabling it
@@ -109,7 +114,10 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 | `docs/DEVELOPER.md` | developer guide — data model, skills, mutations, testing, debugging |
 | `docs/HERMES-INTEGRATION.md` | operator runbook for the Hermes bridge + GitHub sync |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
+| `CHANGELOG.md` | version history (Keep a Changelog) |
 | `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
+| `SECURITY.md` | vulnerability reporting + operator security posture |
+| `CODE_OF_CONDUCT.md` | community standards |
 
 ## Project structure
 
@@ -121,7 +129,16 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 ├── .env.example          # operator credentials (user-supplied, never committed)
 ├── Dockerfile            # multi-stage, non-root, healthcheck
 ├── docker-compose.yml    # orbit + optional mock, orbit-data volume
+├── .editorconfig
+├── LICENSE               # MIT
+├── CHANGELOG.md
 ├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── .github/
+│   ├── workflows/ci.yml  # test + build (Node 20/22) + docker build
+│   ├── ISSUE_TEMPLATE/   # bug_report, feature_request, config
+│   └── PULL_REQUEST_TEMPLATE.md
 ├── docs/
 │   ├── ARCHITECTURE.md   # runtime modes, data flow, module guide
 │   ├── API.md            # REST + WebSocket reference
@@ -142,7 +159,7 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 │   ├── hermes-ingest.js  # reverse ingest: sessions/crons → board
 │   ├── hermes-contract.js# npm run probe — live-WebUI validation
 │   └── mock-hermes.js    # hermes-webui test double
-├── test/                 # 7 suites + run-all.mjs (spawns fresh mock)
+├── test/                 # 10 suites + run-all.mjs (spawns fresh mock)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router

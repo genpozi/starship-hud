@@ -44,6 +44,7 @@ services:
       - "8787:8787"
     environment:
       PORT: 8787
+      MOCK_PASSWORD: ${MOCK_PASSWORD:-}
 
 volumes:
   orbit-data:

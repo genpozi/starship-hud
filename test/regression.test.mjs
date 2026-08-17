@@ -16,7 +16,9 @@ import { plan } from '../server/planner.js'
 import { escapeHtml } from '../src/views.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
-const STATE_FILE = join(REPO, 'data', 'state.json')
+const STATE_FILE = process.env.STELLARIS_DATA_DIR
+  ? join(process.env.STELLARIS_DATA_DIR, 'state.json')
+  : join(REPO, 'data', 'state.json')
 const STATE_BACKUP = join(tmpdir(), 'regression-test.state.json')
 if (existsSync(STATE_FILE)) renameSync(STATE_FILE, STATE_BACKUP)
 
