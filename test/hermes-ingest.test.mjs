@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -151,8 +151,12 @@ const mockCrons = [
 {
   const PORT = '8791'
   const URL = `http://127.0.0.1:${PORT}`
+  const INGEST_FILE = process.env.STELLARIS_DATA_DIR
+    ? join(process.env.STELLARIS_DATA_DIR, 'hermes-ingest.json')
+    : join(REPO, 'data', 'hermes-ingest.json')
   // Reset the persisted hash state so the first sync is guaranteed changed:true.
-  writeFileSync(join(REPO, 'data', 'hermes-ingest.json'), '{}')
+  mkdirSync(dirname(INGEST_FILE), { recursive: true })
+  writeFileSync(INGEST_FILE, '{}')
 
   let child = null
   const waitForHealth = async (ms) => {

@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- `hermes-ingest` suite test isolation: the D11 sync-state reset now resolves
+  `hermes-ingest.json` from `STELLARIS_DATA_DIR` (and creates the dir) instead
+  of hardcoding `<repo>/data`, so `npm test` passes on a fresh checkout/CI
+  where no `data/` directory exists.
+
 ## [2.0.0] — 2026-08-17
 
 ### Added
