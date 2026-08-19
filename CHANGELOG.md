@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Bumped `vite` `5.x → 7.x` (dev-only) — resolves the esbuild dev-server SSRF,
+  vite path-traversal/`fs.deny` bypass, and launch-editor advisories.
+  `npm audit` now reports 0 vulnerabilities.
+
 ### Fixed
 
 - `hermes-ingest` suite test isolation: the D11 sync-state reset now resolves
