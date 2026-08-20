@@ -62,25 +62,51 @@ window.__log = log
 // RENDERERS (mission control rollup)
 // ============================================================================
 function renderAgents() {
-  if (!changed('agents', STATE.agents)) return
   const list = $('#agent-list')
   if (!list) return
-  list.innerHTML = ''
-  STATE.agents.forEach((a) => {
-    const el = document.createElement('div')
-    el.className = `agent ${a.state}`
-    el.innerHTML = `
-      <div class="agent-top">
-        <span class="agent-name">${escapeHtml(a.name)}</span>
-        <span class="agent-state ${a.state}">${escapeHtml(a.state).toUpperCase()}</span>
-      </div>
-      <div class="agent-role"><span>${escapeHtml(a.role)}</span><span>${a.tokens.toFixed(1)}K TK</span></div>
-      <div class="agent-task">${a.state === 'idle' ? 'STANDING BY' : escapeHtml(a.task)}</div>
-      <div class="agent-progress"><div class="agent-progress-fill" style="width:${a.progress}%"></div></div>
-    `
-    list.appendChild(el)
+  const existing = list.querySelectorAll('.agent')
+  if (existing.length !== STATE.agents.length) {
+    list.innerHTML = ''
+    STATE.agents.forEach((a) => {
+      const el = document.createElement('div')
+      el.className = `agent ${a.state}`
+      el.dataset.agent = a.id
+      el.innerHTML = `
+        <div class="agent-top">
+          <span class="agent-name">${escapeHtml(a.name)}</span>
+          <span class="agent-state ${a.state}">${escapeHtml(a.state).toUpperCase()}</span>
+        </div>
+        <div class="agent-role"><span>${escapeHtml(a.role)}</span><span class="agent-tokens">${a.tokens.toFixed(1)}K TK</span></div>
+        <div class="agent-task">${a.state === 'idle' ? 'STANDING BY' : escapeHtml(a.task)}</div>
+        <div class="agent-progress"><div class="agent-progress-fill" style="width:${a.progress}%"></div></div>
+      `
+      list.appendChild(el)
+    })
+    return
+  }
+  STATE.agents.forEach((a, i) => {
+    const el = existing[i]
+    if (!el) return
+    const newClass = `agent ${a.state}`
+    if (el.className !== newClass) el.className = newClass
+    const state = el.querySelector('.agent-state')
+    const label = a.state.toUpperCase()
+    if (state && (state.textContent !== label || state.className !== `agent-state ${a.state}`)) {
+      state.textContent = label
+      state.className = `agent-state ${a.state}`
+    }
+    const task = el.querySelector('.agent-task')
+    const taskText = a.state === 'idle' ? 'STANDING BY' : a.task
+    if (task && task.textContent !== taskText) task.textContent = taskText
+    const tokens = el.querySelector('.agent-tokens')
+    const tokenText = `${a.tokens.toFixed(1)}K TK`
+    if (tokens && tokens.textContent !== tokenText) tokens.textContent = tokenText
+    const fill = el.querySelector('.agent-progress-fill')
+    if (fill && fill.style.width !== `${a.progress}%`) fill.style.width = `${a.progress}%`
   })
 }
+
+let logFilter = 'ALL'
 
 function renderLogs() {
   renderLogStream($('#log-stream'), STATE.logs)
@@ -99,29 +125,61 @@ const renderLogStream = createStreamRenderer(
 )
 
 function renderWorkflows() {
-  if (!changed('workflows', STATE.workflows)) return
   const list = $('#workflow-list')
   if (!list) return
   const running = STATE.workflows.filter((w) => w.state === 'running').length
   $('#pipeline-count').textContent = `${running} RUNNING / ${STATE.workflows.length - running} QUEUED`
-  list.innerHTML = ''
-  STATE.workflows.forEach((w) => {
-    const el = document.createElement('div')
-    el.className = `workflow ${w.state}`
-    el.innerHTML = `
-      <div class="wf-head">
-        <span class="wf-name">${escapeHtml(w.name)}</span>
-        <span class="wf-state ${w.state}">${escapeHtml(w.state).toUpperCase()}</span>
-      </div>
-      <div class="wf-meta">
-        <span>AGENTS: ${escapeHtml(w.agents)}</span>
-        <span>ETA: ${escapeHtml(w.eta)}</span>
-        <span>${w.progress}%</span>
-      </div>
-      <div class="wf-bar"><div class="wf-bar-fill" style="width:${w.progress}%"></div></div>
-      <div class="wf-steps">${w.steps.map((s, i) => `<div class="wf-step ${s ? 'on' : ''} ${i === w.curStep && w.state === 'running' ? 'cur' : ''}"></div>`).join('')}</div>
-    `
-    list.appendChild(el)
+  const existing = list.querySelectorAll('.workflow')
+  if (existing.length !== STATE.workflows.length) {
+    list.innerHTML = ''
+    STATE.workflows.forEach((w) => {
+      const el = document.createElement('div')
+      el.className = `workflow ${w.state}`
+      el.dataset.wf = w.id
+      el.innerHTML = `
+        <div class="wf-head">
+          <span class="wf-name">${escapeHtml(w.name)}</span>
+          <span class="wf-state ${w.state}">${escapeHtml(w.state).toUpperCase()}</span>
+        </div>
+        <div class="wf-meta">
+          <span>AGENTS: ${escapeHtml(w.agents)}</span>
+          <span>ETA: ${escapeHtml(w.eta)}</span>
+          <span class="wf-pct">${w.progress}%</span>
+        </div>
+        <div class="wf-bar"><div class="wf-bar-fill" style="width:${w.progress}%"></div></div>
+        <div class="wf-steps">${w.steps.map((s, i) => `<div class="wf-step ${s ? 'on' : ''} ${i === w.curStep && w.state === 'running' ? 'cur' : ''}"></div>`).join('')}</div>
+      `
+      list.appendChild(el)
+    })
+    return
+  }
+  STATE.workflows.forEach((w, i) => {
+    const el = existing[i]
+    if (!el) return
+    const newClass = `workflow ${w.state}`
+    if (el.className !== newClass) el.className = newClass
+    const state = el.querySelector('.wf-state')
+    const label = w.state.toUpperCase()
+    if (state && (state.textContent !== label || state.className !== `wf-state ${w.state}`)) {
+      state.textContent = label
+      state.className = `wf-state ${w.state}`
+    }
+    const pct = el.querySelector('.wf-pct')
+    if (pct && pct.textContent !== `${w.progress}%`) pct.textContent = `${w.progress}%`
+    const fill = el.querySelector('.wf-bar-fill')
+    if (fill && fill.style.width !== `${w.progress}%`) fill.style.width = `${w.progress}%`
+    const stepsEl = el.querySelector('.wf-steps')
+    if (stepsEl) {
+      const dots = stepsEl.querySelectorAll('.wf-step')
+      w.steps.forEach((s, si) => {
+        const dot = dots[si]
+        if (!dot) return
+        const on = s ? 'on' : ''
+        const cur = si === w.curStep && w.state === 'running' ? 'cur' : ''
+        const want = `wf-step ${on} ${cur}`.replace(/\s+/g, ' ').trim()
+        if (dot.className !== want) dot.className = want
+      })
+    }
   })
 }
 
@@ -258,7 +316,11 @@ function renderRollup() {
   const sys = $('#system-status')
   const bad = STATE.agents.some((a) => a.state === 'error') || STATE.telemetry.ctx > 80
   const src = `SRC: ${escapeHtml((STATE.meta.dataSource || 'seed').toUpperCase())}`
-  if (bad) {
+  const pauseBtn = $('#pause-btn')
+  if (pauseBtn) pauseBtn.textContent = STATE.meta.paused ? 'RESUME' : 'PAUSE'
+  if (STATE.meta.paused) {
+    sys.innerHTML = `<span class="status-dot warn"></span> OPERATIONS PAUSED · ${src}`
+  } else if (bad) {
     sys.innerHTML = `<span class="status-dot warn"></span> DEGRADED OPERATIONS · ${src}`
   } else if (linkState() === 'online') {
     sys.innerHTML = `<span class="status-dot online"></span> ALL SYSTEMS NOMINAL · ${src}`
@@ -280,10 +342,9 @@ function renderAllViews() {
   if (changed('email', STATE.email)) renderEmail()
   if (changed('calendar', [STATE.calendar.day, STATE.calendar.events])) renderCalendar()
   if (changed('alerts', STATE.alerts)) renderAlerts()
-  renderHealth(STATE.logs)
+  renderHealth(STATE.logs, logFilter)
   renderApproval()
   if (changed('reports', STATE.reports)) renderReports()
-  if (changed('workflows', STATE.workflows)) renderWorkflows()
 }
 
 // ============================================================================

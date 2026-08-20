@@ -43,6 +43,9 @@ export function changed(name, data) {
   return true
 }
 
+/** Last hist signature rendered by renderGraphs (skip rebuild when unchanged). */
+export let _lastHistKey = null
+
 // Incremental stream renderers: append only NEW rows, so existing `.chat-msg`
 // / `.log-line` nodes keep their DOM identity and never replay the `login`
 // entrance animation on the idle refresh. Falls back to a full rebuild when
@@ -77,7 +80,7 @@ function trimStream(box, domCount, max) {
 export function createStreamRenderer(keyFn, makeRow, maxRows, bottomPad = 40) {
   let lastKey = null
   let domCount = 0
-  return (box, rows) => {
+  const renderer = (box, rows) => {
     if (!box || !Array.isArray(rows)) return
     const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - bottomPad
     let start = 0
@@ -106,6 +109,11 @@ export function createStreamRenderer(keyFn, makeRow, maxRows, bottomPad = 40) {
     lastKey = keyFn(rows[rows.length - 1])
     if (atBottom) box.scrollTop = box.scrollHeight
   }
+  renderer.reset = () => {
+    lastKey = null
+    domCount = 0
+  }
+  return renderer
 }
 
 // ============================================================================
@@ -302,6 +310,8 @@ function barChartSvg(values) {
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${bars}</svg>`
 }
 
+const SUCCESS_SPARKLINE = sparklineSvg([100, 100, 100, 100, 100, 100], { min: 80 })
+
 export function renderGraphs(telemetry) {
   const tokens = $('#graph-tokens')
   if (!tokens) return
@@ -315,6 +325,9 @@ export function renderGraphs(telemetry) {
         { ctx: 44, lat: 130, temp: 50, token: 56 },
         { ctx: 48, lat: 112, temp: 47, token: 60 }
       ]
+  const histKey = hist.length ? `${hist.length}:${hist[hist.length - 1].ts}` : '0'
+  if (_lastHistKey === histKey) return
+  _lastHistKey = histKey
   const ctxSeries = hist.map((h) => h.ctx)
   const latSeries = hist.map((h) => h.lat)
   const tempSeries = hist.map((h) => h.temp)
@@ -337,7 +350,7 @@ export function renderGraphs(telemetry) {
   if (context) context.innerHTML = sparklineSvg(ctxSeries)
 
   const success = $('#graph-success')
-  if (success) success.innerHTML = sparklineSvg([successPct, successPct, successPct, successPct, successPct, successPct], { min: 80 }) +
+  if (success) success.innerHTML = SUCCESS_SPARKLINE +
     `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-top:6px">SUCCESS ${successPct}% · ${jobs.done} OK / ${jobs.failed} FAIL</div>`
 
   const tokensFoot = $('#graph-token-foot')
@@ -498,25 +511,64 @@ export function renderAlerts() {
 // ============================================================================
 // SYSTEM HEALTH
 // ============================================================================
-export function renderHealth(logs) {
-  const grid = $('#probe-grid')
-  if (grid && changed('probes', STATE.probes)) {
-    grid.innerHTML = STATE.probes.map((p) => {
-      const crit = p.critAt > 0 && p.value >= p.critAt
-      const warn = !crit && p.warnAt > 0 && p.value >= p.warnAt
-      const state = crit ? 'crit' : warn ? 'warn' : 'ok'
-      return `
-    <div class="probe-cell ${crit ? 'crit' : warn ? 'warn' : ''}">
-      <div class="probe-name">${escapeHtml(p.name)}${crit ? ' ▸ CRIT' : ''}</div>
-      <div class="probe-val ${state}">${escapeHtml(p.value)}${escapeHtml(p.unit)}</div>
-      <div class="probe-track"><div class="probe-fill" style="width:${p.value}%"></div></div>
-    </div>`
-    }).join('')
+/** In-place probe grid: rebuild cells only when the probe SET changes. */
+export function _renderProbeGrid(grid, probes) {
+  if (!grid || !Array.isArray(probes)) return
+  let cells = grid.children
+  const setChanged = cells.length !== probes.length
+  if (setChanged) {
+    grid.innerHTML = ''
+    probes.forEach((p) => {
+      const cell = document.createElement('div')
+      cell.className = 'probe-cell'
+      cell.dataset.probe = p.name
+      const name = document.createElement('div')
+      name.className = 'probe-name'
+      const val = document.createElement('div')
+      val.className = 'probe-val'
+      const track = document.createElement('div')
+      track.className = 'probe-track'
+      const fill = document.createElement('div')
+      fill.className = 'probe-fill'
+      track.appendChild(fill)
+      cell.appendChild(name)
+      cell.appendChild(val)
+      cell.appendChild(track)
+      grid.appendChild(cell)
+    })
+    cells = grid.children
   }
+  for (let i = 0; i < cells.length; i++) {
+    const cell = cells[i]
+    const p = probes[i]
+    if (!cell || !p) continue
+    const crit = p.critAt > 0 && p.value >= p.critAt
+    const warn = !crit && p.warnAt > 0 && p.value >= p.warnAt
+    cell.classList.toggle('crit', crit)
+    cell.classList.toggle('warn', warn)
+    const name = cell.querySelector('.probe-name')
+    if (name) name.textContent = `${p.name}${crit ? ' ▸ CRIT' : ''}`
+    const val = cell.querySelector('.probe-val')
+    const display = `${Math.round(p.value)}${p.unit}`
+    if (val && val.textContent !== display) {
+      val.textContent = display
+      val.classList.toggle('ok', !crit && !warn)
+      val.classList.toggle('warn', warn)
+      val.classList.toggle('crit', crit)
+    }
+    const fill = cell.querySelector('.probe-fill')
+    if (fill && fill.style.width !== `${Math.round(p.value)}%`) fill.style.width = `${Math.round(p.value)}%`
+  }
+}
+
+export function renderHealth(logs, filter = 'ALL') {
+  const grid = $('#probe-grid')
+  if (grid) _renderProbeGrid(grid, STATE.probes)
 
   const box = $('#health-log')
   if (!box) return
-  renderHealthLog(box, logs)
+  const rows = Array.isArray(logs) && filter !== 'ALL' ? logs.filter((l) => l.level === filter) : Array.isArray(logs) ? logs : []
+  renderHealthLog(box, rows)
 }
 
 // ============================================================================

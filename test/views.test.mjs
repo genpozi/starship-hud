@@ -36,7 +36,7 @@ class FakeElement {
     this.tag = tag
     this.innerHTML = ''
     this.textContent = ''
-    this.className = ''
+    this._className = ''
     this.title = ''
     this.value = ''
     this.dataset = {}
@@ -47,6 +47,13 @@ class FakeElement {
     this.scrollHeight = 0
     this.clientHeight = 200
     this._onClick = null
+  }
+  get className() {
+    return this._className
+  }
+  set className(v) {
+    this._className = String(v)
+    this.classList.set = new Set(String(v).split(/\s+/).filter(Boolean))
   }
   get firstChild() {
     return this.children[0] || null
@@ -61,8 +68,19 @@ class FakeElement {
     if (i >= 0) this.children.splice(i, 1)
     return child
   }
-  querySelectorAll() {
-    return []
+  querySelectorAll(sel) {
+    const out = []
+    const cls = String(sel || '').replace(/^\./, '')
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return
+      if (cls && node.classList && node.classList.contains && node.classList.contains(cls)) out.push(node)
+      ;(node.children || []).forEach(walk)
+    }
+    walk(this)
+    return out
+  }
+  querySelector(sel) {
+    return this.querySelectorAll(sel)[0] || null
   }
   addEventListener(type, fn) {
     if (type === 'click') this._onClick = fn
@@ -144,6 +162,29 @@ pass('escapeHtml escapes quotes', views.escapeHtml(`"onerror='x'`) === '&quot;on
 // ---- 4. every STATE slice referenced by the 12 views is seeded --------- //
 const REQUIRED = ['agents', 'workflows', 'kanban', 'items', 'schedules', 'chat', 'dispatch', 'vault', 'email', 'calendar', 'alerts', 'probes', 'reports', 'telemetry', 'approval', 'logs']
 for (const k of REQUIRED) pass(`STATE.${k} seeded`, STATE[k] !== undefined && STATE[k] !== null)
+
+// ---- 5. probe grid updates in place (no node replacement) ------------ //
+const pgrid = new FakeElement('div')
+const probesBefore = STATE.probes.map((p) => ({ ...p }))
+views._renderProbeGrid(pgrid, STATE.probes)
+const firstVal = pgrid.querySelector('.probe-val')
+const firstNode = pgrid.children[0]
+pass('probe grid populates on first render', pgrid.children.length === STATE.probes.length)
+const P = STATE.probes
+P[0].value = 99
+views._renderProbeGrid(pgrid, P)
+pass('probe grid keeps node identity on value change', pgrid.children[0] === firstNode)
+pass('probe value updates in place', pgrid.querySelector('.probe-val').textContent.includes('99'))
+pass('probe fill width updates in place', pgrid.querySelector('.probe-fill').style.width.includes('99'))
+P[0].value = probesBefore[0].value
+
+// ---- 6. graphs skip rebuild when hist tail unchanged ------------------- //
+views.renderGraphs({ hist: [{ ts: 1, ctx: 1, lat: 1, temp: 1, token: 1 }], jobs: { done: 1, failed: 0 } })
+const mark1 = views._lastHistKey
+views.renderGraphs({ hist: [{ ts: 1, ctx: 1, lat: 1, temp: 1, token: 1 }], jobs: { done: 2, failed: 0 } })
+pass('graphs skip rebuild when hist tail unchanged', views._lastHistKey === mark1)
+views.renderGraphs({ hist: [{ ts: 1, ctx: 1, lat: 1, temp: 1, token: 1 }, { ts: 2, ctx: 2, lat: 2, temp: 2, token: 2 }], jobs: { done: 2, failed: 0 } })
+pass('graphs rebuild when hist grows', views._lastHistKey !== mark1)
 
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))
