@@ -38,6 +38,7 @@ export class Orchestrator {
     this.store = new Store(buildSeedState)
     this.onBroadcast = onBroadcast
     this.timers = []
+    this.paused = false
 
     // realtime protocol state
     this._seq = 0
@@ -114,6 +115,9 @@ export class Orchestrator {
   }
 
   broadcast(msg) {
+    // while paused, suppress hint frames (chat/approval/events) but keep
+    // deltas/pings flowing so connected HUDs stay consistent
+    if (this.paused && msg && msg.type !== 'delta' && msg.type !== 'ping' && msg.type !== 'pong') return
     if (this.onBroadcast) this.onBroadcast(msg)
   }
 
