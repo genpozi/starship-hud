@@ -140,6 +140,13 @@ try {
   const ack = await ackRes.json()
   pass('POST /api/alerts/a1/ack ok', ack.ok === true)
 
+  // ---- REST: alerts bulk ack ----
+  const bulkRes = await fetch(`${BASE}/api/alerts/ack-all`, { method: 'POST' })
+  const bulk = await bulkRes.json()
+  pass('POST /api/alerts/ack-all ok', !!bulk.ok)
+  const stateAfterBulk = await (await fetch(`${BASE}/api/state`)).json()
+  pass('ack-all acks every alert', stateAfterBulk.alerts.every((a) => a.acked))
+
   // ---- REST: email read ----
   const mailRes = await fetch(`${BASE}/api/email/0/read`, { method: 'POST' })
   const mail = await mailRes.json()

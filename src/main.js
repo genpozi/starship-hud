@@ -108,6 +108,14 @@ function renderAgents() {
 
 let logFilter = 'ALL'
 
+function setLogFilter(level) {
+  if (logFilter === level) return
+  logFilter = level
+  document.querySelectorAll('.filter-chip').forEach((c) => c.classList.toggle('active', c.dataset.level === level))
+  renderHealthLog.reset()
+  renderHealth(STATE.logs, logFilter)
+}
+
 function renderLogs() {
   renderLogStream($('#log-stream'), STATE.logs)
 }
@@ -357,6 +365,10 @@ function showView(name) {
   if (view) view.classList.add('active')
   const btn = document.querySelector(`.nav-btn[data-view="${name}"]`)
   if (btn) btn.classList.add('active')
+  if (name === 'chat') {
+    const stream = $('#chat-stream')
+    if (stream) stream.scrollTop = stream.scrollHeight
+  }
 }
 
 function bindNavigation() {
@@ -546,6 +558,41 @@ export async function boot() {
   $('#approval-deny').addEventListener('click', () => {
     api.approval('deny').catch(() => {})
     renderApproval()
+  })
+
+  const ackAll = $('#alerts-ack-all')
+  if (ackAll) ackAll.addEventListener('click', () => {
+    if (isOnline()) api.ackAll().catch(() => log('WARN', 'bulk ack failed'))
+    else {
+      STATE.alerts.forEach((a) => { a.acked = true })
+      renderAlerts()
+    }
+  })
+
+  const dispatchAgent = $('#dispatch-agent')
+  if (dispatchAgent) {
+    STATE.agents.forEach((a) => {
+      const opt = document.createElement('option')
+      opt.value = a.name
+      opt.textContent = a.name
+      dispatchAgent.appendChild(opt)
+    })
+  }
+  const dispatchForm = $('#dispatch-form')
+  if (dispatchForm) dispatchForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const task = ($('#dispatch-task')?.value || '').trim()
+    const agent = $('#dispatch-agent')?.value || STATE.agents[0]?.name || 'ORCHESTRATOR'
+    if (!task) return
+    $('#dispatch-task').value = ''
+    log('INFO', `Manual dispatch: ${agent} ← ${task}`)
+    if (isOnline()) api.dispatch(task, agent).catch(() => log('WARN', 'dispatch failed'))
+    else STATE.dispatch.push({ task, agent, state: 'waiting' })
+    renderDispatch()
+  })
+
+  document.querySelectorAll('.filter-chip').forEach((chip) => {
+    chip.addEventListener('click', () => setLogFilter(chip.dataset.level))
   })
 
   // always keep the local cosmetic clocks ticking

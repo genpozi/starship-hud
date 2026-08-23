@@ -39,6 +39,7 @@ export const api = {
   dispatch: (task, agent) => post('/api/dispatch', { task, agent }),
   advanceCard: (id) => post(`/api/kanban/${encodeURIComponent(id)}/advance`),
   ackAlert: (id) => post(`/api/alerts/${encodeURIComponent(id)}/ack`),
+  ackAll: () => post('/api/alerts/ack-all', {}),
   readEmail: (idx) => post(`/api/email/${idx}/read`),
   setCalDay: (day) => post(`/api/calendar/${day}`),
   createMission: (name, agents) => post('/api/mission', { name, agents }),

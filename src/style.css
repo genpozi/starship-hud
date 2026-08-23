@@ -1148,6 +1148,35 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 }
 
 /* ============================================================================
+   UTILITY — compact HUD buttons
+   ============================================================================ */
+.hud-btn.mini {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  background: rgba(0, 240, 255, 0.06);
+  border: 1px solid var(--cyan-dim);
+  padding: 4px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.hud-btn.mini:hover { background: rgba(0, 240, 255, 0.14); box-shadow: 0 0 8px rgba(0, 240, 255, 0.25); }
+
+.dispatch-form { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--divider); }
+.dispatch-select { flex: 0 0 auto; font-family: var(--font-mono); font-size: 10px; color: var(--cyan); background: var(--panel-bg); border: 1px solid var(--cyan-dim); padding: 6px; }
+.dispatch-input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); font-size: 11px; color: var(--text-main); background: rgba(0, 240, 255, 0.04); border: 1px solid var(--cyan-dim); padding: 6px 8px; }
+
+.log-filter { display: flex; gap: 4px; }
+.filter-chip {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 1px;
+  color: var(--text-dim); background: transparent; border: 1px solid var(--divider);
+  padding: 2px 7px; cursor: pointer;
+}
+.filter-chip.active { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(0, 240, 255, 0.08); }
+
+/* ============================================================================
    9. PREFERS-REDUCED-MOTION — silence heavy animation
    ============================================================================ */
 @media (prefers-reduced-motion: reduce) {

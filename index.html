@@ -245,9 +245,14 @@
                 <div class="panel-head">
                   <h2>DISPATCH CONSOLE</h2>
                   <span class="panel-sub">TASK ALLOCATION</span>
-                  <span class="panel-tag">LIVE</span>
+                  <span class="panel-tag" id="dispatch-count">LIVE</span>
                 </div>
                 <div id="dispatch-console" class="dispatch-console"></div>
+                <form id="dispatch-form" class="dispatch-form" autocomplete="off">
+                  <select id="dispatch-agent" class="dispatch-select" aria-label="Target agent"></select>
+                  <input id="dispatch-task" class="dispatch-input" type="text" placeholder="New task..." spellcheck="false" />
+                  <button id="dispatch-go" class="hud-btn mini" type="submit">DISPATCH</button>
+                </form>
               </div>
             </div>
           </section>
@@ -357,6 +362,7 @@
                   <h2>ALERT FEED</h2>
                   <span class="panel-sub">CONDITION MONITOR</span>
                   <span class="panel-tag" id="alert-count">0 ACTIVE</span>
+                  <button id="alerts-ack-all" class="hud-btn mini" type="button">ACK ALL</button>
                 </div>
                 <div id="alert-feed" class="alert-feed"></div>
               </div>
@@ -379,6 +385,12 @@
                   <h2>DIAGNOSTIC STREAM</h2>
                   <span class="panel-sub">FULL VERBOSITY</span>
                   <span class="panel-tag">TAIL -F</span>
+                  <div id="log-filter" class="log-filter">
+                    <button class="filter-chip active" data-level="ALL">ALL</button>
+                    <button class="filter-chip" data-level="INFO">INFO</button>
+                    <button class="filter-chip" data-level="WARN">WARN</button>
+                    <button class="filter-chip" data-level="OK">OK</button>
+                  </div>
                 </div>
                 <div id="health-log" class="health-log"></div>
               </div>

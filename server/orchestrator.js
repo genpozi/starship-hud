@@ -731,6 +731,21 @@ export class Orchestrator {
     return { ok: false }
   }
 
+  ackAllAlerts() {
+    let n = 0
+    this.s.alerts.forEach((a) => {
+      if (!a.acked) {
+        a.acked = true
+        n += 1
+      }
+    })
+    if (n) {
+      this.log('INFO', `alerts: ${n} acknowledged in bulk`)
+      this.store.markDirty()
+    }
+    return { ok: true, acked: n }
+  }
+
   /**
    * Hermes approval bridge. Surfaces an approval request to the HUD and blocks
    * (up to approvalTimeoutMs) until the operator responds via respondApproval.
