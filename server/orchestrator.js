@@ -4,6 +4,7 @@ import { plan } from './planner.js'
 import { runSkill } from './skills.js'
 import { synthesizeReply } from './replies.js'
 import { beginTrace, childSpan, endSpan, flattenTrace } from './trace.js'
+import { captureCheckpoint, rollbackToLatest } from './checkpoints.js'
 import { PROBES as DEFAULT_PROBES } from '../src/config.js'
 import { AGENTS as AGENTS_DEFAULTS } from '../src/config.js'
 
@@ -115,6 +116,29 @@ export class Orchestrator {
     // approval bridge state (Hermes delegation approvals; operator responds via HUD)
     if (!this.s.approval) this.s.approval = { pending: null, history: [] }
     this.approvalTimeoutMs = Number(process.env.USER_HERMES_APPROVAL_TIMEOUT) > 0 ? Number(process.env.USER_HERMES_APPROVAL_TIMEOUT) : 120000
+
+    // P10 checkpoints: manual + boot guard snapshots; rollback restores them
+    if (!Array.isArray(this.s.checkpoints)) this.s.checkpoints = []
+    this.captureCheckpoint = (reason) => {
+      this.s.checkpoints = captureCheckpoint(this.s.checkpoints, this.s, { reason })
+      this.store.markDirty()
+      return this.s.checkpoints[this.s.checkpoints.length - 1].id
+    }
+    this.rollback = () => {
+      const res = rollbackToLatest(this.s.checkpoints, this.s)
+      if (res.slices.length) {
+        this.s.meta.lastRollback = { ts: Date.now(), id: res.id, slices: res.slices }
+        this.store.markDirty()
+      }
+      return res
+    }
+
+    // boot guard: persist the loaded state as the first rollback target so
+    // an operator can always restore the boot baseline.
+    if (!this.s.meta.bootCheckpointId) {
+      this.captureCheckpoint('boot')
+      this.s.meta.bootCheckpointId = this.s.checkpoints[this.s.checkpoints.length - 1].id
+    }
   }
 
   get s() {

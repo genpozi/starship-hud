@@ -83,6 +83,18 @@ app.post('/api/approval/respond', (req, res) => {
   res.json(orchestrator.respondApproval(choice))
 })
 
+app.post('/api/checkpoint', (req, res) => {
+  const { reason } = req.body || {}
+  const id = orchestrator.captureCheckpoint(String(reason || 'manual').slice(0, 60))
+  res.json({ ok: true, id })
+})
+
+app.post('/api/checkpoint/rollback', (_req, res) => {
+  const result = orchestrator.rollback()
+  if (!result.id) return res.status(409).json({ ok: false, error: 'no checkpoint available' })
+  res.json({ ok: true, id: result.id, slices: result.slices })
+})
+
 app.post('/api/email/:idx/read', (req, res) => {
   res.json(orchestrator.readEmail(Number(req.params.idx)))
 })
