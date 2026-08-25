@@ -325,7 +325,9 @@ function renderRollup() {
   const bad = STATE.agents.some((a) => a.state === 'error') || STATE.telemetry.ctx > 80
   const src = `SRC: ${escapeHtml((STATE.meta.dataSource || 'seed').toUpperCase())}`
   const pauseBtn = $('#pause-btn')
-  if (pauseBtn) pauseBtn.textContent = STATE.meta.paused ? 'RESUME' : 'PAUSE'
+  const pauseLabel = $('#pause-label')
+  if (pauseLabel) pauseLabel.textContent = STATE.meta.paused ? 'RESUME' : 'PAUSE'
+  if (pauseBtn) pauseBtn.classList.toggle('active', !!STATE.meta.paused)
   if (STATE.meta.paused) {
     sys.innerHTML = `<span class="status-dot warn"></span> OPERATIONS PAUSED · ${src}`
   } else if (bad) {
@@ -550,6 +552,16 @@ export async function boot() {
   $('#chat-send').addEventListener('click', sendChat)
   $('#chat-box').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendChat()
+  })
+
+  const pauseBtn = $('#pause-btn')
+  if (pauseBtn) pauseBtn.addEventListener('click', () => {
+    const toggle = () => (STATE.meta.paused ? api.resume() : api.pause())
+    if (isOnline()) toggle().then(() => renderAllViews()).catch(() => log('WARN', 'pause toggle failed'))
+    else {
+      STATE.meta.paused = !STATE.meta.paused
+      renderAllViews()
+    }
   })
   $('#approval-approve').addEventListener('click', () => {
     api.approval('approve').catch(() => {})

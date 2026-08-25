@@ -31,7 +31,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url))
 const REPO = join(ROOT, '..')
 const MOCK_PORT = '8788'
 const MOCK_URL = `http://127.0.0.1:${MOCK_PORT}`
-const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills', 'chat', 'regression', 'views', 'superstep', 'channels', 'checkpoints', 'trace', 'integration']
+const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills', 'chat', 'regression', 'views', 'superstep', 'channels', 'checkpoints', 'interrupt', 'trace', 'integration']
 
 // A fresh per-run data dir, so no suite ever touches the live demo's
 // data/state.json (which a running orbit server flushes to continuously).

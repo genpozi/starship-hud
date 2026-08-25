@@ -40,6 +40,7 @@ export class Orchestrator {
     this.onBroadcast = onBroadcast
     this.timers = []
     this.paused = false
+    this._interrupt = null
 
     // realtime protocol state
     this._seq = 0
@@ -161,9 +162,10 @@ export class Orchestrator {
   }
 
   broadcast(msg) {
-    // while paused, suppress hint frames (chat/approval/events) but keep
-    // deltas/pings flowing so connected HUDs stay consistent
-    if (this.paused && msg && msg.type !== 'delta' && msg.type !== 'ping' && msg.type !== 'pong') return
+    // while paused, suppress hint frames (chat/events) but keep deltas/pings
+    // flowing so connected HUDs stay consistent. Approval frames must still
+    // pass: the P11 interrupt card is the paused surface itself.
+    if (this.paused && msg && msg.type !== 'delta' && msg.type !== 'ping' && msg.type !== 'pong' && msg.type !== 'approval') return
     if (this.onBroadcast) this.onBroadcast(msg)
   }
 
@@ -263,6 +265,9 @@ export class Orchestrator {
     agents.forEach((a) => {
       this.hooks.onTurnStart({ agent: a.name, state: a.state })
       if (a.state === 'idle') {
+        // P11 interrupt: while paused/interrupted, idle agents stop picking up
+        // new jobs. In-flight steps still finish so resume continues the run.
+        if (this.paused || this._interrupt) return
         // pick up both queued (`waiting`) and pre-assigned (`assigned`) jobs —
         // seed rows ship in the assigned state and must not be orphaned forever.
         // P8 superstep barrier: a job whose step `dependsOn` other step titles
@@ -859,6 +864,50 @@ export class Orchestrator {
     req.choice = resolved
     this.store.markDirty()
     return { ok: true, id: req.id, choice: resolved }
+  }
+
+  /**
+   * P11 interrupt: single-operator hold. Sets meta.paused, gates dispatch
+   * pickup (in-flight steps finish), and surfaces an approval-card frame so
+   * the HUD shows who/what stopped the run. resume() clears it.
+   */
+  pause(reason = 'operator hold') {
+    if (this.s.meta.paused) return { ok: true, already: true }
+    return this.interrupt(reason, { agent: 'OPERATOR' })
+  }
+
+  interrupt(reason = 'operator interrupt', { agent = 'OPERATOR', goal = '', resumable = true } = {}) {
+    this.paused = true
+    this.s.meta.paused = true
+    this._interrupt = { reason, agent, goal, resumable, at: Date.now() }
+    this.broadcast({
+      type: 'approval',
+      pending: {
+        id: `int${Date.now()}`,
+        tool: 'interrupt',
+        summary: reason,
+        detail: goal,
+        from: agent,
+        choice: null,
+        at: this._interrupt.at
+      }
+    })
+    this.log('WARN', `interrupt by ${agent}: ${reason}`)
+    this.store.markDirty()
+    return { ok: true, id: this._interrupt.at }
+  }
+
+  resume() {
+    const had = this.paused || !!this._interrupt
+    this.paused = false
+    this.s.meta.paused = false
+    this._interrupt = null
+    if (had) {
+      this.broadcast({ type: 'approval', pending: null })
+      this.log('INFO', 'operations resumed')
+      this.store.markDirty()
+    }
+    return { ok: true, resumed: had }
   }
 
   readEmail(idx) {

@@ -95,6 +95,19 @@ app.post('/api/checkpoint/rollback', (_req, res) => {
   res.json({ ok: true, id: result.id, slices: result.slices })
 })
 
+app.post('/api/control/pause', (_req, res) => {
+  res.json(orchestrator.pause())
+})
+
+app.post('/api/control/interrupt', (req, res) => {
+  const { reason, agent, goal } = req.body || {}
+  res.json(orchestrator.interrupt(reason, { agent, goal }))
+})
+
+app.post('/api/control/resume', (_req, res) => {
+  res.json(orchestrator.resume())
+})
+
 app.post('/api/email/:idx/read', (req, res) => {
   res.json(orchestrator.readEmail(Number(req.params.idx)))
 })

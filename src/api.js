@@ -44,7 +44,12 @@ export const api = {
   readEmail: (idx) => post(`/api/email/${idx}/read`),
   setCalDay: (day) => post(`/api/calendar/${day}`),
   createMission: (name, agents) => post('/api/mission', { name, agents }),
-  approval: (choice) => post('/api/approval/respond', { choice })
+  approval: (choice) => post('/api/approval/respond', { choice }),
+  pause: () => post('/api/control/pause', {}),
+  interrupt: (reason, goal) => post('/api/control/interrupt', { reason, goal }),
+  resume: () => post('/api/control/resume', {}),
+  captureCheckpoint: (reason) => post('/api/checkpoint', { reason }),
+  rollback: () => post('/api/checkpoint/rollback', {})
 }
 
 export function isOnline() {
