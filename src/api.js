@@ -11,6 +11,7 @@
  */
 
 import { applyServerState, applyDelta } from './store.js'
+import { reduceEvent } from './channels.js'
 
 const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 30000
@@ -105,10 +106,9 @@ export function connect({ onOnline, onOffline } = {}) {
         break
       case 'pong':
         break
-      case 'chat':
-        // hint-only frame; the delta carries authoritative truth
-        break
       default:
+        // typed channel frames (trace spans, approvals, …) fold via reducers
+        reduceEvent(msg)
         break
     }
   }
