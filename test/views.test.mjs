@@ -160,7 +160,7 @@ pass('escapeHtml escapes angle brackets', views.escapeHtml('<script>alert(1)</sc
 pass('escapeHtml escapes quotes', views.escapeHtml(`"onerror='x'`) === '&quot;onerror=&#39;x&#39;')
 
 // ---- 4. every STATE slice referenced by the 12 views is seeded --------- //
-const REQUIRED = ['agents', 'workflows', 'kanban', 'items', 'schedules', 'chat', 'dispatch', 'vault', 'email', 'calendar', 'alerts', 'probes', 'reports', 'telemetry', 'approval', 'logs']
+const REQUIRED = ['agents', 'workflows', 'kanban', 'items', 'schedules', 'chat', 'dispatch', 'vault', 'email', 'calendar', 'alerts', 'probes', 'reports', 'telemetry', 'approval', 'trace', 'logs']
 for (const k of REQUIRED) pass(`STATE.${k} seeded`, STATE[k] !== undefined && STATE[k] !== null)
 
 // ---- 5. probe grid updates in place (no node replacement) ------------ //

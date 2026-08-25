@@ -51,6 +51,7 @@ export function buildSeedState() {
     reports: REPORTS.map((r) => ({ ...r })),
     telemetry: { temp: 42, token: 38, lat: 84, ctx: 27, jobs: { done: 0, failed: 0 }, hist: [] },
     approval: { pending: null, history: [] },
+    trace: [],
     logs: []
   }
 }

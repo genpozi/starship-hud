@@ -44,7 +44,10 @@ function normalizeSteps(steps) {
     out.push({
       title,
       agent,
-      tool: VALID_TOOLS.has(s.tool) ? s.tool : 'search'
+      tool: VALID_TOOLS.has(s.tool) ? s.tool : 'search',
+      dependsOn: (Array.isArray(s.dependsOn) ? s.dependsOn : [])
+        .map((d) => String(d).trim())
+        .filter((d) => d && seen.has(d))
     })
   }
   return out
@@ -54,29 +57,29 @@ function heuristicPlan(goal) {
   const g = goal.toLowerCase()
   const steps = []
   if (/(search|research|summar|analy)/.test(g)) {
-    steps.push({ title: 'Surface research on request', agent: 'SAGE', tool: 'search' })
-    steps.push({ title: 'Synthesize findings into a report', agent: 'SAGE', tool: 'memory' })
+    steps.push({ title: 'Surface research on request', agent: 'SAGE', tool: 'search', dependsOn: [] })
+    steps.push({ title: 'Synthesize findings into a report', agent: 'SAGE', tool: 'memory', dependsOn: ['Surface research on request'] })
     if (/(research|analy)/.test(g)) {
-      steps.push({ title: 'Delegate deep-dive to Hermes', agent: 'LINK', tool: 'hermes' })
+      steps.push({ title: 'Delegate deep-dive to Hermes', agent: 'LINK', tool: 'hermes', dependsOn: ['Synthesize findings into a report'] })
     }
   }
   if (/(build|implement|code|fix|refactor)/.test(g)) {
-    steps.push({ title: 'Scaffold implementation', agent: 'CODA', tool: 'shell' })
-    steps.push({ title: 'Write unit coverage', agent: 'CODA', tool: 'coder' })
-    steps.push({ title: 'Run validation pass', agent: 'PILOT', tool: 'shell' })
+    steps.push({ title: 'Scaffold implementation', agent: 'CODA', tool: 'shell', dependsOn: [] })
+    steps.push({ title: 'Write unit coverage', agent: 'CODA', tool: 'coder', dependsOn: ['Scaffold implementation'] })
+    steps.push({ title: 'Run validation pass', agent: 'PILOT', tool: 'shell', dependsOn: ['Write unit coverage'] })
   }
   if (/(deploy|release|rollout|canary)/.test(g)) {
-    steps.push({ title: 'Stage release artifacts', agent: 'PILOT', tool: 'shell' })
-    steps.push({ title: 'Canary rollout gate', agent: 'PILOT', tool: 'terminal' })
+    steps.push({ title: 'Stage release artifacts', agent: 'PILOT', tool: 'shell', dependsOn: [] })
+    steps.push({ title: 'Canary rollout gate', agent: 'PILOT', tool: 'terminal', dependsOn: ['Stage release artifacts'] })
   }
   if (/(merge|archive|clean|sweep)/.test(g)) {
-    steps.push({ title: 'Deduplicate and compact blobs', agent: 'LINK', tool: 'files' })
-    steps.push({ title: 'Archive to core bank', agent: 'LINK', tool: 'memory' })
+    steps.push({ title: 'Deduplicate and compact blobs', agent: 'LINK', tool: 'files', dependsOn: [] })
+    steps.push({ title: 'Archive to core bank', agent: 'LINK', tool: 'memory', dependsOn: ['Deduplicate and compact blobs'] })
   }
   if (steps.length === 0) {
-    steps.push({ title: `Triage: ${goal}`, agent: 'ORCH', tool: 'search' })
-    steps.push({ title: 'Assign and execute sub-tasks', agent: 'ORCH', tool: 'memory' })
-    steps.push({ title: 'Report completion to operator', agent: 'ORCH', tool: 'shell' })
+    steps.push({ title: `Triage: ${goal}`, agent: 'ORCH', tool: 'search', dependsOn: [] })
+    steps.push({ title: 'Assign and execute sub-tasks', agent: 'ORCH', tool: 'memory', dependsOn: [`Triage: ${goal}`] })
+    steps.push({ title: 'Report completion to operator', agent: 'ORCH', tool: 'shell', dependsOn: ['Assign and execute sub-tasks'] })
   }
   return steps
 }

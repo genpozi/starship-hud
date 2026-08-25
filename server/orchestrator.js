@@ -3,6 +3,7 @@ import { buildSeedState } from './seed.js'
 import { plan } from './planner.js'
 import { runSkill } from './skills.js'
 import { synthesizeReply } from './replies.js'
+import { beginTrace, childSpan, endSpan, flattenTrace } from './trace.js'
 import { PROBES as DEFAULT_PROBES } from '../src/config.js'
 import { AGENTS as AGENTS_DEFAULTS } from '../src/config.js'
 
@@ -29,7 +30,6 @@ import { AGENTS as AGENTS_DEFAULTS } from '../src/config.js'
 const TICK_MS = 1000
 const AGENT_SPEED = { ORCH: 1.6, CODA: 1.3, PILOT: 1.5, SAGE: 1.1, LINK: 1.8, NUDGE: 0.4 }
 const rand = (min, max) => min + Math.random() * (max - min)
-const noop = () => {}
 const STEP_ODDS = 0.4 // ~one step every 2.5 ticks
 const DEFAULT_MAX_ATTEMPTS = 3
 
@@ -79,13 +79,35 @@ export class Orchestrator {
       if (!Array.isArray(a.capabilities)) a.capabilities = def.capabilities || []
     })
 
-    // lifecycle hooks (all no-op by default)
+    // lifecycle hooks — default impls feed the P12 trace/span tree and fold
+    // typed events onto the broadcast fan-out
+    this._currentTrace = null
     this.hooks = {
-      onRunStart: noop,
-      onTurnStart: noop,
-      onToolCall: noop,
-      onToolResult: noop,
-      onRunEnd: noop
+      onRunStart: ({ ts }) => {
+        this._currentTrace = beginTrace('run', { ts })
+      },
+      onTurnStart: ({ agent, state }) => {
+        if (this._currentTrace) childSpan(this._currentTrace, `turn:${agent}`, { state })
+      },
+      onToolCall: ({ agent, tool, step }) => {
+        if (this._currentTrace) childSpan(this._currentTrace, `tool:${agent}:${tool}`, { step })
+      },
+      onToolResult: ({ agent, tool, ok, ms }) => {
+        if (!this._currentTrace) return
+        const child = this._currentTrace.children[this._currentTrace.children.length - 1]
+        if (child && child.name === `tool:${agent}:${tool}`) {
+          endSpan(child, { ok, ms, tokenIn: 0, tokenOut: Math.round((ms || 0) / 5) })
+        }
+      },
+      onRunEnd: ({ agent, task, ok }) => {
+        if (!this._currentTrace) return
+        endSpan(this._currentTrace, { ok })
+        const flat = flattenTrace(this._currentTrace)
+        this.s.trace = [...flat.reverse(), ...(this.s.trace || [])].slice(0, 50)
+        this.broadcast({ type: 'events', events: flat })
+        this._currentTrace = null
+        this.store.markDirty()
+      }
     }
 
     this.s.meta.dataSource = this.s.meta.dataSource || 'seed'
@@ -219,7 +241,16 @@ export class Orchestrator {
       if (a.state === 'idle') {
         // pick up both queued (`waiting`) and pre-assigned (`assigned`) jobs —
         // seed rows ship in the assigned state and must not be orphaned forever.
-        const job = this.s.dispatch.find((d) => (d.state === 'waiting' || d.state === 'assigned') && d.agent === a.name)
+        // P8 superstep barrier: a job whose step `dependsOn` other step titles
+        // only starts once every dependency has completed in this workflow.
+        const job = this.s.dispatch.find((d) => {
+          if ((d.state !== 'waiting' && d.state !== 'assigned') || d.agent !== a.name) return false
+          const deps = d.steps && d.steps[0] && d.steps[0].dependsOn
+          if (!Array.isArray(deps) || !deps.length) return true
+          const track = this._chatWorkflows.get(d.wfId)
+          if (!track) return true
+          return deps.every((t) => track.completed.has(t))
+        })
         if (job) {
           this._pickupJob(a, job)
           changed = true
@@ -377,6 +408,8 @@ export class Orchestrator {
     if (!track) return
     if (ok) track.done += 1
     else track.failed += 1
+    const stepTitle = job.steps && job.steps[0] && job.steps[0].title
+    if (stepTitle) track.completed.add(stepTitle)
   }
 
   /**
@@ -652,13 +685,13 @@ export class Orchestrator {
       eta: `${Math.round(steps.length * 4)} min`
     }
     this.s.workflows.unshift(wf)
-    this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0 })
+    this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0, completed: new Set() })
     steps.forEach((step) => {
       this.s.dispatch.push({
         task: step.title,
         agent: step.agent,
         state: 'waiting',
-        steps: [{ tool: step.tool, title: step.title }],
+        steps: [{ tool: step.tool, title: step.title, dependsOn: step.dependsOn || [] }],
         maxAttempts: DEFAULT_MAX_ATTEMPTS,
         wfId: wf.id
       })

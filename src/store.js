@@ -44,6 +44,7 @@ export const STATE = {
   reports: REPORTS.map((r) => ({ ...r })),
   telemetry: { temp: 42, token: 38, lat: 84, ctx: 27, jobs: { done: 0, failed: 0 }, hist: [] },
   approval: { pending: null, history: [] },
+  trace: [],
   logs: []
 }
 
@@ -54,7 +55,7 @@ export const STATE = {
 export function applyServerState(snap) {
   if (!snap) return
   const localDay = STATE.calendar.day
-  const keys = ['agents', 'workflows', 'kanban', 'items', 'schedules', 'chat', 'dispatch', 'vault', 'email', 'alerts', 'probes', 'reports', 'telemetry', 'approval', 'logs', 'meta']
+  const keys = ['agents', 'workflows', 'kanban', 'items', 'schedules', 'chat', 'dispatch', 'vault', 'email', 'alerts', 'probes', 'reports', 'telemetry', 'approval', 'trace', 'logs', 'meta']
   keys.forEach((k) => {
     if (snap[k] !== undefined) STATE[k] = snap[k]
   })
