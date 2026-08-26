@@ -6,18 +6,53 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Superstep DAG (P8)** — planner steps now emit `dependsOn` chains; queued
+  dispatch jobs carry them, and pickup is gated until every dependency has
+  completed, so workflows run in proper supersteps instead of all-in-parallel.
+- **Typed event channels + reducers (P9)** — non-state frames (trace spans,
+  approvals, chat hints) are folded client-side through named reducers in
+  `src/channels.js`; unknown frame types are ignored so a newer server never
+  crashes an older client.
+- **Checkpoints + rollback (P10)** — boot guard snapshots the loaded state;
+  `POST /api/checkpoint` captures and `POST /api/checkpoint/rollback` restores
+  (capped ledger of 8, reverted slices tagged in `meta.lastRollback`).
+- **Interrupt / pause / resume (P11)** — single-operator hold sets
+  `meta.paused`, gates dispatch pickup (in-flight steps finish), surfaces an
+  interrupt card, and `POST /api/control/resume` continues the run. Topbar
+  pause button wired to the new control endpoints.
+- **Trace / span telemetry (P12)** — per-run span trees with `ms` + token
+  accounting, flattened into the `trace` slice and broadcast as typed frames.
+
+### Fixed
+
+- Live widgets (probe gauges, agent rows, workflow rows) update in place
+  instead of rebuilding their DOM per delta, so neon sweeps and progress
+  animations no longer replay constantly; chart redraws are gated on actual
+  series changes.
+- Agent progress/tokens stay frozen while a tool step is in flight (no more
+  mid-step jumps), and seeded `assigned` dispatch rows complete instead of
+  lingering forever.
+- `@ORCH` / `ORCH,` aliases resolve to the real `ORCHESTRATOR` crew name, and
+  mention detection no longer false-positives on lowercase common words.
+- Pause previously only suppressed hint frames; it now genuinely halts new job
+  pickup while allowing the interrupt card and deltas to keep flowing.
+- `hermes-ingest` suite test isolation: the D11 sync-state reset now resolves
+  `hermes-ingest.json` from `STELLARIS_DATA_DIR` (and creates the dir) instead
+  of hardcoding `<repo>/data`, so `npm test` passes on a fresh checkout/CI
+  where no `data/` directory exists.
+
+### Performance
+
+- Delta frames are now diffed against the last-sent reference and only changed
+  top-level slices are broadcast, with hint frames suppressed while paused.
+
 ### Security
 
 - Bumped `vite` `5.x → 7.x` (dev-only) — resolves the esbuild dev-server SSRF,
   vite path-traversal/`fs.deny` bypass, and launch-editor advisories.
   `npm audit` now reports 0 vulnerabilities.
-
-### Fixed
-
-- `hermes-ingest` suite test isolation: the D11 sync-state reset now resolves
-  `hermes-ingest.json` from `STELLARIS_DATA_DIR` (and creates the dir) instead
-  of hardcoding `<repo>/data`, so `npm test` passes on a fresh checkout/CI
-  where no `data/` directory exists.
 
 ## [2.0.0] — 2026-08-17
 
