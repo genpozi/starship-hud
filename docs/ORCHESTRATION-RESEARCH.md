@@ -233,6 +233,42 @@ Broadcast two channels instead of one:
 - `state` snapshots (existing, debounced 1500 ms — keep as-is);
 - `events` — fine-grained discriminated union `{ type: 'workflow:step' | 'task:start' | 'task:finish' | 'tool:start' | 'tool:finish' | 'interrupt' | 'span' }`, mirroring langgraph's `StreamPart` (`type` field + payload). Every `tool:finish` event carries `{ tool, ms, inTokens, outTokens }` — token accounting per span, rolled up to the run.
 
+### 3.7 Implementation status (2026-08-20)
+
+P8–P12 above shipped in adapted form (see `CHANGELOG.md` [Unreleased]). The
+delivered mapping to these patterns:
+
+- **P3 hooks** — `orchestrator.hooks` (`onRunStart`/`onTurnStart`/`onToolCall`/
+  `onToolResult`/`onRunEnd`) now default to trace-recording impls instead of
+  no-ops.
+- **P8 supersteps** — `server/planner.js` emits `dependsOn` chains;
+  `normalizeSteps` validates them; `handleChat` carries them into queued
+  dispatch jobs; `tickAgents` gates pickup on a per-workflow `completed` set
+  (`_chatWorkflows`). Suite: `test/superstep.test.mjs`.
+- **P9 typed channels** — implemented **client-side** as `src/channels.js`
+  (`registerChannel`/`reduceEvent`) rather than a server `applyUpdate`
+  hot-path. Server deltas already only broadcast changed slices, and trace
+  span / approval / chat frames fold through named reducers. Unknown frame
+  types are ignored. Suite: `test/channels.test.mjs`.
+- **P10 checkpoints** — `server/checkpoints.js` (`captureCheckpoint` capped at
+  8, `rollbackToLatest` deep-restores changed slices, ledger excluded from
+  rollback); boot guard persists `meta.bootCheckpointId`; REST
+  `POST /api/checkpoint` + `POST /api/checkpoint/rollback`. Suite:
+  `test/checkpoints.test.mjs`.
+- **P11 interrupts** — `pause()`/`interrupt()`/`resume()` set `meta.paused`,
+  gate dispatch pickup (in-flight steps finish), and surface an approval card
+  (`pending.tool === 'interrupt'`). REST `POST /api/control/{pause,interrupt,
+  resume}`; the HUD topbar pause button is wired to it. Suite:
+  `test/interrupt.test.mjs`.
+- **P12 spans** — `server/trace.js` (`beginTrace`/`childSpan`/`endSpan`/
+  `flattenTrace`) with ms + token accounting per span; completed spans are
+  flattened, prepended to the `trace` slice, and broadcast as
+  `{type:'events', events}`. Suite: `test/trace.test.mjs`.
+
+Not adopted: `AsyncLocalStorage` span carriers and the full `events`
+discriminated-union vocabulary — the dependency-free span tree + typed `events`
+frame deliver the same observability with less machinery.
+
 ---
 
 ## 4. Suggested implementation order (lowest risk first)

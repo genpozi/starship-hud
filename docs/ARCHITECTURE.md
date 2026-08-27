@@ -14,10 +14,12 @@ the console never goes dark.
 │  src/store.js  canonical state│ /api/*   │  server/orchestrator.js  engine    │
 │  src/views.js  12 renderers  │           │  server/store.js     persistence  │
 │  src/api.js    ws + rest     │           │  server/planner.js   LLM/heuristic│
-│  src/galaxy.js three.js bg   │           │  server/skills.js    tool registry│
-│  server/knowledge.js retrieval    │
-│  server/replies.js   reply synth  │
-│  src/config.js seed + consts │           │  server/seed.js      seed state   │
+│  src/channels.js typed reducers│        │  server/skills.js    tool registry│
+│  src/galaxy.js three.js bg   │           │  server/knowledge.js retrieval    │
+│                              │           │  server/replies.js   reply synth  │
+│  src/config.js seed + consts │           │  server/trace.js     span tree    │
+│                              │           │  server/checkpoints.js snapshots  │
+│                              │           │  server/seed.js      seed state   │
 │                              │           │  server/github.js   GitHub source │
 │                              │           │  server/hermes.js   Hermes client │
 │                              │           │  server/hermes-ingest.js  reverse │
@@ -39,23 +41,31 @@ the console never goes dark.
 
 ## Data flow
 
-1. `server/index.js` boots the `Orchestrator`, which loads or seeds state.
+1. `server/index.js` boots the `Orchestrator`, which loads or seeds state and
+   captures a boot-guard checkpoint (P10).
 2. On connect, each WS client receives a full `{type:'snapshot', seq, state}`
    frame (the authoritative baseline), then `{type:'delta', seq, updates}`
    frames (~1.5s) as the heartbeat mutates agents, workflows, telemetry,
    scheduler, probes, and logs.
-3. The browser's `api.js` applies every frame to `STATE` (store.js). A fixed
-   render loop re-renders the rollup every 1s and all views every 1.8s.
-   Renderers diff slices (`changed(slice, value)`) so idle ticks do not rebuild
-   unchanged DOM.
+3. The browser's `api.js` applies every frame to `STATE` (store.js). Non-state
+   frames (`events`, `approval`, `chat`) are folded through typed channel
+   reducers (`channels.js`). A fixed render loop re-renders the rollup every 1s
+   and all views every 1.8s. Renderers diff slices (`changed(slice, value)`) so
+   idle ticks do not rebuild unchanged DOM.
 4. Operator interactions (chat, kanban advance, alert ack, approval respond,
-   email read, calendar, mission create, manual dispatch) POST to `/api/*`. The
-   server mutates canonical state and the next broadcast reflects it back.
+   email read, calendar, mission create, manual dispatch, checkpoint capture/
+   rollback, pause/interrupt/resume) POST to `/api/*`. The server mutates
+   canonical state and the next broadcast reflects it back.
    Chat is special: `handleChat` detects a direct `@AGENT` mention, pins the
-   plan + reply owner to that agent, plans the goal into steps, and immediately
-   replies with a synthesized, knowledge-grounded answer (`replies.js`) —
-   the operator gets an actual answer, not just a queued task.
-5. Optional data sources poll on their own cadence and write onto the same
+   plan + reply owner to that agent, plans the goal into steps (P8 `dependsOn`
+   chains preserved), and immediately replies with a synthesized,
+   knowledge-grounded answer (`replies.js`) — the operator gets an actual
+   answer, not just a queued task. Steps run as supersteps: `tickAgents` gates
+   pickup until every step's dependencies complete.
+5. Dispatch runs a step machine (`_advanceStep`). Each run/tool call feeds the
+   P12 trace span tree (`trace.js`), which is flattened, prepended to the
+   `trace` slice, and broadcast as `{type:'events', events}`.
+6. Optional data sources poll on their own cadence and write onto the same
    board shape: **GitHub** (issues/PRs) replaces the seed board;
    **Hermes WebUI** (sessions/crons) reverse-ingests onto kanban/items/
    scheduler/alerts. `meta.dataSource` tells the HUD which is live.
@@ -67,12 +77,17 @@ the console never goes dark.
   detection; serves the built `dist/` in production.
 - **orchestrator.js** — the engine. Owns the Store; heartbeat ticks for agents,
   workflows, telemetry/probes, scheduler; the WS broadcast diff; the step
-  machine for dispatched jobs; the probe alert condition engine; the operator
-  approval bridge (`approval.pending` / `respondApproval`).
-- **planner.js** — `plan(goal)` → `[{title, agent, tool}]`. Uses a real LLM
-  when `USER_LLM_API_KEY` is set, otherwise the deterministic heuristic engine.
-  Output is sanitized (`normalizeSteps`) so the step machine never runs an
-  unregistered tool.
+  machine for dispatched jobs with the P8 superstep dependency barrier; the
+  probe alert condition engine; the operator approval bridge
+  (`approval.pending` / `respondApproval`); the P10 checkpoint capture/rollback
+  surface; and P11 `pause`/`interrupt`/`resume` (single-operator hold that
+  gates dispatch pickup while in-flight steps finish).
+- **planner.js** — `plan(goal)` → `[{title, agent, tool, dependsOn}]`. Uses a
+  real LLM when `USER_LLM_API_KEY` is set, otherwise the deterministic
+  heuristic engine. Output is sanitized (`normalizeSteps`) — unknown agent
+  names and tools are coerced, and `dependsOn` references to earlier step
+  titles are validated so the step machine never runs an unregistered tool or
+  a dangling dependency.
 - **knowledge.js** — read-only retrieval layer over canonical state (vault
   docs, reports, kanban cards, items, schedules, probes). `retrieve()` returns
   ranked hits; `digest()` summarizes. Pure function of state.
@@ -107,6 +122,13 @@ the console never goes dark.
 - **mock-hermes.js** — standalone test double for hermes-webui
   (port 8787): health, sessions, crons, SSE streaming chat with approval
   events, blocking chat, approval endpoints, optional auth.
+- **trace.js** — P12 span tree (`beginTrace` / `childSpan` / `endSpan` /
+  `flattenTrace`) with `ms` + token accounting per span. Bounded and
+  dependency-free; the orchestrator folds completed spans into the `trace`
+  slice and the `events` frame.
+- **checkpoints.js** — P10 snapshot + rollback (`captureCheckpoint` capped at
+  8, `rollbackToLatest` deep-diffs and restores changed slices, never reverting
+  the checkpoint ledger itself).
 
 ## Frontend modules
 
@@ -114,7 +136,13 @@ the console never goes dark.
   `applyDelta(updates)`. Every renderer reads from `STATE`; local-only UI state
   (calendar selection) is preserved across server snapshots.
 - **api.js** — WebSocket client with auto-reconnect and seq-gap resync,
-  `isOnline()` probe, and REST helpers for every mutation (`api.approval`).
+  `isOnline()` probe, and REST helpers for every mutation
+  (`api.approval`, `api.pause`, `api.resume`, `api.captureCheckpoint`,
+  `api.rollback`, …).
+- **channels.js** — P9 typed event channels. Every non-state frame type has a
+  named reducer (`events` → fold spans into `STATE.trace`, `approval` → set/
+  clear `STATE.approval.pending`, `chat` → hint-only). Unknown frame types are
+  ignored so a newer server never crashes an older client.
 - **views.js** — one renderer per view; all read `STATE`. In ONLINE mode
   interactions call the API; in OFFLINE mode they mutate `STATE` directly.
   Hermes-sourced entities get a cyan `he` accent (`.kan-card.he`,
@@ -135,9 +163,18 @@ the console never goes dark.
 - `{type:'delta', seq, updates}` — per-tick diffs of changed top-level slices;
   advances `seq`. Client drops the delta and requests `resync` on a gap.
 - `{type:'approval', pending}` / `{type:'approval', pending:null}` — approval
-  card visibility changes from the Hermes delegation bridge.
+  card visibility changes. Serves both the Hermes delegation bridge and the
+  P11 interrupt surface (`pending.tool === 'interrupt'`).
+- `{type:'events', events}` — P12 trace span frames; folded client-side into
+  `STATE.trace` via the `events` channel.
+- `{type:'chat'}` — hint that chat changed; authoritative rows arrive in the
+  next delta.
 - Server `{type:'ping'}` every ~15s; client replies `{type:'pong'}`. A client
   that misses 3 consecutive pongs is terminated (half-open detection).
+
+While `meta.paused` is set (P11), the server suppresses hint frames
+(`chat`/`events`) but keeps `delta`/`ping`/`approval` flowing so connected
+HUDs stay consistent and the interrupt card still reaches them.
 
 ## Adding a real tool / integration
 

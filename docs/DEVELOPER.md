@@ -235,7 +235,7 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-npm test          # run-all.mjs → fresh mock on :8788 → all 10 suites
+npm test          # run-all.mjs → fresh mock on :8788 → all 15 suites
 npm run probe     # validate a live Hermes WebUI (add --url / --password)
 npm run build     # vite build — must stay green
 ```
@@ -246,11 +246,15 @@ npm run build     # vite build — must stay green
   continuously). Each suite runs as its own child with `MOCK_URL` +
   `USER_HERMES_URL` exported. Failures are surfaced per suite; exit code 1 on
   any red.
-- The 10 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
-  `skills`, `chat`, `regression`, `views`, `integration`. `views` headless-
-  renders every HUD view via a DOM shim; `integration` boots a real orbit
-  server on an isolated port + `STELLARIS_DATA_DIR` and exercises the full
-  REST + WebSocket surface.
+- The 15 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
+  `skills`, `chat`, `regression`, `views`, `superstep`, `channels`,
+  `checkpoints`, `interrupt`, `trace`, `integration`. `views` headless-renders
+  every HUD view via a DOM shim (its `REQUIRED` list guards the full slice
+  contract); `superstep` guards the P8 dependency barrier; `channels` guards
+  the P9 typed reducers; `checkpoints` guards P10 snapshot/rollback; `interrupt`
+  guards P11 hold/resume; `trace` guards the P12 span tree. `integration` boots
+  a real orbit server on an isolated port + `STELLARIS_DATA_DIR` and exercises
+  the full REST + WebSocket surface.
 - Suites that directly construct an `Orchestrator` compute their `STATE_FILE`
   from `STELLARIS_DATA_DIR` when set, otherwise they move `data/state.json`
   aside and restore it — either way they are self-isolating.

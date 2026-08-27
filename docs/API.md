@@ -12,8 +12,10 @@ client verifies delta continuity and requests a resync on any gap.
 |-----------|-------|---------|
 | server → | `{type:'snapshot', seq, state}` | Full authoritative state. Sent on connect and in reply to a client `resync`. |
 | server → | `{type:'delta', seq, updates}` | Per-tick (≈1.5s) diffs of changed top-level slices; `updates[k] = <new value>`. |
-| server → | `{type:'approval', pending}` | Hermes delegation approval card appeared (`pending` is the request object). |
-| server → | `{type:'approval', pending:null}` | Pending approval cleared/resolved. |
+| server → | `{type:'approval', pending}` | Approval card appeared (`pending` is the request object). Used by both the Hermes delegation bridge and the P11 interrupt surface (`pending.tool === 'interrupt'`). |
+| server → | `{type:'approval', pending:null}` | Pending approval / interrupt cleared. |
+| server → | `{type:'events', events}` | P12 trace span frames (`events` is a flat span list, newest-first handling client-side). |
+| server → | `{type:'chat'}` | Hint that chat changed; the authoritative rows arrive in the next delta. |
 | server → | `{type:'ping'}` | Liveness probe every ~15s. |
 | client → | `{type:'pong'}` | Required reply to `ping`; 3 missed = connection terminated. |
 | client → | `{type:'resync'}` | Client saw a `seq` gap; server answers with a fresh snapshot. |
@@ -22,8 +24,10 @@ Client handling in `src/api.js`:
 
 - `snapshot` → `applyServerState` (rebuild full store)
 - `delta` → `seq === expected ? applyDelta(updates) : send resync`
-- `approval` → toggle the approval card in `STATE.approval`
+- `approval` → `reduceEvent` channel: toggle `STATE.approval.pending`
+- `events` → `reduceEvent` channel: fold spans into `STATE.trace`
 - `ping` → reply `pong`
+- any other `type` → `reduceEvent` (typed channel reducers; unknown types are ignored)
 
 ### State change events (delta payloads)
 
@@ -46,14 +50,20 @@ All mutations return JSON; success mutations broadcast the new state.
 
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
-| POST | `/api/chat` | `{text}` | Operator goal. Detects a direct `@AGENT` mention (pins plan + reply owner), plans into steps, creates a workflow, queues agents, and replies with a synthesized answer. Returns `{ok, steps, agent}`. |
+| POST | `/api/chat` | `{text}` | Operator goal. Detects a direct `@AGENT` mention (pins plan + reply owner), plans into steps (P8 `dependsOn` chains preserved), creates a workflow, queues agents, and replies with a synthesized answer. Returns `{ok, steps, agent}`. |
 | POST | `/api/dispatch` | `{task, agent}` | Manually queue a task for an agent. |
 | POST | `/api/kanban/:id/advance` | — | Move card `id` to the next column (removes if already `done`). |
 | POST | `/api/alerts/:id/ack` | — | Acknowledge alert `id`. |
+| POST | `/api/alerts/ack-all` | — | Acknowledge every active alert. Returns `{ok, acked}`. |
 | POST | `/api/approval/respond` | `{choice: 'approve'\|'deny'}` | Resolve the pending Hermes approval. `400` if choice invalid; `{ok:false,error}` if none pending. |
 | POST | `/api/email/:idx/read` | — | Mark email at index `idx` read. |
 | POST | `/api/calendar/:day` | — | Select calendar day `0-4`. |
 | POST | `/api/mission` | `{name, agents}` | Create a workflow mission and dispatch the listed agents. |
+| POST | `/api/checkpoint` | `{reason?}` | Capture a full-state snapshot (P10). Returns `{ok, id}`; ledger capped at 8. |
+| POST | `/api/checkpoint/rollback` | — | Restore the latest checkpoint (P10). Returns `{ok, id, slices}` — `slices` lists the top-level slices actually reverted; `409` if none available. |
+| POST | `/api/control/pause` | — | Single-operator hold (P11): sets `meta.paused`, gates dispatch pickup. Returns `{ok, id}`. |
+| POST | `/api/control/interrupt` | `{reason?, agent?, goal?}` | Interrupt with an approval card (P11) carrying `reason`/`agent`; returns `{ok, id}`. |
+| POST | `/api/control/resume` | — | Clears pause/interrupt; in-flight runs continue. Returns `{ok, resumed}`. |
 
 ## State shape
 
@@ -67,12 +77,21 @@ snapshots and deltas.
     "tokenTotal": 0, "bootedAt": 0,
     "dataSource": "seed | github | hermes",      // which source owns the board
     "lastSync": 0,                               // github/hermes last poll
-    "hermes": { "status", "url", "model", "checkedAt" }  // when hermes bridge enabled
+    "hermes": { "status", "url", "model", "checkedAt" },  // when hermes bridge enabled
+    "paused": false,                             // P11 interrupt state
+    "bootCheckpointId": "ckpt_...",              // P10 boot-guard snapshot id
+    "lastRollback": null | { "ts", "id", "slices": [] }  // most recent rollback
   },
   "approval": {
     "pending": null | { "id", "tool", "summary", "detail", "from", "choice", "at" },
     "history": [ ...resolved approvals, newest first, bounded 20 ]
   },
+  "checkpoints": [
+    { "id", "ts", "reason", "state": { ...full snapshot... } }  // capped at 8
+  ],
+  "trace": [
+    { "id", "name", "type", "depth", "parent", "ms", "tokenIn", "tokenOut", "ok", "ts" }
+  ],
   "agents":     [{ "id", "name", "role", "state", "task", "progress", "tokens", "summary", "capabilities": [] }],
   "workflows":  [{ "id", "name", "state", "progress", "steps", "curStep", "agents", "eta" }],
   "kanban":     { "columns": [...], "cards": [ { "id", "title", "col", "priority", "src" } ], "done": [...] },

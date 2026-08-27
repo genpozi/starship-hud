@@ -1,42 +1,130 @@
-# STELLARIS-7 // Starship HUD Mission Control
+<p align="center">
+  <img src="assets/screenshots/mission-control.png" alt="STELLARIS-7 Mission Control — realtime agent-fleet HUD over a 3D procedural galaxy" width="880"/>
+</p>
 
-A dynamic, richly animated **starship HUD dashboard** for **multi-agent agentic workflows** and **daily driver** operations. Rendered over a live **3D procedural galaxy** (spiral galaxy, nebula, starfield, ringed planets) built with Three.js.
+<h1 align="center">STELLARIS-7 · Starship HUD Mission Control</h1>
 
-[![CI](https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg)](https://github.com/genpozi/starship-hud/actions/workflows/ci.yml)
-![stack](https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff)
-![license](https://img.shields.io/badge/license-MIT-ffb347)
-![tests](https://img.shields.io/badge/tests-10%20suites-39ff88)
-[![node](https://img.shields.io/badge/node-20%2B-83a598)](https://nodejs.org)
+<p align="center">
+  A realtime <strong>starship HUD</strong> for orchestrating <strong>multi-agent agentic workflows</strong> — six crew agents, superstep DAG scheduling, checkpoints, interrupts, span-level traces, and a live 3D procedural galaxy, all driven by a single Node orbit server over WebSocket.
+</p>
+
+<p align="center">
+  <a href="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml"><img src="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff" alt="stack"/>
+  <img src="https://img.shields.io/badge/license-MIT-ffb347" alt="license"/>
+  <img src="https://img.shields.io/badge/tests-15%20suites-39ff88" alt="tests"/>
+  <img src="https://img.shields.io/badge/node-20%2B-83a598" alt="node"/>
+  <img src="https://img.shields.io/badge/status-production--ready-39ff88" alt="status"/>
+  <img src="https://img.shields.io/badge/deps-0%20audit%20vulns-39ff88" alt="deps"/>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> · <a href="#screenshots">Screenshots</a> · <a href="#getting-started">Getting Started</a> · <a href="#architecture">Architecture</a> · <a href="#documentation">Docs</a> · <a href="#testing">Testing</a> · <a href="#customization">Customization</a>
+</p>
 
 ---
 
-## Overview
+## Why STELLARIS-7?
 
-The dashboard is organized into **12 views**, each a focused screen for a use case. The **Mission Control** view is the rollup of the most important tools and information; every other view is a detailed drill-down of a grouped concern.
+A mission-control console is the oldest interface metaphor for observability — and it is still the best one for watching autonomous agents work. STELLARIS-7 is a **working agent orchestrator wrapped in a starship HUD**: a Node/Express + WebSocket orbit server is the single source of truth for fleet state, the browser mirrors it in real time, and a live Three.js galaxy (spiral arms, nebula, ringed planets, bloom) renders behind every view.
 
-| # | View | Purpose |
+It runs **fully offline** out of the box (deterministic heuristic planner), and optionally upgrades to a real LLM planner, real GitHub issue/PR sync, and a real Hermes WebUI agent bridge via operator-supplied credentials.
+
+---
+
+## Features
+
+### Realtime agent orchestration
+
+- **Six crew agents** (`ORCHESTRATOR`, `CODA`, `PILOT`, `SAGE`, `LINK`, `NUDGE`) with state machines, typed tool schemas, retry policies, and error states — no spinning forever.
+- **Superstep DAG scheduling (P8)** — operator goals are planned into steps with `dependsOn` chains; a step only starts once every dependency has completed. No more all-in-parallel chaos.
+- **Operator chat console** — `@AGENT` mentions pin the plan and reply to a specific agent; replies are synthesized in-character and grounded in the fleet's own knowledge vault.
+- **Approval bridge** — tools that need a human in the loop surface an approval card in the HUD (`approve` / `deny` / timeout).
+
+### Mission-control reliability
+
+- **Checkpoints + rollback (P10)** — a boot-guard snapshot plus on-demand full-state snapshots (capped ledger of 8); one REST call restores the previous state and reports exactly which slices were reverted.
+- **Single-operator interrupt (P11)** — pause/resume via the topbar button or API. In-flight steps finish, dispatch pickup halts, and an interrupt card tells you who stopped the run.
+- **Trace / span telemetry (P12)** — every run/tool call records a span with `ms` + token accounting, streamed to the client as typed events.
+
+### Realtime data plane
+
+- **Snapshot/delta WebSocket protocol** — full state on connect, then diffed deltas (~1.5 s) with monotonic `seq`, gap detection, resync, and exponential-backoff reconnect.
+- **Typed event channels (P9)** — non-state frames (`events`, `approval`, `chat`) fold through client-side reducers; unknown frame types are ignored so a newer server never breaks an older client.
+- **Offline fallback** — if the server is unreachable the HUD switches to a self-contained simulation, so the console never goes dark.
+
+### Views
+
+12 focused screens — **Mission Control** (rollup), **Kanban**, **Open Items**, **Scheduler**, **Chat**, **Graphs**, **Vault**, **Email**, **Calendar**, **Alerts**, **System Health**, **Research Reports**.
+
+### Optional live integrations
+
+| Source | What it syncs | Env vars |
 | --- | --- | --- |
-| 1 | **Mission Control** | Rollup — agent fleet, mission pipeline, tool bay, telemetry, comms log, daily driver |
-| 2 | **Kanban** | Board with Backlog / In Progress / In Review / Done columns; click a card to advance it |
-| 3 | **Open Items** | Issue / PR / task tracker — ID, type, priority, owner, status |
-| 4 | **Scheduler** | Cron / recurring job registry — schedule, agent, next run, duration, last result |
-| 5 | **Chat** | Agent orchestration console — fleet chat + dispatch console + live command input; `@AGENT` mentions get grounded, in-character replies |
-| 6 | **Graphs** | Analytics — token usage, task throughput, context pressure, success rate |
-| 7 | **Vault** | Knowledge core — documents, schemas, runbooks with tags |
-| 8 | **Email** | Inbox with reading pane — click a row to open the message |
-| 9 | **Calendar** | Cycle week grid + selected-day agenda |
-| 10 | **Alerts** | Condition monitor — severity summary + alert feed |
-| 11 | **System Health** | Subsystem probes + full diagnostic log stream |
-| 12 | **Research Reports** | Fleet findings — drafts, reviews, published reports |
+| **GitHub** | Issues + PRs → kanban board (ETag incremental, rate-limit guarded) | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` |
+| **Hermes WebUI** | Real agent delegation + approval bridge + reverse-ingest of sessions/crons | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL` |
+| **LLM planner** | LLM goal decomposition (heuristic offline fallback) | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` |
+
+---
+
+## Screenshots
+
+| Mission Control (rollup) | Kanban | Agent Chat |
+|:---:|:---:|:---:|
+| ![Mission Control](assets/screenshots/mission-control.png) | ![Kanban](assets/screenshots/kanban.png) | ![Chat](assets/screenshots/chat.png) |
+| **Graphs & Analytics** | **System Health** | **Alerts** |
+| ![Graphs](assets/screenshots/graphs.png) | ![Health](assets/screenshots/health.png) | ![Alerts](assets/screenshots/alerts.png) |
+
+> **Vault** — knowledge core with tagged docs and runbooks (`assets/screenshots/vault.png`).
+
+---
+
+## Getting started
+
+Requires **Node.js 20+**. Zero external services needed for the default experience.
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Orbit server — REST + WebSocket on :3001 (owns fleet state)
+npm run dev:server
+
+# 3. In a second terminal — Vite dev server on :5173
+#    (proxies /api and /ws to the orbit server)
+npm run dev
+```
+
+Open the URL Vite prints (default `http://localhost:5173`) and use the left nav rail to switch views.
+
+**One-command demo** (mock Hermes WebUI :8787 + orbit :3001 + Vite :5173):
+
+```bash
+./scripts/demo.sh
+```
+
+**Production** — build, then serve everything from the Express server on :3001:
+
+```bash
+npm run build
+npm start
+```
+
+### Optional LLM planning
+
+Copy `.env.example` to `.env` and set `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL`. The chat planner will then ask the model to decompose operator goals into orchestrated steps. Without a key it uses the deterministic heuristic planner — fully offline.
+
+Validate a live Hermes WebUI against the bridge contract before enabling it:
+
+```bash
+./scripts/probe.sh --url http://127.0.0.1:8787
+```
+
+See `docs/DEPLOYMENT.md` and `docs/HERMES-INTEGRATION.md` for the full operator runbook.
 
 ---
 
 ## Architecture
-
-The HUD is driven by a realtime **orbit server** (Node/Express + WebSocket)
-that is the single source of truth for fleet state. The browser mirrors state
-over WebSocket and issues mutations via REST. When the server is unreachable
-the HUD falls back to an offline simulation so the console never goes dark.
 
 ```
 Browser (Vite SPA)                Orbit server (Node, port 3001)
@@ -45,63 +133,18 @@ Browser (Vite SPA)                Orbit server (Node, port 3001)
 │ src/store.js  state  │  /ws    │ server/orchestrator.js  engine │
 │ src/views.js  views  │  REST   │ server/planner.js   LLM/heuris.│
 │ src/api.js    bridge │ /api/*  │ server/skills.js    tool reg.  │
-│ src/galaxy.js 3D bg  │         │ server/store.js     persistence│
-│ src/config.js seed   │         │ data/state.json                │
-└──────────────────────┘         └────────────────────────────────┘
+│ src/channels.js typed│         │ server/trace.js     span tree  │
+│ src/galaxy.js 3D bg  │         │ server/checkpoints.js snapshots│
+│ src/config.js seed   │         │ server/store.js     persistence│
+└──────────────────────┘         │ data/state.json                │
+                                 └────────────────────────────────┘
 ```
+
+- **Single source of truth** — the orbit server owns canonical state; the browser mirrors it over WebSocket (snapshot → diffed deltas) and mutates it via REST.
+- **Agent step machine** — dispatched jobs run through a step machine with `dependsOn` gating; in-flight steps finish during an interrupt; completed spans feed the trace slice.
+- **Persistence** — `data/state.json` is debounced-flushed; it self-heals from seed on corrupt/missing reads; a boot checkpoint is captured every start.
 
 See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
-
-## Getting started
-
-```bash
-# Install dependencies
-npm install
-
-# Terminal 1 — orbit server (REST + WebSocket on :3001)
-npm run dev:server
-
-# Terminal 2 — dev server with HMR (:5173, proxies /api and /ws to :3001)
-npm run dev
-
-# Production build
-npm run build
-
-# Production — build then serve everything from the Express server on :3001
-npm start
-```
-
-Open the local URL printed by Vite (default `http://localhost:5173`). Use the **left nav rail** to switch views.
-
-> **Optional LLM planning** — copy `.env.example` to `.env` and set
-> `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL`. The chat planner
-> will then ask the model to decompose operator goals into orchestrated steps.
-> Without a key it uses the deterministic heuristic planner — fully offline.
-
-### Quick start with the Hermes demo (no external services)
-
-```bash
-# One command: mock hermes-webui (:8787) + orbit (:3001) + Vite dev (:5173)
-./scripts/demo.sh
-
-# Headless validation — 10 suites (client, ingest, phase-4, github, planner,
-# skills, chat, regression, views, integration)
-npm test
-
-# Validate a live Hermes WebUI against the bridge contract before enabling it
-./scripts/probe.sh --url http://127.0.0.1:8787
-```
-
-### Optional data sources (operator-supplied creds in `.env`)
-
-| Source | Env vars | Effect |
-| --- | --- | --- |
-| **GitHub** | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` | Issues + PRs replace the seed board (hermes rows preserved) |
-| **Hermes WebUI** | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL` | Real agent delegation + approval bridge + reverse ingest of sessions/crons |
-| **LLM planner** | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` | LLM goal decomposition (heuristic offline fallback) |
-
-Run `npm run probe -- --url <hermes-url>` against a real instance first; see
-`docs/HERMES-INTEGRATION.md` (operator runbook) and `docs/DEPLOYMENT.md`.
 
 ---
 
@@ -114,119 +157,87 @@ Run `npm run probe -- --url <hermes-url>` against a real instance first; see
 | `docs/DEVELOPER.md` | developer guide — data model, skills, mutations, testing, debugging |
 | `docs/HERMES-INTEGRATION.md` | operator runbook for the Hermes bridge + GitHub sync |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
+| `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns, implementation status |
+| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and roadmap |
 | `CHANGELOG.md` | version history (Keep a Changelog) |
 | `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
 | `SECURITY.md` | vulnerability reporting + operator security posture |
 | `CODE_OF_CONDUCT.md` | community standards |
+
+---
+
+## Testing
+
+15 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
+
+```bash
+npm test
+```
+
+| Suite | Guards |
+| --- | --- |
+| `hermes` / `hermes-ingest` / `phase4` / `github` | bridge client, reverse ingest, engine, GitHub sync |
+| `planner` / `skills` / `chat` | goal planning, tool registry, chat contract (`@AGENT` routing) |
+| `views` | headless renders of every HUD view via a DOM shim + full slice contract |
+| `superstep` / `channels` / `checkpoints` / `interrupt` / `trace` | P8 dependency barrier, P9 reducers, P10 snapshots, P11 hold/resume, P12 spans |
+| `regression` | review-fix guards (escapeHtml, in-flight gating, mention detection) |
+| `integration` | boots a real orbit server — full REST + WebSocket surface |
+
+---
 
 ## Project structure
 
 ```
 .
 ├── index.html            # HUD shell markup + all view containers
-├── package.json
-├── vite.config.js        # dev server + build config + /api /ws proxy
+├── package.json          # dev:server / dev / build / start / test / probe
+├── vite.config.js        # dev server + /api /ws proxy + build config
 ├── .env.example          # operator credentials (user-supplied, never committed)
 ├── Dockerfile            # multi-stage, non-root, healthcheck
 ├── docker-compose.yml    # orbit + optional mock, orbit-data volume
-├── .editorconfig
-├── LICENSE               # MIT
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-├── CODE_OF_CONDUCT.md
-├── SECURITY.md
-├── .github/
-│   ├── workflows/ci.yml  # test + build (Node 20/22) + docker build
-│   ├── ISSUE_TEMPLATE/   # bug_report, feature_request, config
-│   └── PULL_REQUEST_TEMPLATE.md
-├── docs/
-│   ├── ARCHITECTURE.md   # runtime modes, data flow, module guide
-│   ├── API.md            # REST + WebSocket reference
-│   ├── DEVELOPER.md      # developer guide (extend, test, debug)
-│   ├── HERMES-INTEGRATION.md
-│   └── DEPLOYMENT.md
-├── server/               # STELLARIS-7 orbit backend
+├── LICENSE · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md
+├── .github/              # CI workflow, issue/PR templates
+├── docs/                 # architecture, API, developer, deployment, research
+├── assets/screenshots/   # README gallery captures
+├── server/               # orbit backend
 │   ├── index.js          # express + ws entry point
-│   ├── orchestrator.js   # heartbeat engine + all mutations
-│   ├── planner.js        # LLM-backed (optional) + heuristic planning
-│   ├── knowledge.js      # retrieval layer (vault/reports/cards/...)
-│   ├── replies.js        # conversational reply synthesis
+│   ├── orchestrator.js   # heartbeat engine, step machine, all mutations
+│   ├── planner.js        # LLM-backed (optional) + heuristic planning (P8 deps)
 │   ├── skills.js         # sandboxed tool registry (incl. hermes skill)
-│   ├── store.js          # JSON persistence (data/state.json)
-│   ├── seed.js           # seeds state from src/config.js
-│   ├── github.js         # optional GitHub → board sync
-│   ├── hermes.js         # hermes-webui client + sync loop
-│   ├── hermes-ingest.js  # reverse ingest: sessions/crons → board
-│   ├── hermes-contract.js# npm run probe — live-WebUI validation
+│   ├── trace.js          # P12 span tree + token accounting
+│   ├── checkpoints.js    # P10 snapshot/rollback (capped ledger)
+│   ├── store.js · seed.js# JSON persistence + seed from src/config.js
+│   ├── github.js · hermes.js · hermes-ingest.js · hermes-contract.js
 │   └── mock-hermes.js    # hermes-webui test double
-├── test/                 # 10 suites + run-all.mjs (spawns fresh mock)
+├── test/                 # 15 suites + run-all.mjs (fresh mock per suite)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router
-    ├── store.js          # canonical client STATE + server snapshots
-    ├── api.js            # WebSocket mirror + REST mutations
-    ├── views.js          # renderer for every view (kanban → reports)
+    ├── store.js · api.js # canonical STATE + WS/REST bridge
+    ├── channels.js       # P9 typed event channel reducers
+    ├── views.js          # renderer for every view
     ├── galaxy.js         # Three.js 3D scene (galaxy, nebula, planets, stars)
     ├── style.css         # full HUD theme + animations + per-view styles
-    └── config.js         # ⭐ seed data for every dashboard view
+    └── config.js         # seed data for every dashboard view
 ```
 
 ---
 
 ## Customization
 
-All dashboard content lives in `src/config.js`. Edit these exports:
-
-```js
-export const SHIP = { name, class, mission, coordinates }
-export const AGENTS = [ /* fleet members */ ]
-export const WORKFLOWS = [ /* pipelines */ ]
-export const TOOLS = [ /* tool bay grid */ ]
-export const AGENDA = [ /* daily driver schedule */ ]
-export const KANBAN_COLUMNS / KANBAN_CARDS   // kanban view
-export const OPEN_ITEMS                       // open items view
-export const SCHEDULED_TASKS                  // scheduler view
-export const CHAT_SEED                        // chat bootstrap messages
-export const VAULT_DOCS                       // vault view
-export const EMAILS                           // email view
-export const CALENDAR_EVENTS                  // calendar view
-export const ALERTS                           // alerts view
-export const PROBES                           // system health probes
-export const REPORTS                          // research reports
-```
+All dashboard content lives in `src/config.js`. Edit the exports to rename the ship, swap the crew, reshape the board, or retheme the HUD (`SHIP`, `AGENTS`, `WORKFLOWS`, `TOOLS`, `AGENDA`, `KANBAN_COLUMNS`/`KANBAN_CARDS`, `OPEN_ITEMS`, `SCHEDULED_TASKS`, `CHAT_SEED`, `VAULT_DOCS`, `EMAILS`, `CALENDAR_EVENTS`, `ALERTS`, `PROBES`, `REPORTS`).
 
 - **Agent states** — `active | busy | idle | error` (drives color + animation).
 - **Workflow states** — `running | queued | done | failed`.
-- **Kanban columns** — edit `KANBAN_COLUMNS` to rename/reorder columns; cards reference `col` by id.
-- **Calendar** — events use `day` (0–4 = Mon–Fri), `start`/`end` (24h hours), `type` (`mil`/`dep`).
-- **Alerts** — `sev` is `crit | warn | info`; drives the summary cards and feed styling.
-- **Reports** — `status` is `draft | review | published`.
-
-The live simulation in `main.js` is the **offline fallback** only. In ONLINE
-mode the orbit server owns state: `src/api.js` applies WebSocket snapshots to
-`src/store.js`, and interactions (chat dispatch, kanban advance, alert ack,
-email read, mission create) mutate the server via REST. Use `api.chat(text)`,
-`api.advanceCard(id)`, `pushChat(from, text)`, `log(level, msg)`, …
+- **Kanban** — edit `KANBAN_COLUMNS` to rename/reorder columns; cards reference `col` by id.
+- **Alerts** — `sev` is `crit | warn | info`; drives summary cards and feed styling.
+- **Theme** — color and motion tokens are CSS custom properties at the top of `src/style.css` (`--line-cyan: #00e5ff`, `--line-amber: #ffb347`, `--ok: #39ff88`, `--crit: #ff4d5e`, `--scan-time: 9s`). The 3D scene parameters (arm count, particle counts, planet positions, nebula colors) are constants at the top of `src/galaxy.js`.
 
 ### Adding a new view
 
 1. Add a `<section id="view-yourname" class="view">` in `index.html`.
 2. Add a `<button class="nav-btn" data-view="yourname">` in the nav rail.
 3. Write a `renderYourName()` in `src/views.js` and call it in `main.js` `boot()` + refresh loop.
-
-### Theme
-
-Color and motion tokens are CSS custom properties at the top of `src/style.css`:
-
-```css
---line-cyan: #00e5ff;      /* primary accent  */
---line-amber: #ffb347;     /* secondary/warn  */
---ok: #39ff88;             /* good status     */
---crit: #ff4d5e;           /* critical        */
---scan-time: 9s;           /* scanline speed  */
-```
-
-The 3D scene parameters (galaxy arm count, particle counts, planet positions, nebula colors) are constants at the top of `src/galaxy.js`.
 
 ---
 
@@ -235,11 +246,27 @@ The 3D scene parameters (galaxy arm count, particle counts, planet positions, ne
 - **HUD panels** — clipped angular corners (`clip-path`), corner brackets, backdrop blur over the 3D scene.
 - **View router** — instant panel switching with a fade/scale transition; the 3D galaxy persists behind every view.
 - **CRT layer** — scanline overlay + slow moving scan bar for the "live viewport" feel.
-- **Motion** — pulsing status dots, flowing warp bar, progress fills, log line entrance, mouse-parallax camera, breathing planet glows, ambient agent chat.
+- **Motion** — pulsing status dots, flowing warp bar, progress fills, log line entrance, mouse-parallax camera, breathing planet glows, ambient agent chat; respects `prefers-reduced-motion`.
 - **Fonts** — Orbitron (display), Rajdhani (UI), Share Tech Mono (data) via Google Fonts, with system fallbacks.
+
+---
+
+## Roadmap
+
+- [x] Realtime snapshot/delta transport + offline fallback
+- [x] Superstep DAG scheduling (P8) — `dependsOn` gated pickup
+- [x] Typed event channels + reducers (P9)
+- [x] Checkpoints + rollback (P10) with boot-guard snapshot
+- [x] Single-operator interrupt / pause / resume (P11)
+- [x] Trace / span telemetry streamed as typed events (P12)
+- [x] GitHub + Hermes WebUI live integrations (operator-supplied creds)
+- [ ] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
+- [ ] Multi-operator sessions + per-operator approval routing
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE)
+
+<p align="center"><sub>Built as a mission-control reference for observable, human-in-the-loop agent orchestration.</sub></p>
