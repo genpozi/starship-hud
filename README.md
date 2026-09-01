@@ -77,6 +77,16 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 
 > **Vault** — knowledge core with tagged docs and runbooks (`assets/screenshots/vault.png`).
 
+### Walkthrough video
+
+Live capture of the running HUD — auto-clicks through the main left-nav workspaces
+(Mission Control → Kanban → Agent Chat → Graphs → System Health → Alerts → Vault),
+with the realtime panels animating under each view.
+
+<video src="assets/video/walkthrough.webm" width="880" controls preload="metadata" loop>
+  <a href="assets/video/walkthrough.webm">Download the walkthrough (webm)</a>
+</video>
+
 ---
 
 ## Getting started

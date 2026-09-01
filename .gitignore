@@ -177,3 +177,6 @@ data/
 *.lz
 *.lzma
 *.iso
+
+# Generated walkthrough captures (raw Playwright webm)
+assets/video/page@*.webm
