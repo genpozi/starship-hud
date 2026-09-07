@@ -53,7 +53,7 @@ the console never goes dark.
    and all views every 1.8s. Renderers diff slices (`changed(slice, value)`) so
    idle ticks do not rebuild unchanged DOM.
 4. Operator interactions (chat, kanban advance, alert ack, approval respond,
-   email read, calendar, mission create, manual dispatch, checkpoint capture/
+    email read/send/archive, calendar select/create, inbound webhook, mission create, manual dispatch, checkpoint capture/
    rollback, pause/interrupt/resume) POST to `/api/*`. The server mutates
    canonical state and the next broadcast reflects it back.
    Chat is special: `handleChat` detects a direct `@AGENT` mention, pins the
@@ -68,12 +68,14 @@ the console never goes dark.
 6. Optional data sources poll on their own cadence and write onto the same
    board shape: **GitHub** (issues/PRs) replaces the seed board;
    **Hermes WebUI** (sessions/crons) reverse-ingests onto kanban/items/
-   scheduler/alerts. `meta.dataSource` tells the HUD which is live.
+    scheduler/alerts. **Comms** (Gmail / Graph / ICS / webhook) syncs email +
+    calendar onto the same seed shapes; `meta.comms` records the live source.
+    `meta.dataSource` tells the HUD which board source is live.
 
 ## Server modules
 
-- **index.js** — HTTP + WS bootstrap; REST route table; `bootstrapGithub()`
-  and `bootstrapHermes()` (self-guarding imports); heartbeat + half-open
+- **index.js** — HTTP + WS bootstrap; REST route table; `bootstrapGithub()`,
+  `bootstrapHermes()`, and `bootstrapComms()` (self-guarding imports); heartbeat + half-open
   detection; serves the built `dist/` in production.
 - **orchestrator.js** — the engine. Owns the Store; heartbeat ticks for agents,
   workflows, telemetry/probes, scheduler; the WS broadcast diff; the step
@@ -89,18 +91,22 @@ the console never goes dark.
   titles are validated so the step machine never runs an unregistered tool or
   a dangling dependency.
 - **knowledge.js** — read-only retrieval layer over canonical state (vault
-  docs, reports, kanban cards, items, schedules, probes). `retrieve()` returns
+  docs, reports, kanban cards, items, schedules, probes, email, calendar). `retrieve()` returns
   ranked hits; `digest()` summarizes. Pure function of state.
 - **replies.js** — conversational reply synthesis. `synthesizeReply()` renders
   a grounded, in-character answer (agent persona + knowledge hits) via the LLM
   when keyed, else a deterministic heuristic — including honest "I don't have
   a clear read" for ambiguous goals.
 - **skills.js** — typed tool registry (`search`, `shell`, `coder`, `memory`,
-  `files`, `terminal`, `hermes`). Executors receive a `ctx` (`s`, `log`,
+  `files`, `terminal`, `mail`, `calendar`, `hermes`). Executors receive a `ctx` (`s`, `log`,
   `pushChat`, `hermes`, `approvalMode`) and mutate shared state. `search` and
   `memory` now ground their results in `knowledge.js`. The `hermes`
   skill delegates to a real WebUI through `streamChat`/`syncChat`, handles
   approvals per `USER_HERMES_APPROVAL`, and falls back to simulated delegation.
+  `mail` / `calendar` call `server/comms.js` and simulate locally when no provider is set.
+- **comms.js** — Gmail / Microsoft Graph / ICS adapters, OAuth refresh, ICS
+  parse, inbound webhook normalize, `mergeComms` (keeps `src:'local'`), sync loop.
+  Env-driven; seed fallback; never throws into the orbit.
 - **store.js** — JSON persistence (`data/state.json`) with debounced flush;
   `markDirty()`.
 - **seed.js** — derives the initial state from `src/config.js` so the server
@@ -138,7 +144,7 @@ the console never goes dark.
 - **api.js** — WebSocket client with auto-reconnect and seq-gap resync,
   `isOnline()` probe, and REST helpers for every mutation
   (`api.approval`, `api.pause`, `api.resume`, `api.captureCheckpoint`,
-  `api.rollback`, …).
+  `api.rollback`, `api.sendMail`, `api.archiveEmail`, `api.createEvent`, …).
 - **channels.js** — P9 typed event channels. Every non-state frame type has a
   named reducer (`events` → fold spans into `STATE.trace`, `approval` → set/
   clear `STATE.approval.pending`, `chat` → hint-only). Unknown frame types are

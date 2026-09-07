@@ -11,7 +11,7 @@
  * the planner and the orchestrator's reply synthesizer.
  */
 
-const SLICES = ['vault', 'reports', 'items', 'cards', 'schedules', 'probes']
+const SLICES = ['vault', 'reports', 'items', 'cards', 'schedules', 'probes', 'email', 'calendar']
 
 /**
  * Tokenize a query/body into normalized terms (skips <3-char stop noise).
@@ -43,6 +43,8 @@ export function indexState(state) {
   ;(state.kanban && state.kanban.cards || []).forEach((c) => add(c.title, `${c.title} ${(c.tags || []).join(' ')} ${c.agent || ''}`, 'card', c.id))
   ;(state.schedules || []).forEach((s) => add(s.title || s.name, `${s.title || s.name} ${s.cron || ''} ${s.status || ''}`, 'schedule', s.id))
   ;(state.probes || []).forEach((p) => add(p.name, `${p.name} ${p.value || ''}${p.unit || ''} ${(p.desc || '').slice(0, 80)}`, 'probe', p.id))
+  ;(state.email || []).forEach((e) => add(e.subject, `${e.subject} ${e.from || ''} ${e.preview || e.body || ''}`, 'email', e.id))
+  ;(state.calendar && state.calendar.events || []).forEach((ev) => add(ev.title, `${ev.title} ${ev.start || ''} ${ev.end || ''}`, 'event', ev.id))
   return docs
 }
 

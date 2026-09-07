@@ -20,7 +20,8 @@ import {
   createStreamRenderer,
   escapeHtml,
   logKey,
-  pushChat
+  pushChat,
+  getSelectedEmailId
 } from './views.js'
 
 /**
@@ -590,6 +591,62 @@ export async function boot() {
       dispatchAgent.appendChild(opt)
     })
   }
+  const emailForm = $('#email-compose')
+  if (emailForm) emailForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const to = ($('#email-to')?.value || '').trim()
+    const subject = ($('#email-subject')?.value || '').trim()
+    const body = ($('#email-body')?.value || '').trim()
+    if (!to || !subject) return
+    $('#email-to').value = ''
+    $('#email-subject').value = ''
+    $('#email-body').value = ''
+    log('INFO', `Compose → ${to}: ${subject}`)
+    if (isOnline()) api.sendMail(to, subject, body).then(() => renderEmail()).catch(() => log('WARN', 'send failed'))
+    else {
+      STATE.email.unshift({
+        id: `local-${Date.now()}`,
+        from: 'operator@stellaris.internal',
+        to,
+        subject,
+        preview: body.slice(0, 140),
+        body,
+        time: new Date().toISOString().slice(11, 16),
+        label: 'MAIL',
+        read: true,
+        prio: 'med',
+        folder: 'sent',
+        src: 'local'
+      })
+      renderEmail()
+    }
+  })
+  const archiveBtn = $('#email-archive')
+  if (archiveBtn) archiveBtn.addEventListener('click', () => {
+    const id = getSelectedEmailId()
+    const target = (STATE.email || []).find((m) => m && m.id === id)
+    if (!target) return
+    target.folder = 'archive'
+    if (isOnline()) api.archiveEmail(target.id).catch(() => {})
+    renderEmail()
+  })
+  const calForm = $('#cal-create')
+  if (calForm) calForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const title = ($('#cal-title')?.value || '').trim()
+    const start = ($('#cal-start')?.value || '09:00').trim()
+    const end = ($('#cal-end')?.value || '10:00').trim()
+    if (!title) return
+    $('#cal-title').value = ''
+    const day = STATE.calendar.day
+    log('INFO', `Book ${title} ${start}–${end}`)
+    if (isOnline()) api.createEvent({ title, day, start, end }).then(() => renderCalendar()).catch(() => log('WARN', 'book failed'))
+    else {
+      STATE.calendar.events.push({ id: `local-${Date.now()}`, day, start, end, title, type: 'dep', agents: ['USER'], src: 'local' })
+      renderCalendar()
+    }
+  })
+
   const dispatchForm = $('#dispatch-form')
   if (dispatchForm) dispatchForm.addEventListener('submit', (e) => {
     e.preventDefault()

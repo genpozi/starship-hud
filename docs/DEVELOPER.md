@@ -6,6 +6,7 @@ Everything you need to extend, test, and debug the mission-control HUD.
 - **Full API + state reference** → `docs/API.md`
 - **Deployment / runbook** → `docs/DEPLOYMENT.md`
 - **Hermes bridge + GitHub sync internals** → `docs/HERMES-INTEGRATION.md`
+- **Email / calendar adapters** → `docs/COMMS-INTEGRATION.md`
 
 ---
 
@@ -28,7 +29,8 @@ server/
   planner.js          LLM (if keyed) or heuristic goal decomposition
   knowledge.js        read-only retrieval over state (vault/reports/cards/...)
   replies.js          conversational reply synthesis (persona + knowledge)
-  skills.js           typed tool registry (search/shell/coder/memory/files/terminal/hermes)
+  skills.js           typed tool registry (search/shell/coder/memory/files/terminal/mail/calendar/hermes)
+  comms.js            Gmail / Graph / ICS adapters, inbound webhook, sync loop
   store.js            debounced JSON persistence (data/state.json)
   seed.js             derives server initial state from src/config.js
   github.js           GitHub → board sync (ETag polling, dedupe, mergeReplacement)
@@ -39,7 +41,8 @@ server/
 test/
   run-all.mjs         spawns a fresh mock, runs every suite as a child process
   hermes.test.mjs, hermes-ingest.test.mjs, phase4.test.mjs,
-  github.test.mjs, planner.test.mjs, skills.test.mjs, chat.test.mjs
+  github.test.mjs, planner.test.mjs, skills.test.mjs, chat.test.mjs,
+  comms.test.mjs
 scripts/              demo.sh (mock+orbit+vite), probe.sh (contract check)
 Dockerfile            multi-stage, non-root, healthcheck
 docker-compose.yml    orbit + optional mock, orbit-data volume
@@ -64,12 +67,14 @@ exact fields.
 | `dispatch` | dispatch handler | mission |
 | `alerts` | probe engine, ingest (signature-deduped) | alerts |
 | `approval` | approval bridge (`pending`/`history`) | approval card |
-| `probes`, `reports`, `telemetry`, `vault`, `email`, `calendar` | heartbeat / mutations | graphs, vault, email, calendar |
+| `probes`, `reports`, `telemetry`, `vault` | heartbeat / mutations | graphs, vault |
+| `email`, `calendar` | comms sync + REST mutations | email, calendar |
 | `logs` | every mutation + `this.log(level, msg)` | rollup stream |
-| `meta` | bootstrap, github/hermes sync | header (dataSource badge) |
+| `meta` | bootstrap, github/hermes/comms sync | header (dataSource / comms badge) |
 
 `src` on kanban cards, items, schedules, and alerts is
 `seed | github | hermes` and drives the cyan Hermes accent class.
+Email/calendar `src` is `seed | google | microsoft | ics | webhook | local`.
 
 ### Chat pipeline (operator → agent reply)
 
@@ -153,6 +158,8 @@ The registry is an array of typed tool definitions. Each entry:
 - The `hermes` skill delegates to the real WebUI through `streamChat` /
   `syncChat`, honors `USER_HERMES_APPROVAL`, and falls back to simulated
   delegation when `USER_HERMES_URL` is unset.
+- `mail` and `calendar` dynamically import `server/comms.js`. Without a
+  provider they write a local sent-copy / local event (`simulated: true`).
 - Add a skill, then point the planner's toolset at it, then cover it in
   `test/skills.test.mjs`.
 
@@ -226,6 +233,10 @@ board source.
 | `USER_HERMES_INGEST_MS` | reverse-ingest poll interval |
 | `USER_HERMES_APPROVAL` | `prompt` (HUD card) \| `always` \| `never` |
 | `USER_HERMES_APPROVAL_TIMEOUT` | max ms before an approval times out |
+| `USER_COMMS_EMAIL_PROVIDER` / `USER_COMMS_CALENDAR_PROVIDER` | `auto` \| `google` \| `microsoft` \| `ics` (calendar). Seed when unset. |
+| `USER_GOOGLE_*` / `USER_MS_*` / `USER_ICS_*` | OAuth refresh / ICS subscribe. See `docs/COMMS-INTEGRATION.md`. |
+| `USER_COMMS_POLL_MS` | inbox/calendar poll interval (default `120000`) |
+| `USER_COMMS_WEBHOOK_SECRET` | optional `X-Stellaris-Secret` for `POST /api/comms/inbound` |
 | `PORT` | orbit HTTP/WS port (default `3001`) |
 | `STELLARIS_DATA_DIR` | runtime state dir (default `<repo>/data`); lets tests / parallel instances isolate state |
 
@@ -235,7 +246,7 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-npm test          # run-all.mjs → fresh mock on :8788 → all 15 suites
+npm test          # run-all.mjs → fresh mock on :8788 → all 16 suites
 npm run probe     # validate a live Hermes WebUI (add --url / --password)
 npm run build     # vite build — must stay green
 ```
@@ -246,9 +257,9 @@ npm run build     # vite build — must stay green
   continuously). Each suite runs as its own child with `MOCK_URL` +
   `USER_HERMES_URL` exported. Failures are surfaced per suite; exit code 1 on
   any red.
-- The 15 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
+- The 16 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
   `skills`, `chat`, `regression`, `views`, `superstep`, `channels`,
-  `checkpoints`, `interrupt`, `trace`, `integration`. `views` headless-renders
+  `checkpoints`, `interrupt`, `trace`, `comms`, `integration`. `views` headless-renders
   every HUD view via a DOM shim (its `REQUIRED` list guards the full slice
   contract); `superstep` guards the P8 dependency barrier; `channels` guards
   the P9 typed reducers; `checkpoints` guards P10 snapshot/rollback; `interrupt`

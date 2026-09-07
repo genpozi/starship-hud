@@ -7,8 +7,10 @@ const results = []
 const pass = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} ${name}`)
 
 pass('registry validates (no throw)', validateSkills() === true)
-pass('registry non-empty', Object.keys(SKILLS).length >= 7)
+pass('registry non-empty', Object.keys(SKILLS).length >= 9)
 pass('hermes skill registered', !!SKILLS.hermes && SKILLS.hermes.name === 'hermes')
+pass('mail skill registered', !!SKILLS.mail && SKILLS.mail.name === 'mail')
+pass('calendar skill registered', !!SKILLS.calendar && SKILLS.calendar.name === 'calendar')
 pass('every skill has an executor', Object.values(SKILLS).every((s) => typeof s.execute === 'function'))
 
 const ctx = { agent: 'SAGE', s: { vault: [] }, log: () => {}, pushChat: () => {}, broadcast: () => {} }
@@ -18,6 +20,14 @@ pass('search executor returns results', search && typeof search.results === 'num
 
 const mem = await runSkill('memory', { ...ctx })
 pass('memory executor appends vault doc', mem && typeof mem.id === 'string' && ctx.s.vault.length === 1 && ctx.s.vault[0].type === 'MEMORY')
+
+const mailCtx = { ...ctx, s: { email: [], vault: [] } }
+const mailed = await runSkill('mail', mailCtx)
+pass('mail skill simulated send without provider', mailed && mailed.simulated === true && mailed.sent === true && mailCtx.s.email.length === 1)
+
+const calCtx = { ...ctx, s: { calendar: { events: [], day: 0 }, vault: [] } }
+const booked = await runSkill('calendar', calCtx)
+pass('calendar skill simulated book without provider', booked && booked.simulated === true && booked.created === true && calCtx.s.calendar.events.length === 1)
 
 // hermes skill simulated fallback when no client configured
 const hermesNoClient = await runSkill('hermes', { ...ctx, hermes: null, approvalMode: 'prompt', step: 'X' })

@@ -113,6 +113,24 @@ export class Orchestrator {
     }
 
     this.s.meta.dataSource = this.s.meta.dataSource || 'seed'
+    this.s.meta.comms = this.s.meta.comms || { email: 'seed', calendar: 'seed', lastSync: null, error: null }
+    if (this.s.calendar && !this.s.calendar.weekStart) {
+      const now = new Date()
+      const sun = new Date(now)
+      sun.setHours(0, 0, 0, 0)
+      sun.setDate(sun.getDate() - sun.getDay())
+      this.s.calendar.weekStart = sun.toISOString().slice(0, 10)
+    }
+    ;(this.s.email || []).forEach((e, i) => {
+      if (e && !e.id) e.id = `seed-e${i + 1}`
+      if (e && !e.folder) e.folder = 'inbox'
+      if (e && !e.src) e.src = 'seed'
+      if (e && e.body == null) e.body = e.preview || ''
+    })
+    ;(this.s.calendar && this.s.calendar.events || []).forEach((ev, i) => {
+      if (ev && !ev.id) ev.id = `seed-c${i + 1}`
+      if (ev && !ev.src) ev.src = 'seed'
+    })
 
     // approval bridge state (Hermes delegation approvals; operator responds via HUD)
     if (!this.s.approval) this.s.approval = { pending: null, history: [] }
@@ -910,14 +928,61 @@ export class Orchestrator {
     return { ok: true, resumed: had }
   }
 
+  _findEmail(idOrIdx) {
+    const list = this.s.email || []
+    const byId = list.find((x) => x && x.id === idOrIdx)
+    if (byId) return byId
+    const n = Number(idOrIdx)
+    if (Number.isInteger(n) && n >= 0 && n < list.length) return list[n]
+    return null
+  }
+
   readEmail(idx) {
-    const e = this.s.email[idx]
+    const e = this._findEmail(idx)
     if (e) {
       e.read = true
+      this.log('INFO', `email read: ${e.subject}`)
       this.store.markDirty()
       return { ok: true, email: e }
     }
     return { ok: false }
+  }
+
+  async archiveEmail(id) {
+    const e = this._findEmail(id)
+    if (!e) return { ok: false }
+    e.folder = 'archive'
+    e.read = true
+    try {
+      const { archiveRemote } = await import('./comms.js')
+      await archiveRemote(e.id)
+    } catch {}
+    this.log('INFO', `email archived: ${e.subject}`)
+    this.store.markDirty()
+    return { ok: true, id: e.id }
+  }
+
+  async sendEmail({ to, subject, body }) {
+    if (!to || !subject) return { ok: false, error: 'to and subject required' }
+    const { sendMail } = await import('./comms.js')
+    const res = await sendMail({ to, subject, body })
+    if (!Array.isArray(this.s.email)) this.s.email = []
+    this.s.email.unshift(res.email)
+    if (this.s.email.length > 60) this.s.email.pop()
+    this.log(res.remote ? 'OK' : 'INFO', `email sent → ${to}${res.simulated ? ' (simulated)' : ''}`)
+    this.store.markDirty()
+    return { ok: true, id: res.email.id, simulated: !!res.simulated, remote: !!res.remote }
+  }
+
+  async ingestInbound(payload) {
+    const { normalizeInbound } = await import('./comms.js')
+    const email = normalizeInbound(payload)
+    if (!Array.isArray(this.s.email)) this.s.email = []
+    this.s.email.unshift(email)
+    if (this.s.email.length > 60) this.s.email.pop()
+    this.log('INFO', `inbound mail: ${email.subject}`)
+    this.store.markDirty()
+    return { ok: true, id: email.id }
   }
 
   setCalDay(day) {
@@ -926,6 +991,27 @@ export class Orchestrator {
     this.s.calendar.day = d
     this.store.markDirty()
     return { ok: true }
+  }
+
+  async createEvent({ title, day, start, end, type, agents }) {
+    if (!title) return { ok: false, error: 'title required' }
+    const { localEvent, createRemoteEvent, sundayIso } = await import('./comms.js')
+    const event = localEvent({
+      title,
+      day,
+      start,
+      end,
+      type,
+      agents,
+      weekStart: this.s.calendar.weekStart || sundayIso()
+    })
+    const saved = await createRemoteEvent(event)
+    if (!Array.isArray(this.s.calendar.events)) this.s.calendar.events = []
+    this.s.calendar.events.push(saved)
+    this.s.calendar.day = saved.day
+    this.log('OK', `calendar event: ${saved.title} ${saved.start}–${saved.end}`)
+    this.store.markDirty()
+    return { ok: true, id: saved.id, event: saved }
   }
 
   createMission(payload) {

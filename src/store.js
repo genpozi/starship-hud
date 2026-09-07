@@ -38,7 +38,12 @@ export const STATE = {
   dispatch: DISPATCH_SEED.map((d) => ({ ...d })),
   vault: VAULT_DOCS.map((d) => ({ ...d })),
   email: EMAILS.map((e) => ({ ...e })),
-  calendar: { events: CALENDAR_EVENTS.map((e) => ({ ...e })), day: new Date().getDay() % 5, weekLabel: 'CYCLE 42 / W-2' },
+  calendar: {
+    events: CALENDAR_EVENTS.map((e) => ({ ...e })),
+    day: new Date().getDay() % 7,
+    weekStart: new Date(Date.now() - new Date().getDay() * 86400000).toISOString().slice(0, 10),
+    weekLabel: 'CYCLE 42 / W-2'
+  },
   alerts: ALERTS.map((a) => ({ ...a, acked: false })),
   probes: PROBES.map((p) => ({ ...p })),
   reports: REPORTS.map((r) => ({ ...r })),

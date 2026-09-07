@@ -43,7 +43,8 @@ export function buildSeedState() {
     email: EMAILS.map((e) => ({ ...e })),
     calendar: {
       events: CALENDAR_EVENTS.map((e) => ({ ...e })),
-      day: new Date().getDay() % 5,
+      day: new Date().getDay() % 7,
+      weekStart: new Date(Date.now() - new Date().getDay() * 86400000).toISOString().slice(0, 10),
       weekLabel: 'CYCLE 42 / W-2'
     },
     alerts: ALERTS.map((a) => ({ ...a, acked: false })),

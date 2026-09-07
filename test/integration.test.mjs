@@ -152,11 +152,48 @@ try {
   const mail = await mailRes.json()
   pass('POST /api/email/0/read ok', mail.ok === true)
 
+  // ---- REST: email send (simulated, no provider) ----
+  const sendRes = await fetch(`${BASE}/api/email/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: 'ops@stellaris.internal', subject: 'Integration ping', body: 'n/c' })
+  })
+  const sent = await sendRes.json()
+  pass('POST /api/email/send ok', sent.ok === true && typeof sent.id === 'string')
+
+  const sendBad = await fetch(`${BASE}/api/email/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject: 'missing to' })
+  })
+  pass('POST /api/email/send missing to → 400', sendBad.status === 400)
+
+  // ---- REST: inbound webhook ----
+  const inboundRes = await fetch(`${BASE}/api/comms/inbound`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: 'bot@external', subject: 'Inbound probe', body: 'hello fleet' })
+  })
+  const inbound = await inboundRes.json()
+  pass('POST /api/comms/inbound ok', inbound.ok === true && String(inbound.id || '').startsWith('wh-'))
+
   // ---- REST: calendar range validation ----
   const calOk = await fetch(`${BASE}/api/calendar/3`, { method: 'POST' })
   pass('POST /api/calendar/3 ok', calOk.ok)
   const calBad = await fetch(`${BASE}/api/calendar/9`, { method: 'POST' })
   pass('POST /api/calendar/9 rejected', calBad.status === 400)
+
+  const bookRes = await fetch(`${BASE}/api/calendar/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Integration hold', day: 2, start: '15:00', end: '16:00' })
+  })
+  const booked = await bookRes.json()
+  pass('POST /api/calendar/events ok', booked.ok === true && booked.event && booked.event.title === 'Integration hold')
+
+  const archiveRes = await fetch(`${BASE}/api/email/${encodeURIComponent(sent.id)}/archive`, { method: 'POST' })
+  const archived = await archiveRes.json()
+  pass('POST /api/email/:id/archive ok', archived.ok === true)
 
   // ---- REST: malformed JSON -> JSON error handler ----
   const badJson = await fetch(`${BASE}/api/chat`, {

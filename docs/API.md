@@ -56,8 +56,12 @@ All mutations return JSON; success mutations broadcast the new state.
 | POST | `/api/alerts/:id/ack` | — | Acknowledge alert `id`. |
 | POST | `/api/alerts/ack-all` | — | Acknowledge every active alert. Returns `{ok, acked}`. |
 | POST | `/api/approval/respond` | `{choice: 'approve'\|'deny'}` | Resolve the pending Hermes approval. `400` if choice invalid; `{ok:false,error}` if none pending. |
-| POST | `/api/email/:idx/read` | — | Mark email at index `idx` read. |
-| POST | `/api/calendar/:day` | — | Select calendar day `0-4`. |
+| POST | `/api/email/:id/read` | — | Mark email `id` read (numeric index still accepted). |
+| POST | `/api/email/:id/archive` | — | Move email `id` to `folder:'archive'` (best-effort remote). |
+| POST | `/api/email/send` | `{to, subject, body}` | Send mail via Gmail/Graph, or a local sent-copy when no provider. `400` if `to`/`subject` missing. |
+| POST | `/api/comms/inbound` | `{from, subject, body}` | Ingest an inbound message. Optional `X-Stellaris-Secret` vs `USER_COMMS_WEBHOOK_SECRET`. |
+| POST | `/api/calendar/:day` | — | Select calendar day `0-6`. `400` if out of range. |
+| POST | `/api/calendar/events` | `{title, day, start, end}` | Create an event (Google/Graph, else local). `400` if `title` missing. |
 | POST | `/api/mission` | `{name, agents}` | Create a workflow mission and dispatch the listed agents. |
 | POST | `/api/checkpoint` | `{reason?}` | Capture a full-state snapshot (P10). Returns `{ok, id}`; ledger capped at 8. |
 | POST | `/api/checkpoint/rollback` | — | Restore the latest checkpoint (P10). Returns `{ok, id, slices}` — `slices` lists the top-level slices actually reverted; `409` if none available. |
@@ -76,6 +80,7 @@ snapshots and deltas.
     "mission": "OP ORBITAL CANARY", "coordinates": "...", "threat": "MODERATE",
     "tokenTotal": 0, "bootedAt": 0,
     "dataSource": "seed | github | hermes",      // which source owns the board
+    "comms": { "email": "seed|google|microsoft|webhook", "calendar": "seed|google|microsoft|ics", "lastSync", "error" },
     "lastSync": 0,                               // github/hermes last poll
     "hermes": { "status", "url", "model", "checkedAt" },  // when hermes bridge enabled
     "paused": false,                             // P11 interrupt state
@@ -98,8 +103,9 @@ snapshots and deltas.
   "items":      [ { "id", "label", "status", "src" } ],
   "schedules":  [ { "id", "title", "next", "cron", "status", "src" } ],
   "chat":       [...], "dispatch": [...],
-  "vault":      [...], "email": [...],
-  "calendar":   { "events": [...], "day": 0, "weekLabel": "CYCLE 42 / W-2" },
+  "vault":      [...],
+  "email":      [{ "id", "from", "to", "subject", "preview", "body", "time", "label", "read", "prio", "folder", "src" }],
+  "calendar":   { "events": [{ "id", "day", "start", "end", "title", "type", "agents", "src" }], "day": 0, "weekStart", "weekLabel" },
   "alerts":     [ { "id", "level", "msg", "src", "ack" } ],
   "probes":     [...], "reports": [...],
   "telemetry":  { "temp", "token", "lat", "ctx",
@@ -111,7 +117,8 @@ snapshots and deltas.
 ```
 
 `src` on kanban cards, items, schedules and alerts is `seed | github | hermes`
-and drives the cyan `he` accent on Hermes-sourced rows.
+and drives the cyan `he` accent on Hermes-sourced rows. Email/calendar `src` is
+`seed | google | microsoft | ics | webhook | local`.
 
 ## Examples
 
