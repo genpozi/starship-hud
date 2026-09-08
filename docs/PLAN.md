@@ -98,6 +98,21 @@ answer, no knowledge grounding, no self-model, and no honest ambiguity path.
 - Phase 5: chat suite wired into `run-all.mjs` (regression guard), docs
   updated, `npm test` + `npm run build` green. Final state: 13/13 PASS.
 
+### Phase 8 — Email + calendar integration  [DONE]
+Wire Email/Calendar HUD surfaces to Gmail, Microsoft Graph, ICS, and an
+inbound webhook — same contract as GitHub/Hermes: env-driven, seed fallback,
+no extra npm deps, orbit never crashes on upstream failure.
+- `server/comms.js`: mappers, ICS parse, OAuth refresh, sync loop, `mergeComms`
+  (keeps `src:'local'` HUD rows).
+- REST: send / archive / inbound / createEvent; `setCalDay` 0–6; id lookup
+  with numeric-index fallback.
+- HUD: compose, archive, BOOK, 7-day grid, source badges; offline local mutate.
+- Skills `mail` (LINK) + `calendar` (NUDGE); heuristic planner steps.
+- `test/comms.test.mjs` + integration coverage; 16 suites green.
+
+Out of scope (next slice): IMAP/SMTP, CalDAV write, multi-account, attachments,
+full recurrence expansion.
+
 ## Final — Premium repo format & operator docs  [DONE]
 - `LICENSE` (MIT), `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.editorconfig`.
 - `.github/`: CI workflow (Node 20/22 test+build, Docker build), bug report +
@@ -134,3 +149,13 @@ answer, no knowledge grounding, no self-model, and no honest ambiguity path.
 - 60fps galaxy with bloom, twinkling hot-core stars, clumped spiral arms.
 - Screenshot-verified premium styling on every view.
 - Committed, pushed, preview live.
+- Email/Calendar live when a provider is configured; seed inbox/calendar otherwise.
+
+## Remaining (not in this slice)
+
+HUD still display-only: Items, Scheduler, Graphs, Vault, Reports.
+Orchestration research leftovers: server-side channel reducers, AgentSpec vs
+AgentRuntime split, parse/execute/reflect tool cycle, handoffs-as-tools,
+AsyncLocalStorage traces, WS `Command(resume)`.
+Comms follow-ups: IMAP/SMTP, CalDAV write, multi-account, attachments,
+recurrence beyond provider `singleEvents` / calendarView.

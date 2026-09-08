@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-09-08
+
 ### Added
 
 - **Email + calendar integration** — Gmail API, Microsoft Graph, ICS subscribe,
@@ -137,6 +139,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Docker multi-stage image, non-root, with healthcheck; `docker-compose.yml`
   with `orbit-data` volume.
 
-[Unreleased]: https://github.com/genpozi/starship-hud/compare/2.0.0...HEAD
+[Unreleased]: https://github.com/genpozi/starship-hud/compare/2.1.0...HEAD
+[2.1.0]: https://github.com/genpozi/starship-hud/releases/tag/2.1.0
 [2.0.0]: https://github.com/genpozi/starship-hud/releases/tag/2.0.0
 [1.0.0]: https://github.com/genpozi/starship-hud/releases/tag/1.0.0
