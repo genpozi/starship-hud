@@ -381,13 +381,37 @@ export function renderVault() {
 // ============================================================================
 // EMAIL
 // ============================================================================
+let selectedEmailId = null
+export function getSelectedEmailId() {
+  return selectedEmailId
+}
+
+function emailRows() {
+  return (STATE.email || []).filter((e) => e && e.folder !== 'archive')
+}
+
+function openEmail(e) {
+  if (!e) return
+  e.read = true
+  selectedEmailId = e.id
+  if (isOnline()) api.readEmail(e.id).catch(() => {})
+  renderEmail()
+}
+
 export function renderEmail() {
   const list = $('#email-list')
   if (!list) return
-  $('#email-count').textContent = `${STATE.email.filter((e) => !e.read).length} UNREAD`
-  list.innerHTML = STATE.email.map(
-    (e, i) => `
-  <div class="email-row ${e.read ? '' : 'unread'}" data-i="${i}">
+  const rows = emailRows()
+  const unread = rows.filter((e) => !e.read).length
+  const count = $('#email-count')
+  if (count) count.textContent = `${unread} UNREAD`
+  const src = (STATE.meta.comms && STATE.meta.comms.email) || 'seed'
+  const srcEl = $('#email-source')
+  if (srcEl) srcEl.textContent = String(src).toUpperCase()
+  const selectedId = selectedEmailId
+  list.innerHTML = rows.map(
+    (e) => `
+  <div class="email-row ${e.read ? '' : 'unread'}${e.src && e.src !== 'seed' ? ' he' : ''}${e.id === selectedId ? ' selected' : ''}" data-id="${escapeHtml(e.id)}">
     <span class="email-from">${escapeHtml(e.from)}</span>
     <div>
       <div class="email-subject">${escapeHtml(e.subject)}</div>
@@ -398,44 +422,58 @@ export function renderEmail() {
   ).join('')
   list.querySelectorAll('.email-row').forEach((row) => {
     row.addEventListener('click', () => {
-      const i = +row.dataset.i
-      const e = STATE.email[i]
-      e.read = true
-      if (isOnline()) api.readEmail(i).catch(() => {})
-      renderEmail()
-      const reader = $('#email-reader')
-      if (reader) {
-        reader.innerHTML = `
-          <div class="reader-head">
-            <div class="reader-subject">${escapeHtml(e.subject)}</div>
-            <div class="reader-meta">
-              <span>FROM: ${escapeHtml(e.from)}</span>
-              <span>${escapeHtml(e.time)}</span>
-              <span class="email-label ${e.label}">${escapeHtml(e.label)}</span>
-            </div>
-          </div>
-          <div class="reader-body">${escapeHtml(e.preview)} Full message body rendered here for the selected thread. Attachments and inline signatures are supported by the HUD reader.</div>`
-      }
+      const e = rows.find((x) => x.id === row.dataset.id)
+      openEmail(e)
     })
   })
+  const selected = rows.find((e) => e.id === selectedId) || null
+  const reader = $('#email-reader')
+  const folder = $('#email-folder')
+  if (folder) folder.textContent = selected ? String(selected.folder || 'inbox').toUpperCase() : 'INBOX'
+  if (reader) {
+    if (!selected) {
+      reader.innerHTML = '<span class="empty-hint">SELECT A MESSAGE ▸</span>'
+    } else {
+      reader.innerHTML = `
+          <div class="reader-head">
+            <div class="reader-subject">${escapeHtml(selected.subject)}</div>
+            <div class="reader-meta">
+              <span>FROM: ${escapeHtml(selected.from)}</span>
+              <span>${escapeHtml(selected.time)}</span>
+              <span class="email-label ${escapeHtml(selected.label)}">${escapeHtml(selected.label)}</span>
+              <span class="email-src">${escapeHtml(selected.src || 'seed')}</span>
+            </div>
+          </div>
+          <div class="reader-body">${escapeHtml(selected.body || selected.preview || '')}</div>`
+    }
+  }
 }
 
 // ============================================================================
 // CALENDAR
 // ============================================================================
+function hourOf(stamp) {
+  const n = parseInt(String(stamp || '0'), 10)
+  return Number.isFinite(n) ? n : 0
+}
+
 export function renderCalendar() {
   const grid = $('#calendar-grid')
   if (!grid) return
-  $('#cal-week').textContent = STATE.calendar.weekLabel
+  const week = $('#cal-week')
+  if (week) week.textContent = STATE.calendar.weekLabel
+  const src = (STATE.meta.comms && STATE.meta.comms.calendar) || 'seed'
+  const srcEl = $('#cal-source')
+  if (srcEl) srcEl.textContent = String(src).toUpperCase()
   const start = 8
   const end = 18
-  let html = '<div></div>' + weekdays.slice(0, 5).map((d) => `<div class="cal-day-head">${d}</div>`).join('')
+  let html = '<div></div>' + weekdays.map((d) => `<div class="cal-day-head">${d}</div>`).join('')
   for (let hour = start; hour <= end; hour++) {
     html += `<div class="cal-hour">${String(hour).padStart(2, '0')}:00</div>`
-    for (let day = 0; day < 5; day++) {
-      const events = STATE.calendar.events.filter((e) => e.day === day && parseInt(e.start) === hour)
+    for (let day = 0; day < 7; day++) {
+      const events = (STATE.calendar.events || []).filter((e) => e.day === day && hourOf(e.start) === hour)
       html += `<div class="cal-slot">${events
-        .map((e) => `<div class="evt ${e.type}" data-day="${day}" style="height:${(e.end - e.start) * 26}px">${escapeHtml(e.title)}</div>`)
+        .map((e) => `<div class="evt ${e.type}${e.src && e.src !== 'seed' ? ' he' : ''}" data-day="${day}" title="${escapeHtml(e.title)}" style="height:${Math.max(18, (hourOf(e.end) - hourOf(e.start)) * 26)}px">${escapeHtml(e.title)}</div>`)
         .join('')}</div>`
     }
   }
@@ -450,7 +488,8 @@ function selectCalDay(day, force) {
   if (!force && day === STATE.calendar.day) return
   STATE.calendar.day = day
   if (isOnline()) api.setCalDay(day).catch(() => {})
-  $('#cal-day-label').textContent = `${weekdays[day]} // CYCLE 42`
+  const label = $('#cal-day-label')
+  if (label) label.textContent = `${weekdays[day] || 'DAY'} // ${STATE.calendar.weekLabel || 'WEEK'}`
   const events = STATE.calendar.events.filter((e) => e.day === day)
   const box = $('#calendar-day')
   if (!box) return

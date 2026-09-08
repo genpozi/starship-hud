@@ -108,14 +108,39 @@ app.post('/api/control/resume', (_req, res) => {
   res.json(orchestrator.resume())
 })
 
-app.post('/api/email/:idx/read', (req, res) => {
-  res.json(orchestrator.readEmail(Number(req.params.idx)))
+app.post('/api/email/send', async (req, res) => {
+  const { to, subject, body } = req.body || {}
+  if (!to || !subject) return res.status(400).json({ ok: false, error: 'to and subject required' })
+  res.json(await orchestrator.sendEmail({ to, subject, body }))
+})
+
+app.post('/api/email/:id/read', (req, res) => {
+  res.json(orchestrator.readEmail(req.params.id))
+})
+
+app.post('/api/email/:id/archive', async (req, res) => {
+  const result = await orchestrator.archiveEmail(req.params.id)
+  if (!result.ok) return res.status(404).json({ ok: false })
+  res.json(result)
+})
+
+app.post('/api/calendar/events', async (req, res) => {
+  const { title, day, start, end, type, agents } = req.body || {}
+  if (!title) return res.status(400).json({ ok: false, error: 'title required' })
+  res.json(await orchestrator.createEvent({ title, day, start, end, type, agents }))
 })
 
 app.post('/api/calendar/:day', (req, res) => {
   const result = orchestrator.setCalDay(Number(req.params.day))
   if (!result.ok) return res.status(400).json({ ok: false })
   res.json({ ok: true })
+})
+
+app.post('/api/comms/inbound', async (req, res) => {
+  const secret = process.env.USER_COMMS_WEBHOOK_SECRET || ''
+  const header = req.get('x-stellaris-secret') || ''
+  if (secret && header !== secret) return res.status(401).json({ ok: false, error: 'unauthorized' })
+  res.json(await orchestrator.ingestInbound(req.body || {}))
 })
 
 app.post('/api/mission', (req, res) => {
@@ -207,9 +232,21 @@ async function bootstrapHermes() {
   }
 }
 
+async function bootstrapComms() {
+  try {
+    const comms = await import('./comms.js')
+    if (comms && typeof comms.startCommsSync === 'function') {
+      comms.startCommsSync({ orchestrator })
+    }
+  } catch (err) {
+    console.warn('[orbit] comms sync unavailable:', err.message)
+  }
+}
+
 orchestrator.start()
 bootstrapGithub()
 bootstrapHermes()
+bootstrapComms()
 
 server.listen(PORT, () => {
   console.log(`STELLARIS-7 orbit server :: http://localhost:${PORT}`)

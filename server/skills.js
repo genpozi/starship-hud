@@ -102,6 +102,71 @@ export const SKILLS = {
       return { ok: true }
     }
   },
+  mail: {
+    name: 'mail',
+    label: 'MAIL',
+    description: 'Read and send operator email via Gmail / Microsoft Graph',
+    parameters: [
+      { name: 'to', type: 'string', required: false, desc: 'Recipient address' },
+      { name: 'subject', type: 'string', required: false, desc: 'Message subject' },
+      { name: 'body', type: 'string', required: false, desc: 'Plain-text body' }
+    ],
+    needsApproval: false,
+    maxUsageCount: Infinity,
+    async execute(ctx) {
+      const { localSentCopy, sendMail, getConfig } = await import('./comms.js')
+      const to = (ctx.params && ctx.params.to) || 'ops@stellaris.internal'
+      const subject = (ctx.params && ctx.params.subject) || ctx.step || ctx.task || 'Fleet notice'
+      const body = (ctx.params && ctx.params.body) || `${ctx.agent || 'LINK'} reporting: ${subject}`
+      const cfg = getConfig()
+      let email
+      if (cfg.emailProvider) {
+        const res = await sendMail({ to, subject, body }, cfg)
+        email = res.email
+        ctx.log(res.remote ? 'OK' : 'WARN', `mail: ${res.remote ? 'sent' : 'queued locally'} → ${to}`)
+      } else {
+        email = localSentCopy({ to, subject, body })
+        ctx.log('INFO', `mail: simulated send → ${to} (no provider)`)
+      }
+      if (!Array.isArray(ctx.s.email)) ctx.s.email = []
+      ctx.s.email.unshift(email)
+      if (ctx.s.email.length > 60) ctx.s.email.pop()
+      return { sent: true, id: email.id, to, simulated: !cfg.emailProvider }
+    }
+  },
+  calendar: {
+    name: 'calendar',
+    label: 'CALENDAR',
+    description: 'List and create calendar events via Google / Graph / ICS',
+    parameters: [
+      { name: 'title', type: 'string', required: false, desc: 'Event title' },
+      { name: 'day', type: 'number', required: false, desc: 'Day of week 0-6' },
+      { name: 'start', type: 'string', required: false, desc: 'HH:MM start' },
+      { name: 'end', type: 'string', required: false, desc: 'HH:MM end' }
+    ],
+    needsApproval: false,
+    maxUsageCount: Infinity,
+    async execute(ctx) {
+      const { localEvent, createRemoteEvent, getConfig, sundayIso } = await import('./comms.js')
+      const title = (ctx.params && ctx.params.title) || ctx.step || ctx.task || 'Fleet block'
+      const day = Number(ctx.params && ctx.params.day)
+      const event = localEvent({
+        title,
+        day: Number.isInteger(day) && day >= 0 && day <= 6 ? day : (ctx.s.calendar && ctx.s.calendar.day) || 0,
+        start: (ctx.params && ctx.params.start) || '09:00',
+        end: (ctx.params && ctx.params.end) || '09:45',
+        agents: [ctx.agent || 'NUDGE'],
+        weekStart: (ctx.s.calendar && ctx.s.calendar.weekStart) || sundayIso()
+      })
+      const cfg = getConfig()
+      const saved = cfg.calendarProvider ? await createRemoteEvent(event, cfg) : event
+      if (!ctx.s.calendar) ctx.s.calendar = { events: [], day: 0 }
+      if (!Array.isArray(ctx.s.calendar.events)) ctx.s.calendar.events = []
+      ctx.s.calendar.events.push(saved)
+      ctx.log(cfg.calendarProvider ? 'OK' : 'INFO', `calendar: ${saved.title} @ ${saved.start}${cfg.calendarProvider ? '' : ' (simulated)'}`)
+      return { created: true, id: saved.id, simulated: !cfg.calendarProvider }
+    }
+  },
   hermes: {
     name: 'hermes',
     label: 'HERMES',

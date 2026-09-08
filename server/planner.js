@@ -76,6 +76,14 @@ function heuristicPlan(goal) {
     steps.push({ title: 'Deduplicate and compact blobs', agent: 'LINK', tool: 'files', dependsOn: [] })
     steps.push({ title: 'Archive to core bank', agent: 'LINK', tool: 'memory', dependsOn: ['Deduplicate and compact blobs'] })
   }
+  if (/(email|inbox|mail|reply|compose)/.test(g)) {
+    steps.push({ title: 'Triage inbound mail', agent: 'LINK', tool: 'mail', dependsOn: [] })
+    steps.push({ title: 'Draft and send the operator reply', agent: 'LINK', tool: 'mail', dependsOn: ['Triage inbound mail'] })
+  }
+  if (/(meeting|calendar|agenda|standup)/.test(g)) {
+    steps.push({ title: 'Scan the mission calendar', agent: 'NUDGE', tool: 'calendar', dependsOn: [] })
+    steps.push({ title: 'Book the requested block', agent: 'NUDGE', tool: 'calendar', dependsOn: ['Scan the mission calendar'] })
+  }
   if (steps.length === 0) {
     steps.push({ title: `Triage: ${goal}`, agent: 'ORCH', tool: 'search', dependsOn: [] })
     steps.push({ title: 'Assign and execute sub-tasks', agent: 'ORCH', tool: 'memory', dependsOn: [`Triage: ${goal}`] })

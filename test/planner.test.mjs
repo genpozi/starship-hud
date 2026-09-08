@@ -25,6 +25,12 @@ pass('build goal → coder/shell steps', build.some((s) => s.tool === 'coder') &
 const deploy = await plan('deploy canary v1.4.2 to the fleet')
 pass('deploy goal → release/rollout steps', deploy.some((s) => s.tool === 'shell'))
 
+const mail = await plan('reply to the inbox and send an email to ops')
+pass('mail goal → mail skill on LINK', mail.some((s) => s.tool === 'mail' && s.agent === 'LINK'))
+
+const cal = await plan('book a meeting on the calendar for standup')
+pass('calendar goal → calendar skill on NUDGE', cal.some((s) => s.tool === 'calendar' && s.agent === 'NUDGE'))
+
 const generic = await plan('do a thing that matches nothing')
 pass('generic goal → fallback triage steps', generic.length >= 2 && generic.every((s) => VALID_TOOLS.has(s.tool)))
 

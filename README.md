@@ -12,7 +12,7 @@
   <a href="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml"><img src="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff" alt="stack"/>
   <img src="https://img.shields.io/badge/license-MIT-ffb347" alt="license"/>
-  <img src="https://img.shields.io/badge/tests-15%20suites-39ff88" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-16%20suites-39ff88" alt="tests"/>
   <img src="https://img.shields.io/badge/node-20%2B-83a598" alt="node"/>
   <img src="https://img.shields.io/badge/status-production--ready-39ff88" alt="status"/>
   <img src="https://img.shields.io/badge/deps-0%20audit%20vulns-39ff88" alt="deps"/>
@@ -28,7 +28,7 @@
 
 A mission-control console is the oldest interface metaphor for observability — and it is still the best one for watching autonomous agents work. STELLARIS-7 is a **working agent orchestrator wrapped in a starship HUD**: a Node/Express + WebSocket orbit server is the single source of truth for fleet state, the browser mirrors it in real time, and a live Three.js galaxy (spiral arms, nebula, ringed planets, bloom) renders behind every view.
 
-It runs **fully offline** out of the box (deterministic heuristic planner), and optionally upgrades to a real LLM planner, real GitHub issue/PR sync, and a real Hermes WebUI agent bridge via operator-supplied credentials.
+It runs **fully offline** out of the box (deterministic heuristic planner), and optionally upgrades to a real LLM planner, real GitHub issue/PR sync, Gmail/Graph/ICS comms, and a real Hermes WebUI agent bridge via operator-supplied credentials.
 
 ---
 
@@ -64,6 +64,7 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 | **GitHub** | Issues + PRs → kanban board (ETag incremental, rate-limit guarded) | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` |
 | **Hermes WebUI** | Real agent delegation + approval bridge + reverse-ingest of sessions/crons | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL` |
 | **LLM planner** | LLM goal decomposition (heuristic offline fallback) | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` |
+| **Email / calendar** | Inbox + 7-day calendar via Gmail, Microsoft Graph, ICS, or inbound webhook | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*` |
 
 ---
 
@@ -166,6 +167,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 | `docs/API.md` | full REST + WebSocket reference, state shape |
 | `docs/DEVELOPER.md` | developer guide — data model, skills, mutations, testing, debugging |
 | `docs/HERMES-INTEGRATION.md` | operator runbook for the Hermes bridge + GitHub sync |
+| `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS email+calendar adapters + inbound webhook |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
 | `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns, implementation status |
 | `docs/RESEARCH.md` · `docs/PLAN.md` | design history and roadmap |
@@ -178,7 +180,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 ## Testing
 
-15 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
+16 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
 
 ```bash
 npm test
@@ -190,6 +192,7 @@ npm test
 | `planner` / `skills` / `chat` | goal planning, tool registry, chat contract (`@AGENT` routing) |
 | `views` | headless renders of every HUD view via a DOM shim + full slice contract |
 | `superstep` / `channels` / `checkpoints` / `interrupt` / `trace` | P8 dependency barrier, P9 reducers, P10 snapshots, P11 hold/resume, P12 spans |
+| `comms` | Gmail/Graph/ICS mappers, merge, inbound, rfc822 (no network) |
 | `regression` | review-fix guards (escapeHtml, in-flight gating, mention detection) |
 | `integration` | boots a real orbit server — full REST + WebSocket surface |
 
@@ -213,13 +216,14 @@ npm test
 │   ├── index.js          # express + ws entry point
 │   ├── orchestrator.js   # heartbeat engine, step machine, all mutations
 │   ├── planner.js        # LLM-backed (optional) + heuristic planning (P8 deps)
-│   ├── skills.js         # sandboxed tool registry (incl. hermes skill)
+│   ├── skills.js         # sandboxed tool registry (incl. hermes/mail/calendar)
+│   ├── comms.js          # Gmail / Graph / ICS adapters + inbound webhook
 │   ├── trace.js          # P12 span tree + token accounting
 │   ├── checkpoints.js    # P10 snapshot/rollback (capped ledger)
 │   ├── store.js · seed.js# JSON persistence + seed from src/config.js
 │   ├── github.js · hermes.js · hermes-ingest.js · hermes-contract.js
 │   └── mock-hermes.js    # hermes-webui test double
-├── test/                 # 15 suites + run-all.mjs (fresh mock per suite)
+├── test/                 # 16 suites + run-all.mjs (fresh mock per suite)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router

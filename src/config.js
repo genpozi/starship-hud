@@ -65,7 +65,7 @@ export const AGENTS = [
     progress: 0,
     tokens: 8.1,
     summary: 'I maintain integrations, webhooks and the reverse-ingest bridge to Hermes.',
-    capabilities: ['hermes', 'files', 'memory', 'shell']
+    capabilities: ['hermes', 'files', 'memory', 'shell', 'mail']
   },
   {
     id: 'nudge',
@@ -76,7 +76,7 @@ export const AGENTS = [
     progress: 0,
     tokens: 3.5,
     summary: 'I track agendas, reminders and scheduling priorities.',
-    capabilities: ['memory', 'files', 'search']
+    capabilities: ['memory', 'files', 'search', 'calendar']
   }
 ]
 
@@ -232,26 +232,26 @@ export const VAULT_DOCS = [
    EMAIL
    ============================================================================ */
 export const EMAILS = [
-  { from: 'coda@stellaris.internal', subject: 'PR #482 ready for review — ingest service', preview: 'Implemented chunked ingestion with retry backoff. Tests green, 92% coverage.', time: '09:14', label: 'CODE', read: false, prio: 'high' },
-  { from: 'pilot@stellaris.internal', subject: 'Canary v1.4.2 — rollout status', preview: '44% of nodes upgraded. Error budget steady at 0.01%.', time: '09:02', label: 'OPS', read: false, prio: 'high' },
-  { from: 'nudge@stellaris.internal', subject: 'Daily agenda — 11:00 deep-focus block', preview: 'Reminder: 90-minute deep-focus coding block starts in 15m.', time: '08:45', label: 'PM', read: true, prio: 'med' },
-  { from: 'sage@stellaris.internal', subject: 'Weekly telemetry digest v9', preview: 'Summarizing token spend, latency percentiles, and context pressure.', time: '08:30', label: 'REPORT', read: true, prio: 'med' },
-  { from: 'link@stellaris.internal', subject: 'Webhook signature rotation notice', preview: 'Rotating signing keys at 00:00 UTC. Overlap window provided.', time: '07:55', label: 'SEC', read: true, prio: 'high' },
-  { from: 'github@external', subject: 'Security alert: dependency advisory', preview: 'Two advisories affect runtime deps. Triaged as low severity.', time: '06:12', label: 'SEC', read: true, prio: 'med' }
+  { id: 'seed-e1', from: 'coda@stellaris.internal', to: 'operator@stellaris.internal', subject: 'PR #482 ready for review — ingest service', preview: 'Implemented chunked ingestion with retry backoff. Tests green, 92% coverage.', body: 'Implemented chunked ingestion with retry backoff. Tests green, 92% coverage. Please review the ingest service PR when you have a cycle.', time: '09:14', label: 'CODE', read: false, prio: 'high', folder: 'inbox', src: 'seed' },
+  { id: 'seed-e2', from: 'pilot@stellaris.internal', to: 'operator@stellaris.internal', subject: 'Canary v1.4.2 — rollout status', preview: '44% of nodes upgraded. Error budget steady at 0.01%.', body: '44% of nodes upgraded. Error budget steady at 0.01%. Health checks passing, latency flat.', time: '09:02', label: 'OPS', read: false, prio: 'high', folder: 'inbox', src: 'seed' },
+  { id: 'seed-e3', from: 'nudge@stellaris.internal', to: 'operator@stellaris.internal', subject: 'Daily agenda — 11:00 deep-focus block', preview: 'Reminder: 90-minute deep-focus coding block starts in 15m.', body: 'Reminder: 90-minute deep-focus coding block starts in 15m. Calendar hold is already on the board.', time: '08:45', label: 'PM', read: true, prio: 'med', folder: 'inbox', src: 'seed' },
+  { id: 'seed-e4', from: 'sage@stellaris.internal', to: 'operator@stellaris.internal', subject: 'Weekly telemetry digest v9', preview: 'Summarizing token spend, latency percentiles, and context pressure.', body: 'Summarizing token spend, latency percentiles, and context pressure across the last cycle.', time: '08:30', label: 'REPORT', read: true, prio: 'med', folder: 'inbox', src: 'seed' },
+  { id: 'seed-e5', from: 'link@stellaris.internal', to: 'operator@stellaris.internal', subject: 'Webhook signature rotation notice', preview: 'Rotating signing keys at 00:00 UTC. Overlap window provided.', body: 'Rotating signing keys at 00:00 UTC. Overlap window provided so inbound webhooks keep verifying.', time: '07:55', label: 'SEC', read: true, prio: 'high', folder: 'inbox', src: 'seed' },
+  { id: 'seed-e6', from: 'github@external', to: 'operator@stellaris.internal', subject: 'Security alert: dependency advisory', preview: 'Two advisories affect runtime deps. Triaged as low severity.', body: 'Two advisories affect runtime deps. Triaged as low severity. No action required this cycle.', time: '06:12', label: 'SEC', read: true, prio: 'med', folder: 'inbox', src: 'seed' }
 ]
 
 /* ============================================================================
    CALENDAR
    ============================================================================ */
 export const CALENDAR_EVENTS = [
-  { day: 0, start: '08:30', end: '09:00', title: 'Fleet standup', type: 'mil', agents: ['ALL'] },
-  { day: 0, start: '09:15', end: '10:00', title: 'PR #482 review', type: 'dep', agents: ['CODA'] },
-  { day: 0, start: '11:00', end: '12:30', title: 'Deep-focus block', type: 'mil', agents: ['USER'] },
-  { day: 1, start: '10:00', end: '10:45', title: 'Agent config tuning', type: 'dep', agents: ['ORCH'] },
-  { day: 1, start: '14:00', end: '15:00', title: 'Release gate review', type: 'mil', agents: ['PILOT'] },
-  { day: 2, start: '09:00', end: '09:45', title: 'Research sync', type: 'dep', agents: ['SAGE'] },
-  { day: 3, start: '13:30', end: '14:30', title: 'Sprint planning — cycle 42', type: 'mil', agents: ['ALL'] },
-  { day: 4, start: '16:30', end: '17:00', title: 'Docs & cleanup buffer', type: 'dep', agents: ['USER'] }
+  { id: 'seed-c1', day: 0, start: '08:30', end: '09:00', title: 'Fleet standup', type: 'mil', agents: ['ALL'], src: 'seed' },
+  { id: 'seed-c2', day: 0, start: '09:15', end: '10:00', title: 'PR #482 review', type: 'dep', agents: ['CODA'], src: 'seed' },
+  { id: 'seed-c3', day: 0, start: '11:00', end: '12:30', title: 'Deep-focus block', type: 'mil', agents: ['USER'], src: 'seed' },
+  { id: 'seed-c4', day: 1, start: '10:00', end: '10:45', title: 'Agent config tuning', type: 'dep', agents: ['ORCH'], src: 'seed' },
+  { id: 'seed-c5', day: 1, start: '14:00', end: '15:00', title: 'Release gate review', type: 'mil', agents: ['PILOT'], src: 'seed' },
+  { id: 'seed-c6', day: 2, start: '09:00', end: '09:45', title: 'Research sync', type: 'dep', agents: ['SAGE'], src: 'seed' },
+  { id: 'seed-c7', day: 3, start: '13:30', end: '14:30', title: 'Sprint planning — cycle 42', type: 'mil', agents: ['ALL'], src: 'seed' },
+  { id: 'seed-c8', day: 4, start: '16:30', end: '17:00', title: 'Docs & cleanup buffer', type: 'dep', agents: ['USER'], src: 'seed' }
 ]
 
 /* ============================================================================
