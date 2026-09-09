@@ -269,6 +269,7 @@
                   <h2>TOKEN USAGE</h2>
                   <span class="panel-sub">24H ROLLING</span>
                   <span class="panel-tag live">STREAMING</span>
+                  <span class="panel-tag" id="graph-token-foot">BUDGET</span>
                 </div>
                 <div id="graph-tokens" class="graph-canvas"></div>
               </div>
@@ -301,13 +302,24 @@
 
           <!-- ========== VAULT ========== -->
           <section id="view-vault" class="view">
-            <div class="hud-panel panel view-panel">
-              <div class="panel-head">
-                <h2>VAULT // KNOWLEDGE CORE</h2>
-                <span class="panel-sub">DOCUMENTS & SCHEMAS</span>
-                <span class="panel-tag" id="vault-count">0 DOCS</span>
+            <div id="vault-layout">
+              <div class="hud-panel panel view-panel">
+                <div class="panel-head">
+                  <h2>VAULT // KNOWLEDGE CORE</h2>
+                  <span class="panel-sub">DOCUMENTS & SCHEMAS</span>
+                  <span class="panel-tag" id="vault-count">0 DOCS</span>
+                </div>
+                <div id="vault-grid" class="vault-grid"></div>
               </div>
-              <div id="vault-grid" class="vault-grid"></div>
+              <div class="hud-panel panel vault-read-panel">
+                <div class="panel-head">
+                  <h2>DOCUMENT</h2>
+                  <span class="panel-sub">PREVIEW</span>
+                </div>
+                <div id="vault-reader" class="email-reader">
+                  <span class="empty-hint">SELECT A DOCUMENT ▸</span>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -321,11 +333,17 @@
                   <span class="panel-tag" id="email-count">0 UNREAD</span>
                   <span class="panel-tag" id="email-source">SEED</span>
                 </div>
+                <div class="email-folders" id="email-folders">
+                  <button class="email-folder-tab active" type="button" data-folder="inbox">INBOX</button>
+                  <button class="email-folder-tab" type="button" data-folder="sent">SENT</button>
+                  <button class="email-folder-tab" type="button" data-folder="archive">ARCHIVE</button>
+                </div>
                 <div id="email-list" class="email-list"></div>
                 <form id="email-compose" class="comms-form" autocomplete="off">
                   <input id="email-to" class="dispatch-input" type="text" placeholder="to@relay…" spellcheck="false" />
                   <input id="email-subject" class="dispatch-input" type="text" placeholder="Subject" spellcheck="false" />
                   <input id="email-body" class="dispatch-input" type="text" placeholder="Body" spellcheck="false" />
+                  <input id="email-attach" class="email-attach" type="file" multiple />
                   <button id="email-send" class="hud-btn mini" type="submit">SEND</button>
                 </form>
               </div>
@@ -334,6 +352,7 @@
                   <h2>MESSAGE</h2>
                   <span class="panel-sub">PREVIEW</span>
                   <span class="panel-tag" id="email-folder">INBOX</span>
+                  <button id="email-reply" class="hud-btn mini" type="button">REPLY</button>
                   <button id="email-archive" class="hud-btn mini" type="button">ARCHIVE</button>
                 </div>
                 <div id="email-reader" class="email-reader">
@@ -350,7 +369,9 @@
                 <div class="panel-head">
                   <h2>MISSION CALENDAR</h2>
                   <span class="panel-sub">CURRENT CYCLE</span>
+                  <button id="cal-prev" class="hud-btn mini" type="button">PREV</button>
                   <span class="panel-tag" id="cal-week"></span>
+                  <button id="cal-next" class="hud-btn mini" type="button">NEXT</button>
                   <span class="panel-tag" id="cal-source">SEED</span>
                 </div>
                 <div id="calendar-grid" class="calendar-grid"></div>
@@ -367,6 +388,7 @@
                   <input id="cal-start" class="dispatch-input" type="text" placeholder="09:00" spellcheck="false" />
                   <input id="cal-end" class="dispatch-input" type="text" placeholder="10:00" spellcheck="false" />
                   <button id="cal-go" class="hud-btn mini" type="submit">BOOK</button>
+                  <button id="cal-delete" class="hud-btn mini" type="button">DELETE</button>
                 </form>
               </div>
             </div>
@@ -418,13 +440,24 @@
 
           <!-- ========== RESEARCH REPORTS ========== -->
           <section id="view-reports" class="view">
-            <div class="hud-panel panel view-panel">
-              <div class="panel-head">
-                <h2>RESEARCH REPORTS</h2>
-                <span class="panel-sub">FLEET FINDINGS</span>
-                <span class="panel-tag" id="reports-count">0 DOCS</span>
+            <div id="reports-layout">
+              <div class="hud-panel panel view-panel">
+                <div class="panel-head">
+                  <h2>RESEARCH REPORTS</h2>
+                  <span class="panel-sub">FLEET FINDINGS</span>
+                  <span class="panel-tag" id="reports-count">0 DOCS</span>
+                </div>
+                <div id="reports-grid" class="reports-grid"></div>
               </div>
-              <div id="reports-grid" class="reports-grid"></div>
+              <div class="hud-panel panel vault-read-panel">
+                <div class="panel-head">
+                  <h2>FINDING</h2>
+                  <span class="panel-sub">PREVIEW</span>
+                </div>
+                <div id="reports-reader" class="email-reader">
+                  <span class="empty-hint">SELECT A REPORT ▸</span>
+                </div>
+              </div>
             </div>
           </section>
         </main>

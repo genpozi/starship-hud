@@ -235,7 +235,7 @@ Broadcast two channels instead of one:
 
 ### 3.7 Implementation status (2026-08-20)
 
-P8–P12 above shipped in adapted form (see `CHANGELOG.md` [Unreleased]). The
+P8–P12 above shipped in adapted form (see `CHANGELOG.md` [2.1.0]). The
 delivered mapping to these patterns:
 
 - **P3 hooks** — `orchestrator.hooks` (`onRunStart`/`onTurnStart`/`onToolCall`/

@@ -131,6 +131,16 @@ export class Orchestrator {
       if (ev && !ev.id) ev.id = `seed-c${i + 1}`
       if (ev && !ev.src) ev.src = 'seed'
     })
+    ;(this.s.schedules || []).forEach((j, i) => {
+      if (j && !j.id) j.id = `c${i + 1}`
+      if (j && j.paused == null) j.paused = false
+    })
+    ;(this.s.vault || []).forEach((d) => {
+      if (d && d.body == null) d.body = ''
+    })
+    ;(this.s.reports || []).forEach((r) => {
+      if (r && r.body == null) r.body = r.abstract || ''
+    })
 
     // approval bridge state (Hermes delegation approvals; operator responds via HUD)
     if (!this.s.approval) this.s.approval = { pending: null, history: [] }
@@ -473,7 +483,8 @@ export class Orchestrator {
       tags: ['MISSION', 'ORCH'],
       size: '24KB',
       updated: 'just now',
-      agent: 'ORCH'
+      agent: 'ORCH',
+      body: `Mission ${name} completed. Fleet tokens ${Math.round(this.s.meta.tokenTotal)}. Report archived to the knowledge core.`
     })
     if (this.s.vault.length > 30) this.s.vault.pop()
     this.s.reports.unshift({
@@ -483,7 +494,8 @@ export class Orchestrator {
       status: 'draft',
       tags: ['ORCH', 'MISSION'],
       updated: 'just now',
-      abstract: `Auto-generated on mission completion. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged to the core bank.`
+      abstract: `Auto-generated on mission completion. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged to the core bank.`,
+      body: `Mission ${name} completed. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged. Superstep DAG honored; vault archive written.`
     })
     if (this.s.reports.length > 12) this.s.reports.pop()
     this.log('OK', `vault: mission report archived — ${name}`)
@@ -637,7 +649,7 @@ export class Orchestrator {
       // hermes-ingested rows are authoritative from the upstream poller; the
       // seed-only emulator must not overwrite their real status/next-run.
       if (job.src === 'hermes') return
-      // every job roughly checks if its minute window has passed; emulate next-run
+      if (job.paused) return
       if (Math.random() < 0.01) {
         job.last = Math.random() < 0.9 ? 'OK' : 'WARN'
         job.next = this._nextCronLabel(job.cron)
@@ -804,6 +816,41 @@ export class Orchestrator {
     return { ok: true }
   }
 
+  cycleItemStatus(id) {
+    const ITEM_STATUSES = ['open', 'watch', 'review', 'closed']
+    const it = (this.s.items || []).find((x) => x && x.id === id)
+    if (!it) return { ok: false }
+    const cur = String(it.status || 'open').toLowerCase()
+    const idx = ITEM_STATUSES.indexOf(cur === 'merged' ? 'closed' : cur)
+    it.status = ITEM_STATUSES[(idx < 0 ? 0 : idx + 1) % ITEM_STATUSES.length]
+    this.log('INFO', `item ${it.id} → ${it.status}`)
+    this.store.markDirty()
+    return { ok: true, id: it.id, status: it.status }
+  }
+
+  toggleSchedulePause(id) {
+    const job = (this.s.schedules || []).find((x) => x && x.id === id)
+    if (!job) return { ok: false }
+    if (job.src === 'hermes') return { ok: false, error: 'hermes jobs are ingest-authoritative' }
+    job.paused = !job.paused
+    this.log('INFO', `scheduler ${job.name} → ${job.paused ? 'paused' : 'resumed'}`)
+    this.store.markDirty()
+    return { ok: true, id: job.id, paused: !!job.paused }
+  }
+
+  cycleReportStatus(id) {
+    const REPORT_STATUSES = ['draft', 'review', 'published']
+    const r = (this.s.reports || []).find((x) => x && x.id === id)
+    if (!r) return { ok: false }
+    const cur = String(r.status || 'draft').toLowerCase()
+    const idx = REPORT_STATUSES.indexOf(cur)
+    r.status = REPORT_STATUSES[(idx < 0 ? 0 : idx + 1) % REPORT_STATUSES.length]
+    r.updated = 'just now'
+    this.log('INFO', `report ${r.id} → ${r.status}`)
+    this.store.markDirty()
+    return { ok: true, id: r.id, status: r.status }
+  }
+
   ackAlert(id) {
     const a = this.s.alerts.find((x) => x.id === id)
     if (a) {
@@ -962,10 +1009,10 @@ export class Orchestrator {
     return { ok: true, id: e.id }
   }
 
-  async sendEmail({ to, subject, body }) {
+  async sendEmail({ to, subject, body, attachments }) {
     if (!to || !subject) return { ok: false, error: 'to and subject required' }
     const { sendMail } = await import('./comms.js')
-    const res = await sendMail({ to, subject, body })
+    const res = await sendMail({ to, subject, body, attachments })
     if (!Array.isArray(this.s.email)) this.s.email = []
     this.s.email.unshift(res.email)
     if (this.s.email.length > 60) this.s.email.pop()
@@ -991,6 +1038,41 @@ export class Orchestrator {
     this.s.calendar.day = d
     this.store.markDirty()
     return { ok: true }
+  }
+
+  async setCalWeek({ weekStart, delta } = {}) {
+    const { shiftWeek, sundayIso, weekLabel, fetchEvents, applyCommsSync, getConfig } = await import('./comms.js')
+    const current = this.s.calendar.weekStart || sundayIso()
+    const next = weekStart
+      ? { weekStart: sundayIso(new Date(`${weekStart}T00:00:00`)), weekLabel: weekLabel(sundayIso(new Date(`${weekStart}T00:00:00`))) }
+      : shiftWeek(current, delta == null ? 0 : delta)
+    this.s.calendar.weekStart = next.weekStart
+    this.s.calendar.weekLabel = next.weekLabel
+    const cfg = getConfig()
+    if (cfg.calendarProvider) {
+      try {
+        const rows = await fetchEvents(cfg, next.weekStart)
+        const failed = rows && rows._errors && rows._errors.length && !rows.length
+        if (rows && !failed) applyCommsSync(this.s, { calendar: rows, errors: rows._errors || [] })
+      } catch {}
+    }
+    this.store.markDirty()
+    return { ok: true, weekStart: next.weekStart, weekLabel: next.weekLabel }
+  }
+
+  async deleteEvent(id) {
+    const events = (this.s.calendar && this.s.calendar.events) || []
+    const idx = events.findIndex((e) => e && e.id === id)
+    if (idx < 0) return { ok: false }
+    const ev = events[idx]
+    events.splice(idx, 1)
+    try {
+      const { deleteRemoteEvent } = await import('./comms.js')
+      await deleteRemoteEvent(ev.id)
+    } catch {}
+    this.log('INFO', `calendar delete: ${ev.title || ev.id}`)
+    this.store.markDirty()
+    return { ok: true, id: ev.id }
   }
 
   async createEvent({ title, day, start, end, type, agents }) {

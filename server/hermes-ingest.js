@@ -163,6 +163,7 @@ function mapCron(c) {
     next: formatNext(c.next_run || c.next_run_at || c.next),
     dur: '—',
     last: cronLast(c),
+    paused: false,
     src: SRC
   }
 }

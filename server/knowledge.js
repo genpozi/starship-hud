@@ -39,7 +39,7 @@ export function indexState(state) {
   }
   ;(state.vault || []).forEach((d) => add(d.title, `${d.title} ${(d.tags || []).join(' ')} ${d.type || ''}`, 'vault', d.id))
   ;(state.reports || []).forEach((r) => add(r.title, `${r.title} ${(r.status || '').toUpperCase()}`, 'report', r.id))
-  ;(state.items || []).forEach((i) => add(i.label || i.id, `${i.label || i.id} ${i.type || ''} ${i.status || ''}`, 'item', i.id))
+  ;(state.items || []).forEach((i) => add(i.title || i.label || i.id, `${i.title || i.label || i.id} ${i.type || ''} ${i.status || ''}`, 'item', i.id))
   ;(state.kanban && state.kanban.cards || []).forEach((c) => add(c.title, `${c.title} ${(c.tags || []).join(' ')} ${c.agent || ''}`, 'card', c.id))
   ;(state.schedules || []).forEach((s) => add(s.title || s.name, `${s.title || s.name} ${s.cron || ''} ${s.status || ''}`, 'schedule', s.id))
   ;(state.probes || []).forEach((p) => add(p.name, `${p.name} ${p.value || ''}${p.unit || ''} ${(p.desc || '').slice(0, 80)}`, 'probe', p.id))

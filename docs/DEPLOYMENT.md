@@ -55,13 +55,13 @@ Set these in `.env` (see `.env.example` for the full list):
 | GitHub | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` | Maps issues + PRs onto the board; ETag polling (`data/github-etags.json`); hermes rows preserved via `mergeReplacement` |
 | Hermes WebUI | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_MODEL`, `USER_HERMES_POLL_MS`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL`, `USER_HERMES_APPROVAL_TIMEOUT` | Chat delegation, HUD approval bridge, reverse ingest of sessions/crons |
 | LLM planner | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` | Goal decomposition; falls back to the deterministic heuristic planner offline |
-| Email / calendar | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*` | Gmail, Microsoft Graph, ICS subscribe, inbound webhook. Seed inbox/calendar when unset. See `docs/COMMS-INTEGRATION.md`. |
+| Email / calendar | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*`, `USER_CALDAV_*` | Gmail, Microsoft Graph, ICS subscribe, CalDAV write, inbound webhook. Seed inbox/calendar when unset. See `docs/COMMS-INTEGRATION.md`. |
 
 Activation rule: `dataSource` flips to `hermes` only when `USER_HERMES_URL` is
 explicitly set **and** `/health` responds; to `github` only when a full
 GitHub sync succeeds. Missing config keeps the seed board. Comms `auto`
-picks Google → Microsoft → ICS (calendar only) and never crashes the orbit
-on upstream failure.
+concatenates every configured provider (Google + Microsoft + ICS/CalDAV)
+and never crashes the orbit on upstream failure.
 
 ## 4. Operator runbook (Hermes)
 

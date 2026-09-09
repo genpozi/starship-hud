@@ -64,7 +64,7 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 | **GitHub** | Issues + PRs → kanban board (ETag incremental, rate-limit guarded) | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` |
 | **Hermes WebUI** | Real agent delegation + approval bridge + reverse-ingest of sessions/crons | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL` |
 | **LLM planner** | LLM goal decomposition (heuristic offline fallback) | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` |
-| **Email / calendar** | Inbox + 7-day calendar via Gmail, Microsoft Graph, ICS, or inbound webhook | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*` |
+| **Email / calendar** | Inbox + 7-day calendar via Gmail, Microsoft Graph, ICS, CalDAV, or inbound webhook | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*`, `USER_CALDAV_*` |
 
 ---
 

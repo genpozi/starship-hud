@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-09-09
+
+### Added
+
+- **Comms depth (Phase 9)** — CalDAV PUT/DELETE via `USER_CALDAV_URL`, ICS
+  `RRULE` expand into the displayed week, multi-source inbox/calendar merge,
+  attachment metadata + capped compose parts. HUD folder tabs, reply, week
+  PREV/NEXT, event delete, and a compose file picker (~200KB cap). REST:
+  `POST /api/calendar/week`, `POST /api/calendar/events/:id/delete`;
+  `/api/email/send` accepts `attachments`.
+- **HUD interactivity (Phase 10)** — Items cycle status, scheduler pause/resume
+  (seed jobs only), vault/report reader panes, report status cycle. REST:
+  `POST /api/items/:id/status`, `POST /api/schedules/:id/pause`,
+  `POST /api/reports/:id/status`. Graphs success sparkline from `hist[].jobs`;
+  TOKEN USAGE keeps a dedicated `STREAMING` tag plus a budget caption.
+
 ## [2.1.0] — 2026-09-08
 
 ### Added
@@ -74,9 +90,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the step machine, error state instead of spin, retry policy.
 - **GitHub integration** — ETag + `since` incremental poller, rate-limit watch,
   kanban column mapping, `GITHUB_*` env config, seed fallback + `SRC:` banner.
-- **Real vault + alerts** — filesystem-backed vault (`data/vault/*.md`) and a
-  condition engine that raises/clears real alerts from telemetry/probe
-  thresholds each tick.
+- **Real vault + alerts** — vault docs live on canonical state (`body` on
+  each doc; skills/`_logMission` write real text) and a condition engine that
+  raises/clears real alerts from telemetry/probe thresholds each tick.
 - **Premium visual pass** — design tokens, clipped panels, scanline/CRT layer,
   neon glow system, Orbitron/Rajdhani/Share Tech Mono type system,
   reduced-motion support; Three.js galaxy with UnrealBloom, hot-core star
@@ -92,11 +108,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   detection), ORCH alias, ambiguity paths.
 - **Realtime telemetry graphs** — rolling 90-sample history window + `jobs`
   done/failed aggregates feeding the graphs view.
-- **Verification fleet** — 10 suites behind `npm test` (hermes, hermes-ingest,
-  phase-4, github, planner, skills, chat, regression, views, integration).
-  Integration suite boots a real orbit server on an isolated port/data dir and
-  exercises the full REST + WebSocket surface; views suite headless-renders all
-  12 HUD views via a DOM shim.
+- **Verification fleet** — 10 suites behind `npm test` at 2.0.0 (hermes,
+  hermes-ingest, phase-4, github, planner, skills, chat, regression, views,
+  integration). Later releases added superstep, channels, checkpoints,
+  interrupt, trace, and comms (16 total). Integration suite boots a real orbit
+  server on an isolated port/data dir and exercises the full REST + WebSocket
+  surface; views suite headless-renders all 12 HUD views via a DOM shim.
 
 ### Changed
 
@@ -139,7 +156,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Docker multi-stage image, non-root, with healthcheck; `docker-compose.yml`
   with `orbit-data` volume.
 
-[Unreleased]: https://github.com/genpozi/starship-hud/compare/2.1.0...HEAD
+[Unreleased]: https://github.com/genpozi/starship-hud/compare/2.2.0...HEAD
+[2.2.0]: https://github.com/genpozi/starship-hud/releases/tag/2.2.0
 [2.1.0]: https://github.com/genpozi/starship-hud/releases/tag/2.1.0
 [2.0.0]: https://github.com/genpozi/starship-hud/releases/tag/2.0.0
 [1.0.0]: https://github.com/genpozi/starship-hud/releases/tag/1.0.0

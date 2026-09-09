@@ -233,8 +233,8 @@ board source.
 | `USER_HERMES_INGEST_MS` | reverse-ingest poll interval |
 | `USER_HERMES_APPROVAL` | `prompt` (HUD card) \| `always` \| `never` |
 | `USER_HERMES_APPROVAL_TIMEOUT` | max ms before an approval times out |
-| `USER_COMMS_EMAIL_PROVIDER` / `USER_COMMS_CALENDAR_PROVIDER` | `auto` \| `google` \| `microsoft` \| `ics` (calendar). Seed when unset. |
-| `USER_GOOGLE_*` / `USER_MS_*` / `USER_ICS_*` | OAuth refresh / ICS subscribe. See `docs/COMMS-INTEGRATION.md`. |
+| `USER_COMMS_EMAIL_PROVIDER` / `USER_COMMS_CALENDAR_PROVIDER` | `auto` \| `google` \| `microsoft` \| `ics` \| `caldav` (calendar). Seed when unset. `auto` concatenates every configured provider. |
+| `USER_GOOGLE_*` / `USER_MS_*` / `USER_ICS_*` / `USER_CALDAV_*` | OAuth refresh / ICS subscribe (GET) / CalDAV collection (PUT/DELETE `{uid}.ics`). See `docs/COMMS-INTEGRATION.md`. |
 | `USER_COMMS_POLL_MS` | inbox/calendar poll interval (default `120000`) |
 | `USER_COMMS_WEBHOOK_SECRET` | optional `X-Stellaris-Secret` for `POST /api/comms/inbound` |
 | `PORT` | orbit HTTP/WS port (default `3001`) |

@@ -69,6 +69,24 @@ app.post('/api/kanban/:id/advance', (req, res) => {
   res.json(orchestrator.advanceKanban(req.params.id))
 })
 
+app.post('/api/items/:id/status', (req, res) => {
+  const result = orchestrator.cycleItemStatus(req.params.id)
+  if (!result.ok) return res.status(404).json({ ok: false })
+  res.json(result)
+})
+
+app.post('/api/schedules/:id/pause', (req, res) => {
+  const result = orchestrator.toggleSchedulePause(req.params.id)
+  if (!result.ok) return res.status(result.error ? 409 : 404).json({ ok: false, error: result.error })
+  res.json(result)
+})
+
+app.post('/api/reports/:id/status', (req, res) => {
+  const result = orchestrator.cycleReportStatus(req.params.id)
+  if (!result.ok) return res.status(404).json({ ok: false })
+  res.json(result)
+})
+
 app.post('/api/alerts/:id/ack', (req, res) => {
   res.json(orchestrator.ackAlert(req.params.id))
 })
@@ -109,9 +127,9 @@ app.post('/api/control/resume', (_req, res) => {
 })
 
 app.post('/api/email/send', async (req, res) => {
-  const { to, subject, body } = req.body || {}
+  const { to, subject, body, attachments } = req.body || {}
   if (!to || !subject) return res.status(400).json({ ok: false, error: 'to and subject required' })
-  res.json(await orchestrator.sendEmail({ to, subject, body }))
+  res.json(await orchestrator.sendEmail({ to, subject, body, attachments }))
 })
 
 app.post('/api/email/:id/read', (req, res) => {
@@ -128,6 +146,17 @@ app.post('/api/calendar/events', async (req, res) => {
   const { title, day, start, end, type, agents } = req.body || {}
   if (!title) return res.status(400).json({ ok: false, error: 'title required' })
   res.json(await orchestrator.createEvent({ title, day, start, end, type, agents }))
+})
+
+app.post('/api/calendar/events/:id/delete', async (req, res) => {
+  const result = await orchestrator.deleteEvent(req.params.id)
+  if (!result.ok) return res.status(404).json({ ok: false })
+  res.json(result)
+})
+
+app.post('/api/calendar/week', async (req, res) => {
+  const { weekStart, delta } = req.body || {}
+  res.json(await orchestrator.setCalWeek({ weekStart, delta }))
 })
 
 app.post('/api/calendar/:day', (req, res) => {

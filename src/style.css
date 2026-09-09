@@ -746,6 +746,7 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 .tbl-status.review { color: var(--cyan); border-color: var(--cyan-dim); }
 .tbl-status.watch { color: var(--magenta); border-color: var(--magenta-dim); }
 .tbl-status.merged { color: var(--ok); border-color: var(--ok-dim); }
+.tbl-status.closed { color: var(--ok); border-color: var(--ok-dim); }
 
 .cron-row {
   display: grid;
@@ -765,6 +766,9 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 .cron-last.WARN { color: var(--warn); border-color: var(--amber-dim); }
 .cron-row.he .cron-name { color: var(--cyan); }
 .cron-row.he .cron-agent { color: var(--cyan); }
+.cron-row { cursor: pointer; }
+.cron-row.paused { opacity: 0.55; }
+.cron-row.paused .cron-next, .cron-row.paused .cron-last { color: var(--warn); border-color: var(--amber-dim); }
 
 /* ============================================================================
    CHAT / ORCHESTRATION
@@ -904,6 +908,14 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
   transition: transform 0.15s var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .vault-card:hover { transform: translateY(-2px); border-color: var(--cyan); box-shadow: 0 4px 14px rgba(0, 240, 255, 0.15), 0 0 10px rgba(0, 240, 255, 0.05); }
+.vault-card.selected { border-color: var(--cyan); background: rgba(0, 240, 255, 0.1); }
+#vault-layout, #reports-layout {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--gap);
+}
+.vault-read-panel { display: flex; flex-direction: column; min-height: 0; }
 .vault-title { font-family: var(--font-display); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: var(--text-main); }
 .vault-meta { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 8.5px; color: var(--text-dim); margin-top: 6px; }
 .vault-type { color: var(--cyan); }
@@ -937,8 +949,36 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 .email-row.selected { outline: 1px solid var(--cyan-dim); background: rgba(0, 240, 255, 0.08); }
 .email-row.he .email-from { color: var(--cyan-hi); }
 .email-src { font-family: var(--font-mono); font-size: 8px; letter-spacing: 1px; color: var(--text-faint); text-transform: uppercase; }
+.email-folders { display: flex; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--divider); }
+.email-folder-tab {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid rgba(111, 184, 204, 0.25);
+  padding: 3px 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.email-folder-tab.active { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(0, 240, 255, 0.08); }
+.attach-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.attach-chip {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  border: 1px solid rgba(111, 184, 204, 0.3);
+  padding: 2px 6px;
+}
 .comms-form { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--divider); flex-wrap: wrap; }
 .comms-form .dispatch-input { flex: 1 1 80px; min-width: 72px; }
+.comms-form .email-attach {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  max-width: 148px;
+}
 .email-row.unread .email-from, .email-row.unread .email-subject { color: var(--text-main); font-weight: 700; }
 .email-from { font-family: var(--font-mono); font-size: 10px; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .email-subject { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -994,6 +1034,7 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 }
 .cal-slot .evt.mil { border-color: var(--ok); color: var(--ok); }
 .cal-slot .evt.dep { border-color: var(--amber); color: var(--amber); }
+.cal-slot .evt.selected { outline: 1px solid var(--cyan); background: rgba(0, 240, 255, 0.14); }
 
 .calendar-day { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .calendar-day::-webkit-scrollbar { width: 3px; }
@@ -1004,9 +1045,11 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
   padding: 8px 10px;
   border-left: 2px solid var(--cyan);
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut-sm)), calc(100% - var(--cut-sm)) 100%, 0 100%);
+  cursor: pointer;
 }
 .day-evt.mil { border-left-color: var(--ok); }
 .day-evt.dep { border-left-color: var(--amber); }
+.day-evt.selected { outline: 1px solid var(--cyan-dim); background: rgba(0, 240, 255, 0.1); }
 .day-evt-time { font-family: var(--font-mono); font-size: 9px; color: var(--cyan); }
 .day-evt-title { font-size: 11.5px; color: var(--text-main); margin-top: 2px; }
 .day-evt-agents { font-family: var(--font-mono); font-size: 8.5px; color: var(--text-dim); margin-top: 3px; }
@@ -1125,6 +1168,8 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut-sm)), calc(100% - var(--cut-sm)) 100%, var(--cut-sm) 100%, 0 calc(100% - var(--cut-sm)));
 }
 .report-card:hover { transform: translateY(-2px); border-color: var(--cyan); box-shadow: 0 4px 14px rgba(0, 240, 255, 0.15), 0 0 10px rgba(0, 240, 255, 0.05); }
+.report-card.selected { border-color: var(--cyan); background: rgba(0, 240, 255, 0.1); }
+.report-status { cursor: pointer; }
 .report-title { font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 0.5px; color: var(--text-main); }
 .report-abstract { font-size: 11px; line-height: 1.5; color: var(--text-dim); }
 .report-meta { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 8.5px; color: var(--text-faint); }

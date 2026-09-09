@@ -100,6 +100,16 @@ function makeFragment() {
 
 globalThis.document = {
   querySelector: (sel) => makeElement(sel),
+  querySelectorAll: (sel) => {
+    if (sel === '.email-folder-tab') {
+      return ['inbox', 'sent', 'archive'].map((folder) => {
+        const el = makeElement(`.email-folder-tab-${folder}`)
+        el.dataset.folder = folder
+        return el
+      })
+    }
+    return []
+  },
   createElement: (tag) => new FakeElement(tag),
   createDocumentFragment: () => makeFragment()
 }

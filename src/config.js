@@ -188,12 +188,12 @@ export const OPEN_ITEMS = [
    SCHEDULED TASKS
    ============================================================================ */
 export const SCHEDULED_TASKS = [
-  { id: 'c1', name: 'Telemetry snapshot → core bank', cron: '*/15 * * * *', agent: 'SAGE', next: '12:00', dur: '8s', last: 'OK' },
-  { id: 'c2', name: 'Dependency graph rebuild', cron: '0 * * * *', agent: 'CODA', next: '13:00', dur: '2m', last: 'OK' },
-  { id: 'c3', name: 'Webhook drain / replay sweep', cron: '*/5 * * * *', agent: 'LINK', next: '11:50', dur: '14s', last: 'OK' },
-  { id: 'c4', name: 'Daily agenda push', cron: '0 7 * * *', agent: 'NUDGE', next: '+18h', dur: '3s', last: 'OK' },
-  { id: 'c5', name: 'Weekend archive compaction', cron: '0 2 * * SAT', agent: 'PILOT', next: 'SAT', dur: '9m', last: 'OK' },
-  { id: 'c6', name: 'Model finetune checkpoint', cron: '0 4 * * *', agent: 'SAGE', next: '04:00', dur: '34m', last: 'WARN' }
+  { id: 'c1', name: 'Telemetry snapshot → core bank', cron: '*/15 * * * *', agent: 'SAGE', next: '12:00', dur: '8s', last: 'OK', paused: false },
+  { id: 'c2', name: 'Dependency graph rebuild', cron: '0 * * * *', agent: 'CODA', next: '13:00', dur: '2m', last: 'OK', paused: false },
+  { id: 'c3', name: 'Webhook drain / replay sweep', cron: '*/5 * * * *', agent: 'LINK', next: '11:50', dur: '14s', last: 'OK', paused: false },
+  { id: 'c4', name: 'Daily agenda push', cron: '0 7 * * *', agent: 'NUDGE', next: '+18h', dur: '3s', last: 'OK', paused: false },
+  { id: 'c5', name: 'Weekend archive compaction', cron: '0 2 * * SAT', agent: 'PILOT', next: 'SAT', dur: '9m', last: 'OK', paused: false },
+  { id: 'c6', name: 'Model finetune checkpoint', cron: '0 4 * * *', agent: 'SAGE', next: '04:00', dur: '34m', last: 'WARN', paused: false }
 ]
 
 /* ============================================================================
@@ -220,12 +220,12 @@ export const CHAT_SEED = [
    VAULT / KNOWLEDGE
    ============================================================================ */
 export const VAULT_DOCS = [
-  { id: 'v1', title: 'System architecture overview', type: 'DOC', tags: ['ARCH', 'INTERNAL'], size: '1.2MB', updated: '2h ago', agent: 'ORCH' },
-  { id: 'v2', title: 'Agent fleet operating manual', type: 'DOC', tags: ['OPS', 'RUNBOOK'], size: '840KB', updated: '5h ago', agent: 'NUDGE' },
-  { id: 'v3', title: 'Vector store ingest schemas', type: 'SCHEMA', tags: ['DATA', 'SQL'], size: '96KB', updated: '30m ago', agent: 'CODA' },
-  { id: 'v4', title: 'Release checklist v1.4.x', type: 'CHECKLIST', tags: ['RELEASE'], size: '48KB', updated: '1d ago', agent: 'PILOT' },
-  { id: 'v5', title: 'Context compaction research', type: 'RESEARCH', tags: ['AI', 'PERF'], size: '2.1MB', updated: '3h ago', agent: 'SAGE' },
-  { id: 'v6', title: 'Webhook contract reference', type: 'API', tags: ['INTEGRATION'], size: '64KB', updated: '12h ago', agent: 'LINK' }
+  { id: 'v1', title: 'System architecture overview', type: 'DOC', tags: ['ARCH', 'INTERNAL'], size: '1.2MB', updated: '2h ago', agent: 'ORCH', body: 'STELLARIS-7 is a 12-view HUD plus orbit server. Server owns state; WS snapshot/delta keeps the console live. Integrations activate on env credentials and fall back to seed.' },
+  { id: 'v2', title: 'Agent fleet operating manual', type: 'DOC', tags: ['OPS', 'RUNBOOK'], size: '840KB', updated: '5h ago', agent: 'NUDGE', body: 'Six crew: ORCHESTRATOR plans, CODA codes, PILOT ships, SAGE researches, LINK integrates, NUDGE schedules. Mention @AGENT to pin a reply owner.' },
+  { id: 'v3', title: 'Vector store ingest schemas', type: 'SCHEMA', tags: ['DATA', 'SQL'], size: '96KB', updated: '30m ago', agent: 'CODA', body: 'Ingest batches are chunked with retry backoff. Schema keys: id, embedding, source, ts. Backpressure trips at 80% write-behind depth.' },
+  { id: 'v4', title: 'Release checklist v1.4.x', type: 'CHECKLIST', tags: ['RELEASE'], size: '48KB', updated: '1d ago', agent: 'PILOT', body: '1. npm test + npm run build green. 2. Canary at 10% then 44%. 3. Error budget < 0.1%. 4. Rollback checkpoint captured.' },
+  { id: 'v5', title: 'Context compaction research', type: 'RESEARCH', tags: ['AI', 'PERF'], size: '2.1MB', updated: '3h ago', agent: 'SAGE', body: 'Window sliding vs semantic summarization vs retrieval sharding. Sliding wins short tasks; sharding wins long research threads.' },
+  { id: 'v6', title: 'Webhook contract reference', type: 'API', tags: ['INTEGRATION'], size: '64KB', updated: '12h ago', agent: 'LINK', body: 'POST /api/comms/inbound. Optional X-Stellaris-Secret vs USER_COMMS_WEBHOOK_SECRET. Payload: from, subject, body, attachments[].' }
 ]
 
 /* ============================================================================
@@ -269,10 +269,10 @@ export const ALERTS = [
    RESEARCH REPORTS
    ============================================================================ */
 export const REPORTS = [
-  { id: 'r1', title: 'Context-window compaction strategies', author: 'SAGE', status: 'draft', tags: ['AI', 'PERF'], updated: '3h ago', abstract: 'Comparative benchmark of window sliding, semantic summarization and retrieval sharding across 3 task classes.' },
-  { id: 'r2', title: 'Ingress latency percentile review — cycle 41', author: 'PILOT', status: 'published', tags: ['OPS', 'SLO'], updated: '1d ago', abstract: 'p50 84ms / p95 210ms / p99 402ms. SLO 99.9% sustained over trailing 7 days.' },
-  { id: 'r3', title: 'Multi-agent handoff quality analysis', author: 'ORCH', status: 'review', tags: ['ORCH', 'AI'], updated: '6h ago', abstract: 'Handoff token cost and success-rate scoring across 1,200 orchestrated tasks.' },
-  { id: 'r4', title: 'Vault ingestion backpressure study', author: 'CODA', status: 'published', tags: ['DATA'], updated: '2d ago', abstract: 'Backpressure thresholds for write-behind queues to protect the core bank.' }
+  { id: 'r1', title: 'Context-window compaction strategies', author: 'SAGE', status: 'draft', tags: ['AI', 'PERF'], updated: '3h ago', abstract: 'Comparative benchmark of window sliding, semantic summarization and retrieval sharding across 3 task classes.', body: 'Sliding windows cut token spend 18% on short tasks. Semantic summaries preserve recall on research threads. Retrieval sharding wins past 32k context. Recommend hybrid: slide until 8k, then shard.' },
+  { id: 'r2', title: 'Ingress latency percentile review — cycle 41', author: 'PILOT', status: 'published', tags: ['OPS', 'SLO'], updated: '1d ago', abstract: 'p50 84ms / p95 210ms / p99 402ms. SLO 99.9% sustained over trailing 7 days.', body: 'Edge gateway held SLO 99.9% over trailing 7 days. p99 spikes correlate with webhook replay sweeps. Recommend staggering cron c3 away from the 11:50 drain.' },
+  { id: 'r3', title: 'Multi-agent handoff quality analysis', author: 'ORCH', status: 'review', tags: ['ORCH', 'AI'], updated: '6h ago', abstract: 'Handoff token cost and success-rate scoring across 1,200 orchestrated tasks.', body: 'Mean handoff cost 1.4k tokens. Success 94% when dependsOn chains are honored; 71% when jobs run all-in-parallel. Superstep DAG is the gate.' },
+  { id: 'r4', title: 'Vault ingestion backpressure study', author: 'CODA', status: 'published', tags: ['DATA'], updated: '2d ago', abstract: 'Backpressure thresholds for write-behind queues to protect the core bank.', body: 'Write-behind depth 80% trips a warn; 95% trips crit and sheds ingest. Compact weekends keep the core bank under 71%.' }
 ]
 
 /* ============================================================================

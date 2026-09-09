@@ -135,6 +135,24 @@ try {
   const kanban = await kanbanRes.json()
   pass('POST /api/kanban/k1/advance ok', kanban.ok === true)
 
+  const itemRes = await fetch(`${BASE}/api/items/${encodeURIComponent(state.items[0].id)}/status`, { method: 'POST' })
+  const item = await itemRes.json()
+  pass('POST /api/items/:id/status ok', item.ok === true && typeof item.status === 'string')
+  const itemMiss = await fetch(`${BASE}/api/items/missing-id/status`, { method: 'POST' })
+  pass('POST /api/items/:id/status missing → 404', itemMiss.status === 404)
+
+  const schedId = (state.schedules || []).find((j) => j && j.src !== 'hermes')?.id
+  const pauseRes = await fetch(`${BASE}/api/schedules/${encodeURIComponent(schedId)}/pause`, { method: 'POST' })
+  const paused = await pauseRes.json()
+  pass('POST /api/schedules/:id/pause ok', paused.ok === true && paused.paused === true)
+  const resumeRes = await fetch(`${BASE}/api/schedules/${encodeURIComponent(schedId)}/pause`, { method: 'POST' })
+  const resumed = await resumeRes.json()
+  pass('POST /api/schedules/:id/pause toggle resume', resumed.ok === true && resumed.paused === false)
+
+  const repRes = await fetch(`${BASE}/api/reports/${encodeURIComponent(state.reports[0].id)}/status`, { method: 'POST' })
+  const rep = await repRes.json()
+  pass('POST /api/reports/:id/status ok', rep.ok === true && typeof rep.status === 'string')
+
   // ---- REST: alert ack ----
   const ackRes = await fetch(`${BASE}/api/alerts/a1/ack`, { method: 'POST' })
   const ack = await ackRes.json()
@@ -160,6 +178,19 @@ try {
   })
   const sent = await sendRes.json()
   pass('POST /api/email/send ok', sent.ok === true && typeof sent.id === 'string')
+
+  const attachRes = await fetch(`${BASE}/api/email/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to: 'ops@stellaris.internal',
+      subject: 'Attach ping',
+      body: 'with file',
+      attachments: [{ name: 'note.txt', mime: 'text/plain', size: 5, data: 'aGVsbG8=' }]
+    })
+  })
+  const attached = await attachRes.json()
+  pass('POST /api/email/send with attachment ok', attached.ok === true && typeof attached.id === 'string')
 
   const sendBad = await fetch(`${BASE}/api/email/send`, {
     method: 'POST',
@@ -194,6 +225,21 @@ try {
   const archiveRes = await fetch(`${BASE}/api/email/${encodeURIComponent(sent.id)}/archive`, { method: 'POST' })
   const archived = await archiveRes.json()
   pass('POST /api/email/:id/archive ok', archived.ok === true)
+
+  const weekRes = await fetch(`${BASE}/api/calendar/week`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ delta: 1 })
+  })
+  const week = await weekRes.json()
+  pass('POST /api/calendar/week ok', week.ok === true && typeof week.weekStart === 'string')
+
+  const delRes = await fetch(`${BASE}/api/calendar/events/${encodeURIComponent(booked.id)}/delete`, { method: 'POST' })
+  const deleted = await delRes.json()
+  pass('POST /api/calendar/events/:id/delete ok', deleted.ok === true)
+
+  const delMiss = await fetch(`${BASE}/api/calendar/events/missing-id/delete`, { method: 'POST' })
+  pass('POST /api/calendar/events/:id/delete missing → 404', delMiss.status === 404)
 
   // ---- REST: malformed JSON -> JSON error handler ----
   const badJson = await fetch(`${BASE}/api/chat`, {

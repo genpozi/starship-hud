@@ -21,7 +21,12 @@ import {
   inWeek,
   buildRfc822,
   toBase64Url,
-  applyCommsSync
+  applyCommsSync,
+  parseRrule,
+  expandRrule,
+  buildIcsEvent,
+  capAttachments,
+  shiftWeek
 } from '../server/comms.js'
 
 process.env.TZ = 'UTC'
@@ -41,6 +46,7 @@ process.env.USER_MS_CLIENT_ID = ''
 process.env.USER_MS_CLIENT_SECRET = ''
 process.env.USER_MS_REFRESH_TOKEN = ''
 process.env.USER_ICS_URL = ''
+process.env.USER_CALDAV_URL = ''
 pass('getConfig disabled with no credentials', getConfig().enabled === false && getConfig().emailProvider === null)
 
 pass('labelFrom security advisory → SEC', labelFrom('Security alert: advisory', 'github') === 'SEC')
@@ -117,6 +123,34 @@ DTEND:20260101T100000Z
 END:VEVENT
 END:VCALENDAR`, '2026-09-06')
 pass('ics parses in-week only', ics.length === 1 && ics[0].title === 'Fleet standup' && ics[0].src === 'ics')
+
+const rec = parseIcs(`BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:daily-1
+SUMMARY:Standup
+DTSTART:20260901T083000Z
+DTEND:20260901T090000Z
+RRULE:FREQ=DAILY;INTERVAL=1
+END:VEVENT
+END:VCALENDAR`, '2026-09-06')
+pass('rrule daily expands into displayed week', rec.length === 7 && rec.every((e) => e.recurring && e.title === 'Standup'))
+
+const weekly = parseRrule('FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=1')
+pass('parseRrule weekly BYDAY', weekly.freq === 'WEEKLY' && weekly.byday.includes('MO') && weekly.byday.includes('WE'))
+const inst = expandRrule(new Date('2026-09-01T14:00:00Z'), new Date('2026-09-01T15:00:00Z'), weekly, '2026-09-06', { uid: 'w1', summary: 'Sync' })
+pass('expandRrule weekly lands Mon/Wed', inst.length >= 2 && inst.every((e) => e.day === 1 || e.day === 3))
+
+const icsBody = buildIcsEvent({ id: 'local-abc', title: 'Hold', isoStart: '2026-09-08T09:00:00.000Z', isoEnd: '2026-09-08T10:00:00.000Z' })
+pass('buildIcsEvent VEVENT', icsBody.includes('BEGIN:VEVENT') && icsBody.includes('SUMMARY:Hold') && icsBody.includes('UID:abc'))
+
+const capped = capAttachments([
+  { name: 'a.txt', mime: 'text/plain', data: Buffer.alloc(50).toString('base64') },
+  { name: 'big.bin', mime: 'application/octet-stream', size: 500000 }
+])
+pass('capAttachments drops oversize', capped.length === 1 && capped[0].name === 'a.txt')
+
+pass('shiftWeek +1 advances 7 days', shiftWeek('2026-09-06', 1).weekStart === '2026-09-13')
+pass('shiftWeek -1 goes back', shiftWeek('2026-09-06', -1).weekStart === '2026-08-30')
 
 const inbound = normalizeInbound({ from: 'alerts@github.com', subject: 'Security alert: dependabot', body: 'two advisories' })
 pass('inbound webhook id + SEC', inbound.src === 'webhook' && inbound.label === 'SEC' && inbound.read === false && inbound.id.startsWith('wh-'))

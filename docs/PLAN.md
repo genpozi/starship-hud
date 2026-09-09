@@ -46,8 +46,8 @@ Model: Octokit + DevLake.
   configured; banner on the HUD shows data source.
 
 ### Phase 4 — Vault + alerts become real  [DONE]
-- Vault: filesystem-backed (`data/vault/*.md`); `memory`/`files` skills read
-  & write real markdown; reports generated from vault docs.
+- Vault: docs live on canonical state (`body` on each doc). `memory`/`files`
+  skills read and write real text; reports generated from vault docs.
 - Alerts: condition engine evaluates telemetry/probe thresholds each tick and
   raises/clears real `crit|warn|info` alerts (no longer static).
 
@@ -110,21 +110,48 @@ no extra npm deps, orbit never crashes on upstream failure.
 - Skills `mail` (LINK) + `calendar` (NUDGE); heuristic planner steps.
 - `test/comms.test.mjs` + integration coverage; 16 suites green.
 
-Out of scope (next slice): IMAP/SMTP, CalDAV write, multi-account, attachments,
-full recurrence expansion.
+IMAP/SMTP stays out. CalDAV write, attachments, and RRULE expansion shipped in
+Phase 9.
+
+### Phase 9 — Comms depth (CalDAV write, RRULE, attachments, folders)  [DONE]
+Close the Phase 8 follow-ups that fit the existing contract (no extra npm
+deps, seed fallback, orbit never crashes). IMAP/SMTP stays out — Gmail +
+Graph already cover send/receive.
+
+- ICS `RRULE` expand (DAILY / WEEKLY / MONTHLY + BYDAY / INTERVAL / COUNT / UNTIL) into the displayed week.
+- CalDAV PUT/DELETE when `USER_CALDAV_URL` is set; ICS GET remains subscribe-only.
+- Attachment metadata on mapped messages; compose may attach small base64 parts (capped).
+- Multi-source merge: `auto` fetches every configured provider (Google + Microsoft + ICS) instead of first-wins.
+- HUD: inbox/sent/archive tabs, reply-to-selected, week PREV/NEXT, delete event.
+- REST: `POST /api/calendar/week`, `POST /api/calendar/events/:id/delete`; send accepts `attachments`.
+
+Still out: raw IMAP/SMTP, multi-login per provider, binary attachment download, EXDATE/RDATE, CalDAV REPORT queries.
+
+### Phase 10 — HUD interactivity (Items, Scheduler, Vault, Reports)  [DONE]
+Wire the remaining display-only surfaces the same way as kanban/email: click
+to mutate, REST when online, local `STATE` when offline, no extra npm deps.
+
+- Items: click row cycles `open → watch → review → closed`. `POST /api/items/:id/status`.
+- Scheduler: click row pauses/resumes seed jobs (`paused` flag). Hermes rows stay ingest-authoritative. `POST /api/schedules/:id/pause`.
+- Vault: click card opens a reader pane (`body` on the doc). Skills/`_logMission` write real body text. Selection is HUD-local (like email).
+- Reports: click card opens a reader; click status cycles `draft → review → published`. `POST /api/reports/:id/status`.
+- Graphs: success sparkline from `hist[].jobs`; `#graph-token-foot` budget
+  caption (TOKEN USAGE keeps a dedicated `STREAMING` tag).
+
+Out: GitHub issue write-back, Hermes cron create, orchestration research leftovers.
 
 ## Final — Premium repo format & operator docs  [DONE]
 - `LICENSE` (MIT), `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.editorconfig`.
 - `.github/`: CI workflow (Node 20/22 test+build, Docker build), bug report +
   feature request issue templates, PR template, template `config.yml`.
-- `CHANGELOG.md` (Keep a Changelog, 1.0.0 → 2.0.0 → Unreleased).
+- `CHANGELOG.md` (Keep a Changelog, 1.0.0 → 2.2.0 → Unreleased).
 - `.env.example` completed with `PORT`, `STELLARIS_DATA_DIR`, `MOCK_PASSWORD`;
   `docker-compose.yml` passes `MOCK_PASSWORD` through.
 - README: CI/test badges, docs table + project tree updated for all repo meta
-  files, suite count corrected (10); `docs/DEVELOPER.md` + `docs/DEPLOYMENT.md`
+  files, suite count corrected (16); `docs/DEVELOPER.md` + `docs/DEPLOYMENT.md`
   suite counts and env tables corrected; `docs/API.md` documents the
   `telemetry.hist` + `telemetry.jobs` shapes.
-- All YAML validated; `npm test` (10/10) + `npm run build` green; pushed.
+- All YAML validated; `npm test` (16/16) + `npm run build` green; pushed.
 - Test isolation fix: `run-all.mjs` now sets a fresh `STELLARIS_DATA_DIR` per
   run and `hermes-ingest.js`/`github.js` persistence respects it — eliminates
   the flake where a live demo orbit server recreated `data/state.json` mid-test
@@ -153,9 +180,9 @@ full recurrence expansion.
 
 ## Remaining (not in this slice)
 
-HUD still display-only: Items, Scheduler, Graphs, Vault, Reports.
+HUD Phase 10 done: Items, Scheduler, Vault, Reports, Graphs polish.
 Orchestration research leftovers: server-side channel reducers, AgentSpec vs
 AgentRuntime split, parse/execute/reflect tool cycle, handoffs-as-tools,
 AsyncLocalStorage traces, WS `Command(resume)`.
-Comms follow-ups: IMAP/SMTP, CalDAV write, multi-account, attachments,
-recurrence beyond provider `singleEvents` / calendarView.
+Comms still out: raw IMAP/SMTP, multi-login per provider, binary attachment
+download, EXDATE/RDATE, CalDAV REPORT.

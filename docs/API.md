@@ -53,15 +53,20 @@ All mutations return JSON; success mutations broadcast the new state.
 | POST | `/api/chat` | `{text}` | Operator goal. Detects a direct `@AGENT` mention (pins plan + reply owner), plans into steps (P8 `dependsOn` chains preserved), creates a workflow, queues agents, and replies with a synthesized answer. Returns `{ok, steps, agent}`. |
 | POST | `/api/dispatch` | `{task, agent}` | Manually queue a task for an agent. |
 | POST | `/api/kanban/:id/advance` | — | Move card `id` to the next column (removes if already `done`). |
+| POST | `/api/items/:id/status` | — | Cycle item status `open → watch → review → closed`. `404` if missing. |
+| POST | `/api/schedules/:id/pause` | — | Toggle pause on a seed job. Hermes rows return `409`. `404` if missing. |
+| POST | `/api/reports/:id/status` | — | Cycle report status `draft → review → published`. `404` if missing. |
 | POST | `/api/alerts/:id/ack` | — | Acknowledge alert `id`. |
 | POST | `/api/alerts/ack-all` | — | Acknowledge every active alert. Returns `{ok, acked}`. |
 | POST | `/api/approval/respond` | `{choice: 'approve'\|'deny'}` | Resolve the pending Hermes approval. `400` if choice invalid; `{ok:false,error}` if none pending. |
 | POST | `/api/email/:id/read` | — | Mark email `id` read (numeric index still accepted). |
 | POST | `/api/email/:id/archive` | — | Move email `id` to `folder:'archive'` (best-effort remote). |
-| POST | `/api/email/send` | `{to, subject, body}` | Send mail via Gmail/Graph, or a local sent-copy when no provider. `400` if `to`/`subject` missing. |
+| POST | `/api/email/send` | `{to, subject, body, attachments?}` | Send mail via Gmail/Graph, or a local sent-copy when no provider. Optional `attachments` are `{name, mime, data}` base64 parts (capped ~200KB). `400` if `to`/`subject` missing. |
 | POST | `/api/comms/inbound` | `{from, subject, body}` | Ingest an inbound message. Optional `X-Stellaris-Secret` vs `USER_COMMS_WEBHOOK_SECRET`. |
 | POST | `/api/calendar/:day` | — | Select calendar day `0-6`. `400` if out of range. |
-| POST | `/api/calendar/events` | `{title, day, start, end}` | Create an event (Google/Graph, else local). `400` if `title` missing. |
+| POST | `/api/calendar/events` | `{title, day, start, end}` | Create an event (Google/Graph/CalDAV, else local). `400` if `title` missing. |
+| POST | `/api/calendar/week` | `{delta?, weekStart?}` | Shift displayed week (`delta` in weeks) or jump to `weekStart` (snaps to Sunday). Refetches live events. |
+| POST | `/api/calendar/events/:id/delete` | — | Delete event `id` (best-effort remote). `404` if missing. |
 | POST | `/api/mission` | `{name, agents}` | Create a workflow mission and dispatch the listed agents. |
 | POST | `/api/checkpoint` | `{reason?}` | Capture a full-state snapshot (P10). Returns `{ok, id}`; ledger capped at 8. |
 | POST | `/api/checkpoint/rollback` | — | Restore the latest checkpoint (P10). Returns `{ok, id, slices}` — `slices` lists the top-level slices actually reverted; `409` if none available. |
@@ -100,14 +105,14 @@ snapshots and deltas.
   "agents":     [{ "id", "name", "role", "state", "task", "progress", "tokens", "summary", "capabilities": [] }],
   "workflows":  [{ "id", "name", "state", "progress", "steps", "curStep", "agents", "eta" }],
   "kanban":     { "columns": [...], "cards": [ { "id", "title", "col", "priority", "src" } ], "done": [...] },
-  "items":      [ { "id", "label", "status", "src" } ],
-  "schedules":  [ { "id", "title", "next", "cron", "status", "src" } ],
+  "items":      [ { "id", "title", "type", "prio", "assignee", "status", "src" } ],
+  "schedules":  [ { "id", "name", "cron", "agent", "next", "dur", "last", "paused", "src" } ],
   "chat":       [...], "dispatch": [...],
-  "vault":      [...],
+  "vault":      [ { "id", "title", "type", "tags", "size", "updated", "agent", "body" } ],
   "email":      [{ "id", "from", "to", "subject", "preview", "body", "time", "label", "read", "prio", "folder", "src" }],
   "calendar":   { "events": [{ "id", "day", "start", "end", "title", "type", "agents", "src" }], "day": 0, "weekStart", "weekLabel" },
   "alerts":     [ { "id", "level", "msg", "src", "ack" } ],
-  "probes":     [...], "reports": [...],
+  "probes":     [...], "reports": [ { "id", "title", "author", "status", "tags", "updated", "abstract", "body" } ],
   "telemetry":  { "temp", "token", "lat", "ctx",
                   "jobs": { "done", "failed" },
                   "hist":  [ { "ts", "temp", "lat", "ctx", "token",

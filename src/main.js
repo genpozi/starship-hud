@@ -21,7 +21,9 @@ import {
   escapeHtml,
   logKey,
   pushChat,
-  getSelectedEmailId
+  getSelectedEmailId,
+  getSelectedEventId,
+  setEmailFolder
 } from './views.js'
 
 /**
@@ -351,7 +353,7 @@ function renderAllViews() {
   if (changed('graphs', STATE.telemetry)) renderGraphs(STATE.telemetry)
   if (changed('vault', STATE.vault)) renderVault()
   if (changed('email', STATE.email)) renderEmail()
-  if (changed('calendar', [STATE.calendar.day, STATE.calendar.events])) renderCalendar()
+  if (changed('calendar', [STATE.calendar.day, STATE.calendar.weekStart, STATE.calendar.events])) renderCalendar()
   if (changed('alerts', STATE.alerts)) renderAlerts()
   renderHealth(STATE.logs, logFilter)
   renderApproval()
@@ -591,6 +593,29 @@ export async function boot() {
       dispatchAgent.appendChild(opt)
     })
   }
+  function readComposeAttachments(input) {
+    const files = Array.from(input?.files || [])
+    if (!files.length) return Promise.resolve([])
+    const cap = 200000
+    let total = 0
+    const chosen = []
+    for (const f of files) {
+      if (total + f.size > cap) break
+      total += f.size
+      chosen.push(f)
+    }
+    return Promise.all(chosen.map((f) => new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const raw = String(reader.result || '')
+        const data = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw
+        resolve({ name: f.name, mime: f.type || 'application/octet-stream', size: f.size, data })
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(f)
+    }))).then((parts) => parts.filter(Boolean))
+  }
+
   const emailForm = $('#email-compose')
   if (emailForm) emailForm.addEventListener('submit', (e) => {
     e.preventDefault()
@@ -598,28 +623,56 @@ export async function boot() {
     const subject = ($('#email-subject')?.value || '').trim()
     const body = ($('#email-body')?.value || '').trim()
     if (!to || !subject) return
-    $('#email-to').value = ''
-    $('#email-subject').value = ''
-    $('#email-body').value = ''
-    log('INFO', `Compose → ${to}: ${subject}`)
-    if (isOnline()) api.sendMail(to, subject, body).then(() => renderEmail()).catch(() => log('WARN', 'send failed'))
-    else {
-      STATE.email.unshift({
-        id: `local-${Date.now()}`,
-        from: 'operator@stellaris.internal',
-        to,
-        subject,
-        preview: body.slice(0, 140),
-        body,
-        time: new Date().toISOString().slice(11, 16),
-        label: 'MAIL',
-        read: true,
-        prio: 'med',
-        folder: 'sent',
-        src: 'local'
-      })
-      renderEmail()
+    const attachInput = $('#email-attach')
+    readComposeAttachments(attachInput).then((attachments) => {
+      $('#email-to').value = ''
+      $('#email-subject').value = ''
+      $('#email-body').value = ''
+      if (attachInput) attachInput.value = ''
+      log('INFO', `Compose → ${to}: ${subject}`)
+      if (isOnline()) api.sendMail(to, subject, body, attachments).then(() => {
+        setEmailFolder('sent')
+        renderEmail()
+      }).catch(() => log('WARN', 'send failed'))
+      else {
+        STATE.email.unshift({
+          id: `local-${Date.now()}`,
+          from: 'operator@stellaris.internal',
+          to,
+          subject,
+          preview: body.slice(0, 140),
+          body,
+          time: new Date().toISOString().slice(11, 16),
+          label: 'MAIL',
+          read: true,
+          prio: 'med',
+          folder: 'sent',
+          src: 'local',
+          attachments: attachments.map((a) => ({ name: a.name, mime: a.mime, size: a.size }))
+        })
+        setEmailFolder('sent')
+        renderEmail()
+      }
+    })
+  })
+  document.querySelectorAll('.email-folder-tab').forEach((tab) => {
+    tab.addEventListener('click', () => setEmailFolder(tab.dataset.folder))
+  })
+  const replyBtn = $('#email-reply')
+  if (replyBtn) replyBtn.addEventListener('click', () => {
+    const id = getSelectedEmailId()
+    const target = (STATE.email || []).find((m) => m && m.id === id)
+    if (!target) return
+    const toEl = $('#email-to')
+    const subEl = $('#email-subject')
+    const bodyEl = $('#email-body')
+    if (toEl) toEl.value = target.from || target.to || ''
+    if (subEl) {
+      const sub = String(target.subject || '')
+      subEl.value = /^re:/i.test(sub) ? sub : `Re: ${sub}`
     }
+    if (bodyEl) bodyEl.value = ''
+    toEl?.focus()
   })
   const archiveBtn = $('#email-archive')
   if (archiveBtn) archiveBtn.addEventListener('click', () => {
@@ -645,6 +698,35 @@ export async function boot() {
       STATE.calendar.events.push({ id: `local-${Date.now()}`, day, start, end, title, type: 'dep', agents: ['USER'], src: 'local' })
       renderCalendar()
     }
+  })
+  function shiftLocalWeek(delta) {
+    const cur = STATE.calendar.weekStart || new Date().toISOString().slice(0, 10)
+    const d = new Date(`${cur}T00:00:00`)
+    d.setDate(d.getDate() + Number(delta || 0) * 7)
+    STATE.calendar.weekStart = d.toISOString().slice(0, 10)
+    STATE.calendar.weekLabel = `WEEK ${STATE.calendar.weekStart}`
+    renderCalendar()
+  }
+  const calPrev = $('#cal-prev')
+  if (calPrev) calPrev.addEventListener('click', () => {
+    if (isOnline()) api.setCalWeek({ delta: -1 }).then(() => renderCalendar()).catch(() => log('WARN', 'week nav failed'))
+    else shiftLocalWeek(-1)
+  })
+  const calNext = $('#cal-next')
+  if (calNext) calNext.addEventListener('click', () => {
+    if (isOnline()) api.setCalWeek({ delta: 1 }).then(() => renderCalendar()).catch(() => log('WARN', 'week nav failed'))
+    else shiftLocalWeek(1)
+  })
+  const calDelete = $('#cal-delete')
+  if (calDelete) calDelete.addEventListener('click', () => {
+    const id = getSelectedEventId()
+    if (!id) return
+    const events = STATE.calendar.events || []
+    const idx = events.findIndex((e) => e && e.id === id)
+    if (idx < 0) return
+    events.splice(idx, 1)
+    if (isOnline()) api.deleteEvent(id).catch(() => {})
+    renderCalendar()
   })
 
   const dispatchForm = $('#dispatch-form')

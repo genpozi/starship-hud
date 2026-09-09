@@ -66,7 +66,8 @@ export const SKILLS = {
       const doc = vaultWrite(ctx, {
         title: `${ctx.agent || 'ORCH'} checkpoint — ${blob}`,
         type: 'MEMORY',
-        tags: ['CORE', 'AI']
+        tags: ['CORE', 'AI'],
+        body: `Checkpoint on ${blob}. Recall: ${(recall.map((h) => h.title) || []).join('; ') || 'none'}.`
       })
       ctx.log('OK', `memory: checkpoint written to core bank (${doc.id})`)
       return { blobs: 1, id: doc.id, recall: recall.map((h) => h.title) }
@@ -84,7 +85,8 @@ export const SKILLS = {
       const doc = vaultWrite(ctx, {
         title: `${ctx.agent || 'LINK'} scan — ${path}`,
         type: 'SCHEMA',
-        tags: ['FILES', 'DATA']
+        tags: ['FILES', 'DATA'],
+        body: `Directory scan of ${path}. 0 anomalies. Index written to the knowledge core.`
       })
       ctx.log('INFO', `files: directory scanned · 0 anomalies (${doc.id})`)
       return { scanned: 128, id: doc.id }
@@ -212,7 +214,8 @@ export const SKILLS = {
         const doc = vaultWrite(ctx, {
           title: `Hermes delegate — ${prompt.slice(0, 36)}`,
           type: 'DELEGATE',
-          tags: ['HERMES', 'AI']
+          tags: ['HERMES', 'AI'],
+          body: result || prompt
         })
         return { delegated: true, result, tokens: res.tokens || 0, session_id: res.session_id, doc: doc.id }
       } catch (err) {
@@ -228,15 +231,17 @@ const REQUIRED_KEYS = ['name', 'label', 'description', 'parameters', 'needsAppro
 const MAX_VAULT = 30
 
 /** Append a real document to the canonical vault state (persisted via store). */
-function vaultWrite(ctx, { title, type, tags }) {
+function vaultWrite(ctx, { title, type, tags, body }) {
+  const text = String(body || `${title} — logged by ${ctx.agent || 'ORCH'}`).slice(0, 4000)
   const doc = {
     id: `v${Date.now()}${Math.floor(Math.random() * 99)}`,
     title,
     type,
     tags,
-    size: '12KB',
+    size: `${Math.max(1, Math.round(text.length / 1024))}KB`,
     updated: 'just now',
-    agent: ctx.agent || 'ORCH'
+    agent: ctx.agent || 'ORCH',
+    body: text
   }
   ctx.s.vault.unshift(doc)
   if (ctx.s.vault.length > MAX_VAULT) ctx.s.vault.pop()
