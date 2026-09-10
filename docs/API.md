@@ -68,8 +68,8 @@ All mutations return JSON; success mutations broadcast the new state.
 | POST | `/api/calendar/week` | `{delta?, weekStart?}` | Shift displayed week (`delta` in weeks) or jump to `weekStart` (snaps to Sunday). Refetches live events. |
 | POST | `/api/calendar/events/:id/delete` | — | Delete event `id` (best-effort remote). `404` if missing. |
 | POST | `/api/mission` | `{name, agents}` | Create a workflow mission and dispatch the listed agents. |
-| POST | `/api/checkpoint` | `{reason?}` | Capture a full-state snapshot (P10). Returns `{ok, id}`; ledger capped at 8. |
-| POST | `/api/checkpoint/rollback` | — | Restore the latest checkpoint (P10). Returns `{ok, id, slices}` — `slices` lists the top-level slices actually reverted; `409` if none available. |
+| POST | `/api/checkpoint` | `{reason?}` | Capture a full-state snapshot (P10). HUD SNAP uses `reason:'hud'`. Returns `{ok, id}`; ledger capped at 8. |
+| POST | `/api/checkpoint/rollback` | — | Restore the latest checkpoint (P10). HUD REWIND. Returns `{ok, id, slices}` — `slices` lists the top-level slices actually reverted; `409` if none available. |
 | POST | `/api/control/pause` | — | Single-operator hold (P11): sets `meta.paused`, gates dispatch pickup. Returns `{ok, id}`. |
 | POST | `/api/control/interrupt` | `{reason?, agent?, goal?}` | Interrupt with an approval card (P11) carrying `reason`/`agent`; returns `{ok, id}`. |
 | POST | `/api/control/resume` | — | Clears pause/interrupt; in-flight runs continue. Returns `{ok, resumed}`. |
@@ -103,7 +103,7 @@ snapshots and deltas.
     { "id", "name", "type", "depth", "parent", "ms", "tokenIn", "tokenOut", "ok", "ts" }
   ],
   "agents":     [{ "id", "name", "role", "state", "task", "progress", "tokens", "summary", "capabilities": [] }],
-  "workflows":  [{ "id", "name", "state", "progress", "steps", "curStep", "agents", "eta" }],
+  "workflows":  [{ "id", "name", "state", "progress", "steps", "curStep", "agents", "eta", "plan?" }],
   "kanban":     { "columns": [...], "cards": [ { "id", "title", "col", "priority", "src" } ], "done": [...] },
   "items":      [ { "id", "title", "type", "prio", "assignee", "status", "src" } ],
   "schedules":  [ { "id", "name", "cron", "agent", "next", "dur", "last", "paused", "src" } ],

@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **P11 HUD power** — command palette (`Ctrl/Cmd+K`), keyboard nav (`1`–`0`,
+  `[` `]`), SNAP/REWIND on the topbar, Health TRACE strip + reader, calendar
+  TODAY, workflow mini-DAG from `plan[]`. Docs: `docs/CONTEXT.md`,
+  `docs/EVOLUTION.md`.
+
+### Fixed
+
+- TOKEN USAGE sparkline now plots `token` (was CTX). Topbar version chrome
+  binds to `HUD_VERSION` (`2.2.0`). Comms `SYNC WARN` badge. Empty-state
+  hints. Short pending lock on item/schedule/report clicks.
+
 ## [2.2.0] — 2026-09-09
 
 ### Added

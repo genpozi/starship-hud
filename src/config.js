@@ -4,6 +4,8 @@
  * Edit these arrays to customize the dashboard.
  */
 
+export const HUD_VERSION = '2.2.0'
+
 export const SHIP = {
   name: 'STELLARIS-7',
   class: 'CLASS-VII AGENTIC EXPLORATION VESSEL',

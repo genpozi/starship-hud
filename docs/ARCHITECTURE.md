@@ -152,15 +152,18 @@ the console never goes dark.
 - **views.js** — one renderer per view; all read `STATE`. In ONLINE mode
   interactions call the API; in OFFLINE mode they mutate `STATE` directly.
   Hermes-sourced entities get a cyan `he` accent (`.kan-card.he`,
-  `.cron-row.he`, `.alert-row.he`).
+  `.cron-row.he`, `.alert-row.he`). Health TRACE strip + reader. Comms
+  `SYNC WARN` from `meta.comms.error`. Short pending lock on item/schedule/
+  report clicks.
 - **main.js** — boot, mission-control rollup renderers, view router, approval
-  card wiring, and the OFFLINE simulation fallback. Offline chat replies are
-  synthesized in-character from `STATE` (persona + vault) instead of canned
-  lines.
+  card wiring, command palette (`Ctrl/Cmd+K`), SNAP/REWIND, keyboard nav,
+  and the OFFLINE simulation fallback. Offline chat replies are synthesized
+  in-character from `STATE` (persona + vault) instead of canned lines.
+  Chat workflows stamp `plan[]` for the mission-pipeline mini-DAG.
 - **galaxy.js** — the Three.js background (spiral galaxy, nebula, starfield,
   ringed planets).
 - **config.js** — canonical constants + seed data (agents, columns, cards,
-  items, schedules, probes, alerts…) shared by seed and offline sim.
+  items, schedules, probes, alerts…) plus `HUD_VERSION` for diegetic chrome.
 
 ## Realtime protocol (WS)
 

@@ -10,6 +10,33 @@ import { api, isOnline } from './api.js'
 
 const $ = (sel) => document.querySelector(sel)
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const pendingIds = new Set()
+
+export function lockPending(id, ms = 400) {
+  if (!id) return false
+  if (pendingIds.has(id)) return false
+  pendingIds.add(id)
+  setTimeout(() => pendingIds.delete(id), ms)
+  return true
+}
+
+function isPending(id) {
+  return pendingIds.has(id)
+}
+
+function setSyncWarn(el, errs) {
+  if (!el) return
+  const n = Array.isArray(errs) ? errs.length : errs ? 1 : 0
+  if (!n) {
+    el.textContent = ''
+    el.classList.add('hidden')
+    return
+  }
+  el.textContent = n === 1 ? 'SYNC WARN' : `SYNC WARN ${n}`
+  el.classList.remove('hidden')
+  const msg = Array.isArray(errs) ? errs[0] : errs
+  if (msg) el.title = String(msg)
+}
 
 /**
  * Escape a value for safe injection into innerHTML. Every renderer routes
@@ -185,9 +212,10 @@ export function renderItems() {
     <div class="tbl-row tbl-head">
       <span>ID</span><span>TITLE</span><span>TYPE</span><span>PRIO</span><span>OWNER</span><span>STATUS</span>
     </div>
-    ${(STATE.items || []).map(
+     ${(STATE.items || []).length
+      ? (STATE.items || []).map(
       (it) => `
-    <div class="tbl-row" data-id="${escapeHtml(it.id)}">
+    <div class="tbl-row${isPending(it.id) ? ' pending' : ''}" data-id="${escapeHtml(it.id)}">
       <span class="tbl-id">${escapeHtml(it.id)}</span>
       <span class="tbl-title">${escapeHtml(it.title || it.label || '')}</span>
       <span class="tbl-type ${escapeHtml(it.type || '')}">${escapeHtml(it.type || '')}</span>
@@ -195,11 +223,12 @@ export function renderItems() {
       <span class="tbl-assignee">${escapeHtml(it.assignee || '')}</span>
       <span class="tbl-status ${escapeHtml(it.status || 'open')}">${escapeHtml(it.status || 'open').toUpperCase()}</span>
     </div>`
-    ).join('')}`
+    ).join('')
+      : '<div class="tbl-row"><span class="empty-hint">NO OPEN ITEMS ▸</span></div>'}`
   table.querySelectorAll('.tbl-row[data-id]').forEach((row) => {
     row.addEventListener('click', () => {
       const it = (STATE.items || []).find((x) => x && x.id === row.dataset.id)
-      if (!it) return
+      if (!it || !lockPending(it.id)) return
       it.status = nextItemStatus(it.status)
       if (isOnline()) api.cycleItemStatus(it.id).catch(() => {})
       renderItems()
@@ -218,9 +247,10 @@ export function renderScheduler() {
     <div class="tbl-row tbl-head">
       <span>JOB</span><span>CRON</span><span>AGENT</span><span>NEXT RUN</span><span>DURATION</span><span>LAST</span>
     </div>
-    ${(STATE.schedules || []).map(
+     ${(STATE.schedules || []).length
+      ? (STATE.schedules || []).map(
       (j) => `
-    <div class="cron-row${j.src === 'hermes' ? ' he' : ''}${j.paused ? ' paused' : ''}" data-id="${escapeHtml(j.id)}" title="${j.src === 'hermes' ? 'Hermes ingest-authoritative' : j.paused ? 'Click to resume' : 'Click to pause'}">
+    <div class="cron-row${j.src === 'hermes' ? ' he' : ''}${j.paused ? ' paused' : ''}${isPending(j.id) ? ' pending' : ''}" data-id="${escapeHtml(j.id)}" title="${j.src === 'hermes' ? 'Hermes ingest-authoritative' : j.paused ? 'Click to resume' : 'Click to pause'}">
       <span class="cron-name">${escapeHtml(j.name || j.title || '')}</span>
       <span class="cron-cron">${escapeHtml(j.cron)}</span>
       <span class="cron-agent">◈ ${escapeHtml(j.agent || '')}</span>
@@ -228,11 +258,12 @@ export function renderScheduler() {
       <span class="cron-dur">${escapeHtml(j.dur || '')}</span>
       <span class="cron-last ${escapeHtml(j.last || '')}">${escapeHtml(j.paused ? 'HOLD' : j.last || '')}</span>
     </div>`
-    ).join('')}`
+    ).join('')
+      : '<div class="cron-row"><span class="empty-hint">NO SCHEDULED JOBS ▸</span></div>'}`
   table.querySelectorAll('.cron-row[data-id]').forEach((row) => {
     row.addEventListener('click', () => {
       const job = (STATE.schedules || []).find((x) => x && x.id === row.dataset.id)
-      if (!job || job.src === 'hermes') return
+      if (!job || job.src === 'hermes' || !lockPending(job.id)) return
       job.paused = !job.paused
       if (isOnline()) api.toggleSchedule(job.id).catch(() => {})
       renderScheduler()
@@ -364,8 +395,8 @@ export function renderGraphs(telemetry) {
   const lastLat = last ? last.lat : telemetry.lat
   const lastTemp = last ? last.temp : telemetry.temp
 
-  tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">CTX: ${Math.round(lastCtx)}% · LAT: ${Math.round(lastLat)}ms · TEMP: ${Math.round(lastTemp)}°</div>` +
-    sparklineSvg(ctxSeries, { cls: 'amber' })
+  tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">TOKEN: ${Math.round(tokenSeries[tokenSeries.length - 1] || 0)}% · CTX: ${Math.round(lastCtx)}% · LAT: ${Math.round(lastLat)}ms · TEMP: ${Math.round(lastTemp)}°</div>` +
+    sparklineSvg(tokenSeries, { cls: 'amber' })
 
   const throughput = $('#graph-throughput')
   if (throughput) throughput.innerHTML = barChartSvg(latSeries.map((v) => Math.max(2, Math.round(v / 45))))
@@ -481,8 +512,10 @@ export function renderEmail() {
   const src = (STATE.meta.comms && STATE.meta.comms.email) || 'seed'
   const srcEl = $('#email-source')
   if (srcEl) srcEl.textContent = String(src).toUpperCase()
+  const mailErrs = (STATE.email && STATE.email._errors) || (STATE.meta.comms && STATE.meta.comms.email !== 'seed' ? STATE.meta.comms.error : null)
+  setSyncWarn($('#email-sync-warn'), mailErrs)
   const selectedId = selectedEmailId
-  list.innerHTML = rows.map(
+  list.innerHTML = rows.length ? rows.map(
     (e) => `
   <div class="email-row ${e.read ? '' : 'unread'}${e.src && e.src !== 'seed' ? ' he' : ''}${e.id === selectedId ? ' selected' : ''}" data-id="${escapeHtml(e.id)}">
     <span class="email-from">${escapeHtml(e.from)}</span>
@@ -490,9 +523,9 @@ export function renderEmail() {
       <div class="email-subject">${escapeHtml(e.subject)}</div>
       <div class="email-preview">${escapeHtml(e.preview)}</div>
     </div>
-    <span class="email-time">${escapeHtml(e.time)}</span>
+     <span class="email-time">${escapeHtml(e.time)}</span>
   </div>`
-  ).join('')
+  ).join('') : '<span class="empty-hint">NO MESSAGES IN THIS FOLDER ▸</span>'
   list.querySelectorAll('.email-row').forEach((row) => {
     row.addEventListener('click', () => {
       const e = rows.find((x) => x.id === row.dataset.id)
@@ -544,6 +577,8 @@ export function renderCalendar() {
   const src = (STATE.meta.comms && STATE.meta.comms.calendar) || 'seed'
   const srcEl = $('#cal-source')
   if (srcEl) srcEl.textContent = String(src).toUpperCase()
+  const calErrs = (STATE.calendar.events && STATE.calendar.events._errors) || (STATE.meta.comms && STATE.meta.comms.calendar !== 'seed' ? STATE.meta.comms.error : null)
+  setSyncWarn($('#cal-sync-warn'), calErrs)
   const start = 8
   const end = 18
   let html = '<div></div>' + weekdays.map((d) => `<div class="cal-day-head">${d}</div>`).join('')
@@ -694,9 +729,58 @@ export function renderHealth(logs, filter = 'ALL') {
   if (grid) _renderProbeGrid(grid, STATE.probes)
 
   const box = $('#health-log')
-  if (!box) return
-  const rows = Array.isArray(logs) && filter !== 'ALL' ? logs.filter((l) => l.level === filter) : Array.isArray(logs) ? logs : []
-  renderHealthLog(box, rows)
+  if (box) {
+    const rows = Array.isArray(logs) && filter !== 'ALL' ? logs.filter((l) => l.level === filter) : Array.isArray(logs) ? logs : []
+    renderHealthLog(box, rows)
+  }
+  renderTrace()
+}
+
+// ============================================================================
+// TRACE
+// ============================================================================
+let selectedSpanId = null
+
+export function renderTrace() {
+  const list = $('#trace-list')
+  if (!list) return
+  const spans = (STATE.trace || []).slice(0, 12)
+  const count = $('#trace-count')
+  if (count) count.textContent = `${(STATE.trace || []).length} SPANS`
+  if (!spans.length) {
+    list.innerHTML = '<span class="empty-hint">NO SPANS YET ▸</span>'
+  } else {
+    list.innerHTML = spans.map((s) => `
+      <div class="trace-row${s.ok === false ? ' fail' : ''}${s.id === selectedSpanId ? ' selected' : ''}" data-id="${escapeHtml(s.id)}">
+        <span class="trace-name">${escapeHtml(s.name || s.type || 'span')}</span>
+        <span>${Number(s.ms || 0)}ms</span>
+        <span>${Number(s.tokenIn || 0)}/${Number(s.tokenOut || 0)} TK</span>
+        <span>${s.ok === false ? 'FAIL' : 'OK'}</span>
+      </div>`).join('')
+    list.querySelectorAll('.trace-row[data-id]').forEach((row) => {
+      row.addEventListener('click', () => {
+        selectedSpanId = row.dataset.id
+        renderTrace()
+      })
+    })
+  }
+  const reader = $('#trace-reader')
+  if (!reader) return
+  const span = (STATE.trace || []).find((s) => s && s.id === selectedSpanId)
+  if (!span) {
+    reader.innerHTML = '<span class="empty-hint">SELECT A SPAN ▸</span>'
+    return
+  }
+  reader.innerHTML = `
+    <div class="reader-head">
+      <div class="reader-subject">${escapeHtml(span.name || span.type || 'span')}</div>
+      <div class="reader-meta">
+        <span>${escapeHtml(span.id)}</span>
+        <span>${Number(span.ms || 0)} ms</span>
+        <span>${span.ok === false ? 'FAIL' : 'OK'}</span>
+      </div>
+    </div>
+    <div class="reader-body">depth ${Number(span.depth || 0)} · in ${Number(span.tokenIn || 0)} / out ${Number(span.tokenOut || 0)} · parent ${escapeHtml(span.parent || 'root')}</div>`
 }
 
 // ============================================================================
@@ -736,6 +820,7 @@ export function renderReports() {
       const r = (STATE.reports || []).find((x) => x && x.id === card.dataset.id)
       if (!r) return
       if (e.target && e.target.classList && e.target.classList.contains('report-status')) {
+        if (!lockPending(r.id)) return
         r.status = nextReportStatus(r.status)
         r.updated = 'just now'
         if (isOnline()) api.cycleReportStatus(r.id).catch(() => {})

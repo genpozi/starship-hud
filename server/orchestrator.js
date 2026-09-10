@@ -741,7 +741,8 @@ export class Orchestrator {
       steps: steps.map(() => 0),
       curStep: 0,
       agents: new Set(steps.map((s) => s.agent)).size,
-      eta: `${Math.round(steps.length * 4)} min`
+      eta: `${Math.round(steps.length * 4)} min`,
+      plan: steps.map((s) => ({ title: s.title, agent: s.agent, dependsOn: s.dependsOn || [] }))
     }
     this.s.workflows.unshift(wf)
     this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0, completed: new Set() })

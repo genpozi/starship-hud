@@ -180,9 +180,12 @@ Out: GitHub issue write-back, Hermes cron create, orchestration research leftove
 
 ## Remaining (not in this slice)
 
-HUD Phase 10 done: Items, Scheduler, Vault, Reports, Graphs polish.
-Orchestration research leftovers: server-side channel reducers, AgentSpec vs
-AgentRuntime split, parse/execute/reflect tool cycle, handoffs-as-tools,
-AsyncLocalStorage traces, WS `Command(resume)`.
+See `docs/EVOLUTION.md`. P11 (palette, SNAP/REWIND, TRACE, TODAY, graph truth,
+SYNC WARN) is implemented on this branch. P12 CLI / P13 multi-operator / P14
+filesystem vault are later.
+
+Orchestration research leftovers stay out: server-side channel reducers,
+AgentSpec vs AgentRuntime split, parse/execute/reflect tool cycle,
+handoffs-as-tools, AsyncLocalStorage traces, WS `Command(resume)`.
 Comms still out: raw IMAP/SMTP, multi-login per provider, binary attachment
 download, EXDATE/RDATE, CalDAV REPORT.

@@ -43,9 +43,10 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 
 ### Mission-control reliability
 
-- **Checkpoints + rollback (P10)** — a boot-guard snapshot plus on-demand full-state snapshots (capped ledger of 8); one REST call restores the previous state and reports exactly which slices were reverted.
+- **Checkpoints + rollback (P10)** — a boot-guard snapshot plus on-demand full-state snapshots (capped ledger of 8); SNAP / REWIND on the topbar (or REST) restores the previous state and reports exactly which slices were reverted.
 - **Single-operator interrupt (P11)** — pause/resume via the topbar button or API. In-flight steps finish, dispatch pickup halts, and an interrupt card tells you who stopped the run.
-- **Trace / span telemetry (P12)** — every run/tool call records a span with `ms` + token accounting, streamed to the client as typed events.
+- **Trace / span telemetry (P12)** — every run/tool call records a span with `ms` + token accounting; Health TRACE strip + reader.
+- **Command palette** — `Ctrl/Cmd+K` jumps views, pause, snap, rewind, ACK ALL, TODAY, compose. `1`–`0` / `[` `]` cycle the rail.
 
 ### Realtime data plane
 
@@ -55,7 +56,7 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 
 ### Views
 
-12 focused screens — **Mission Control** (rollup), **Kanban**, **Open Items**, **Scheduler**, **Chat**, **Graphs**, **Vault**, **Email**, **Calendar**, **Alerts**, **System Health**, **Research Reports**.
+12 focused screens — **Mission Control** (rollup), **Kanban**, **Open Items**, **Scheduler**, **Chat**, **Graphs**, **Vault**, **Email** (folders, reply, compose attach), **Calendar** (week PREV/NEXT/TODAY), **Alerts**, **System Health** (TRACE), **Research Reports** (readers + status cycle).
 
 ### Optional live integrations
 
@@ -76,7 +77,9 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 | **Graphs & Analytics** | **System Health** | **Alerts** |
 | ![Graphs](assets/screenshots/graphs.png) | ![Health](assets/screenshots/health.png) | ![Alerts](assets/screenshots/alerts.png) |
 
-> **Vault** — knowledge core with tagged docs and runbooks (`assets/screenshots/vault.png`).
+> **Vault** — knowledge core with tagged docs and a reader pane (`assets/screenshots/vault.png`). Live preview for Email folders, Calendar week nav, Items/Scheduler, Reports.
+
+> Further evolution: `docs/EVOLUTION.md`. Working context: `docs/CONTEXT.md`.
 
 ### Walkthrough video
 
@@ -210,7 +213,7 @@ npm test
 ├── docker-compose.yml    # orbit + optional mock, orbit-data volume
 ├── LICENSE · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md
 ├── .github/              # CI workflow, issue/PR templates
-├── docs/                 # architecture, API, developer, deployment, research
+├── docs/                 # architecture, API, developer, deployment, research, CONTEXT, EVOLUTION
 ├── assets/screenshots/   # README gallery captures
 ├── server/               # orbit backend
 │   ├── index.js          # express + ws entry point
@@ -274,6 +277,8 @@ All dashboard content lives in `src/config.js`. Edit the exports to rename the s
 - [x] Single-operator interrupt / pause / resume (P11)
 - [x] Trace / span telemetry streamed as typed events (P12)
 - [x] GitHub + Hermes WebUI live integrations (operator-supplied creds)
+- [x] Email/calendar (Gmail, Graph, ICS, CalDAV) + HUD folders/week-nav/attach
+- [x] Command palette, SNAP/REWIND, TRACE HUD, TODAY
 - [ ] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
 - [ ] Multi-operator sessions + per-operator approval routing
 

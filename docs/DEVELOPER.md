@@ -260,8 +260,8 @@ npm run build     # vite build — must stay green
 - The 16 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
   `skills`, `chat`, `regression`, `views`, `superstep`, `channels`,
   `checkpoints`, `interrupt`, `trace`, `comms`, `integration`. `views` headless-renders
-  every HUD view via a DOM shim (its `REQUIRED` list guards the full slice
-  contract); `superstep` guards the P8 dependency barrier; `channels` guards
+  every HUD view via a DOM shim (its `REQUIRED` list plus `renderTrace` guards
+  the full slice contract); `superstep` guards the P8 dependency barrier; `channels` guards
   the P9 typed reducers; `checkpoints` guards P10 snapshot/rollback; `interrupt`
   guards P11 hold/resume; `trace` guards the P12 span tree. `integration` boots
   a real orbit server on an isolated port + `STELLARIS_DATA_DIR` and exercises
