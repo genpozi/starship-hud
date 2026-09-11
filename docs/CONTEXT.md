@@ -10,8 +10,8 @@ WebSocket orbit server is the single source of truth. The Vite SPA mirrors
 state in 12 views over a 3D galaxy. Offline sim keeps the console alive if
 the orbit is down.
 
-**Version:** `2.2.0` (Phase 1–10 + Final repo format). Branch of record for
-the 2.2.0 cut: `260909-feat-comms-depth-hud-interact` (`a7fb9a6`). PR:
+**Version:** `2.2.0` (Phase 1–10 + P11–P14 on this branch). Branch of record
+for the 2.2.0 cut: `260909-feat-comms-depth-hud-interact`. PR:
 https://github.com/genpozi/starship-hud/pull/2
 
 ## Contract (do not break)
@@ -20,7 +20,7 @@ https://github.com/genpozi/starship-hud/pull/2
 - **No extra npm runtime deps.** No orbit crash on upstream 4xx/5xx.
 - Operator credentials only via `USER_*` / `GITHUB_*` in `.env` (never commit).
 - Live email/calendar rows **match HUD seed shapes** so renderers do not branch on source.
-- `npm test` (16 suites) and `npm run build` stay green.
+- `npm test` (19 suites) and `npm run build` stay green.
 - Offline: mutate `STATE` locally. Online: REST, then WS snapshot/delta confirms.
 
 ## Surfaces (12)
@@ -32,6 +32,8 @@ Click-to-mutate (online REST / offline `STATE`): kanban advance, item status
 cycle, scheduler pause (seed only; Hermes `409`), report status cycle, email
 compose/archive/reply/folders, calendar BOOK/week/TODAY/delete, alert ACK, chat,
 dispatch, pause/resume, SNAP/REWIND, approval. Command palette `Ctrl/Cmd+K`.
+Vault/Reports title+tag filter. Compose file chips; WARN over the 200KB cap.
+Operator chip (HUD setting + `USER_OPERATOR_NAME`); pause is single-holder.
 
 ## Live integrations (operator-supplied)
 
@@ -50,7 +52,8 @@ dispatch, pause/resume, SNAP/REWIND, approval. Command palette `Ctrl/Cmd+K`.
 
 - Server: `data/state.json` (or `STELLARIS_DATA_DIR`). Boot-guard checkpoint.
 - Browser: `src/store.js` `STATE`. WS snapshot + delta (`seq` gap → resync).
-- Vault docs are **state objects with `body`**, not `data/vault/*.md`.
+- Vault docs are **markdown files** (`data/vault/{id}.md` + front matter). Skills
+  write the file first, then the state row. Boot hydrates files onto `state.vault`.
 - Scheduler pause is HUD/REST local. Hermes cron rows stay ingest-authoritative.
 
 ## Key files
@@ -62,10 +65,12 @@ dispatch, pause/resume, SNAP/REWIND, approval. Command palette `Ctrl/Cmd+K`.
 | `server/index.js` | Express + `/ws` + REST |
 | `src/views.js` | 12 renderers + readers + selection state |
 | `src/main.js` | Boot, router, offline sim, chrome |
-| `src/api.js` | WS + REST helpers |
+| `src/api.js` | WS + REST helpers + operatorId |
+| `bin/stellaris-hud.js` | P12 CLI (`serve` / `demo` / `probe`) |
 | `src/config.js` | Seed + crew + `HUD_VERSION` |
+| `server/vault.js` | P14 filesystem vault (`*.md` + front matter) |
 | `docs/PLAN.md` | Phases 1–10 DONE |
-| `docs/EVOLUTION.md` | P11–P14 plan |
+| `docs/EVOLUTION.md` | P11–P14 (P14 filesystem vault DONE) |
 | `docs/API.md` | REST/WS contract |
 | `docs/COMMS-INTEGRATION.md` | Provider contract |
 

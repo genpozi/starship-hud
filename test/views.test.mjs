@@ -211,6 +211,21 @@ STATE.items = savedItems
 views.renderItems()
 pass('HUD_VERSION is 2.2.0', HUD_VERSION === '2.2.0')
 
+pass('matchesKnowledge empty query matches all', views.matchesKnowledge({ title: 'x', tags: [] }, '') === true)
+pass('matchesKnowledge title typeahead', views.matchesKnowledge({ title: 'System architecture overview', tags: ['ARCH'] }, 'archit') === true)
+pass('matchesKnowledge tag filter', views.matchesKnowledge({ title: 'Release checklist', tags: ['RELEASE'] }, 'release') === true)
+pass('matchesKnowledge miss', views.matchesKnowledge({ title: 'Webhook', tags: ['INTEGRATION'] }, 'zzz') === false)
+
+makeElement('#vault-filter').value = 'ARCH'
+views.renderVault()
+pass('vault filter shows matching docs', String(makeElement('#vault-grid').innerHTML).toLowerCase().includes('architecture'))
+pass('vault filter hides others', !String(makeElement('#vault-grid').innerHTML).toLowerCase().includes('webhook'))
+makeElement('#vault-filter').value = 'zzz'
+views.renderVault()
+pass('vault filter empty hint', String(makeElement('#vault-grid').innerHTML).includes('NO MATCHING DOCS'))
+makeElement('#vault-filter').value = ''
+views.renderVault()
+
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))
 console.log(fails.length || errors ? `\n${fails.length + errors} FAILURES` : '\nALL PASS')

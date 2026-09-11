@@ -266,10 +266,33 @@ try {
   const mission = await missionRes.json()
   pass('POST /api/mission ok', mission.ok === true)
 
+  const pauseAlice = await fetch(`${BASE}/api/control/pause`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operatorId: 'alice' })
+  })
+  pass('POST /api/control/pause alice ok', pauseAlice.ok)
+  const pauseBob = await fetch(`${BASE}/api/control/pause`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operatorId: 'bob' })
+  })
+  pass('POST /api/control/pause bob → 409', pauseBob.status === 409)
+  const resumeAlice = await fetch(`${BASE}/api/control/resume`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operatorId: 'alice' })
+  })
+  pass('POST /api/control/resume alice ok', resumeAlice.ok)
+
   // ---- WS: snapshot on connect ----
   const { ws, frames, waiters } = await wsOpen(4000)
   const snap = await nextFrame({ frames, waiters }, 4000)
   pass('WS snapshot on connect', snap.type === 'snapshot' && Array.isArray(snap.state.agents))
+  ws.send(JSON.stringify({ type: 'hello', operatorId: 'alice', name: 'alice' }))
+  await new Promise((r) => setTimeout(r, 80))
+  const afterHello = await (await fetch(`${BASE}/api/state`)).json()
+  pass('WS hello records operator', Array.isArray(afterHello.meta.operators) && afterHello.meta.operators.some((x) => x.id === 'alice'))
 
   // ---- WS: ping -> pong echo ----
   ws.send(JSON.stringify({ type: 'ping' }))

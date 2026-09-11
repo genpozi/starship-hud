@@ -4,6 +4,9 @@
   "version": "2.2.0",
   "type": "module",
   "description": "STELLARIS-7 — starship HUD mission control and multi-agent orchestration harness",
+  "bin": {
+    "stellaris-hud": "bin/stellaris-hud.js"
+  },
   "scripts": {
     "dev": "vite",
     "dev:server": "node --env-file-if-exists=.env server/index.js",

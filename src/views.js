@@ -6,7 +6,7 @@
  */
 
 import { STATE } from './store.js'
-import { api, isOnline } from './api.js'
+import { api, isOnline, getOperatorId } from './api.js'
 
 const $ = (sel) => document.querySelector(sel)
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -327,7 +327,11 @@ export function renderApproval() {
   const detail = $('#approval-detail')
   if (agent) agent.textContent = (p.from || 'HERMES') + ' ▸ tool: ' + (p.tool || 'tool')
   if (summary) summary.textContent = p.summary || 'Hermes requests approval'
-  if (detail) detail.textContent = p.detail || ''
+  const mine = !p.owner || p.owner === getOperatorId()
+  card.classList.toggle('foreign', !mine)
+  if (detail) detail.textContent = mine ? (p.detail || '') : `AWAITING OWNER ${p.owner}`
+  const actions = card.querySelector('.approval-actions')
+  if (actions) actions.classList.toggle('hidden', !mine)
 }
 
 // ============================================================================
@@ -425,11 +429,41 @@ export function getSelectedVaultId() {
   return selectedVaultId
 }
 
+export function knowledgeQuery(raw) {
+  return String(raw || '').trim().toLowerCase()
+}
+
+export function matchesKnowledge(item, q) {
+  if (!q) return true
+  if (!item) return false
+  const title = String(item.title || '').toLowerCase()
+  if (title.includes(q)) return true
+  const type = String(item.type || '').toLowerCase()
+  if (type.includes(q)) return true
+  const tags = (item.tags || []).map((t) => String(t).toLowerCase())
+  return tags.some((t) => t.includes(q) || q.includes(t))
+}
+
+function filterKnowledge(items, sel) {
+  const q = knowledgeQuery($(sel)?.value)
+  return (items || []).filter((item) => matchesKnowledge(item, q))
+}
+
+function setKnowledgeCount(sel, shown, total, unit) {
+  const el = $(sel)
+  if (!el) return
+  const label = unit || 'DOCS'
+  el.textContent = shown === total ? `${total} ${label}` : `${shown}/${total} ${label}`
+}
+
 export function renderVault() {
   const grid = $('#vault-grid')
   if (!grid) return
-  $('#vault-count').textContent = `${STATE.vault.length} DOCS`
-  grid.innerHTML = (STATE.vault || []).map(
+  const all = STATE.vault || []
+  const docs = filterKnowledge(all, '#vault-filter')
+  setKnowledgeCount('#vault-count', docs.length, all.length, 'DOCS')
+  grid.innerHTML = docs.length
+    ? docs.map(
     (d) => `
   <div class="vault-card${d.id === selectedVaultId ? ' selected' : ''}" data-id="${escapeHtml(d.id)}" title="Open ${escapeHtml(d.title)}">
     <div class="vault-title">${escapeHtml(d.title)}</div>
@@ -441,6 +475,7 @@ export function renderVault() {
     <div class="vault-tags">${(d.tags || []).map((t) => `<span class="vault-tag">${escapeHtml(t)}</span>`).join('')}</div>
   </div>`
   ).join('')
+    : '<span class="empty-hint">NO MATCHING DOCS ▸</span>'
   grid.querySelectorAll('.vault-card').forEach((card) => {
     card.addEventListener('click', () => {
       selectedVaultId = card.dataset.id || null
@@ -449,7 +484,7 @@ export function renderVault() {
   })
   const reader = $('#vault-reader')
   if (!reader) return
-  const doc = (STATE.vault || []).find((d) => d && d.id === selectedVaultId)
+  const doc = all.find((d) => d && d.id === selectedVaultId)
   if (!doc) {
     reader.innerHTML = '<span class="empty-hint">SELECT A DOCUMENT ▸</span>'
     return
@@ -802,8 +837,11 @@ export function getSelectedReportId() {
 export function renderReports() {
   const grid = $('#reports-grid')
   if (!grid) return
-  $('#reports-count').textContent = `${STATE.reports.length} DOCS`
-  grid.innerHTML = (STATE.reports || []).map(
+  const all = STATE.reports || []
+  const rows = filterKnowledge(all, '#reports-filter')
+  setKnowledgeCount('#reports-count', rows.length, all.length, 'DOCS')
+  grid.innerHTML = rows.length
+    ? rows.map(
     (r) => `
   <div class="report-card${r.id === selectedReportId ? ' selected' : ''}" data-id="${escapeHtml(r.id)}" title="Open ${escapeHtml(r.title)}">
     <div class="report-title">${escapeHtml(r.title)}</div>
@@ -815,9 +853,10 @@ export function renderReports() {
     <div class="report-tags">${(r.tags || []).map((t) => `<span class="report-tag">${escapeHtml(t)}</span>`).join('')}</div>
   </div>`
   ).join('')
+    : '<span class="empty-hint">NO MATCHING REPORTS ▸</span>'
   grid.querySelectorAll('.report-card').forEach((card) => {
     card.addEventListener('click', (e) => {
-      const r = (STATE.reports || []).find((x) => x && x.id === card.dataset.id)
+      const r = all.find((x) => x && x.id === card.dataset.id)
       if (!r) return
       if (e.target && e.target.classList && e.target.classList.contains('report-status')) {
         if (!lockPending(r.id)) return
@@ -831,7 +870,7 @@ export function renderReports() {
   })
   const reader = $('#reports-reader')
   if (!reader) return
-  const doc = (STATE.reports || []).find((r) => r && r.id === selectedReportId)
+  const doc = all.find((r) => r && r.id === selectedReportId)
   if (!doc) {
     reader.innerHTML = '<span class="empty-hint">SELECT A REPORT ▸</span>'
     return

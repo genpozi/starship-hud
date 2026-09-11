@@ -50,6 +50,10 @@
 
         <div class="topbar-right">
           <span class="hud-version" id="hud-version" title="HUD Build">v2.2.0</span>
+          <label class="operator-chip" title="Operator identity">
+            <span>OP</span>
+            <input id="operator-id" class="operator-id" type="text" spellcheck="false" maxlength="40" placeholder="operator" />
+          </label>
           <div class="threat-gauge">
             <span class="gauge-label">THREAT LEVEL</span>
             <span class="gauge-value" id="threat-level">ALPHA</span>
@@ -311,6 +315,9 @@
                   <span class="panel-sub">DOCUMENTS & SCHEMAS</span>
                   <span class="panel-tag" id="vault-count">0 DOCS</span>
                 </div>
+                <div class="knowledge-filter-row">
+                  <input id="vault-filter" class="dispatch-input knowledge-filter" type="search" placeholder="Filter title or tag…" spellcheck="false" />
+                </div>
                 <div id="vault-grid" class="vault-grid"></div>
               </div>
               <div class="hud-panel panel vault-read-panel">
@@ -348,6 +355,7 @@
                   <input id="email-body" class="dispatch-input" type="text" placeholder="Body" spellcheck="false" />
                   <input id="email-attach" class="email-attach" type="file" multiple />
                   <button id="email-send" class="hud-btn mini" type="submit">SEND</button>
+                  <div id="email-attach-chips" class="attach-chips"></div>
                 </form>
               </div>
               <div class="hud-panel panel email-read-panel">
@@ -462,6 +470,9 @@
                   <h2>RESEARCH REPORTS</h2>
                   <span class="panel-sub">FLEET FINDINGS</span>
                   <span class="panel-tag" id="reports-count">0 DOCS</span>
+                </div>
+                <div class="knowledge-filter-row">
+                  <input id="reports-filter" class="dispatch-input knowledge-filter" type="search" placeholder="Filter title or tag…" spellcheck="false" />
                 </div>
                 <div id="reports-grid" class="reports-grid"></div>
               </div>

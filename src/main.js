@@ -1,6 +1,6 @@
 import './style.css'
 import { STATE, applyServerState } from './store.js'
-import { connect, api, isOnline, linkState } from './api.js'
+import { connect, api, isOnline, linkState, getOperatorId, setOperatorId } from './api.js'
 import { TOOLS, SHIP, AGENDA, HUD_VERSION } from './config.js'
 import {
   renderKanban,
@@ -340,6 +340,8 @@ function renderRollup() {
   const pauseLabel = $('#pause-label')
   if (pauseLabel) pauseLabel.textContent = STATE.meta.paused ? 'RESUME' : 'PAUSE'
   if (pauseBtn) pauseBtn.classList.toggle('active', !!STATE.meta.paused)
+  const opEl = $('#operator-id')
+  if (opEl && document.activeElement !== opEl) opEl.value = getOperatorId()
   if (STATE.meta.paused) {
     sys.innerHTML = `<span class="status-dot warn"></span> OPERATIONS PAUSED · ${src}`
   } else if (bad) {
@@ -728,6 +730,14 @@ export async function boot() {
   bindPalette()
   bindKeys()
 
+  const opEl = $('#operator-id')
+  if (opEl) {
+    opEl.value = getOperatorId()
+    const commitOp = () => setOperatorId(opEl.value)
+    opEl.addEventListener('change', commitOp)
+    opEl.addEventListener('blur', commitOp)
+  }
+
   const seedLogs = [
     'INFO', 'HUD link established — all subsystems nominal',
     'OK', 'Agent fleet handshake complete (6/6)',
@@ -781,17 +791,42 @@ export async function boot() {
       dispatchAgent.appendChild(opt)
     })
   }
-  function readComposeAttachments(input) {
-    const files = Array.from(input?.files || [])
-    if (!files.length) return Promise.resolve([])
-    const cap = 200000
-    let total = 0
+  const COMPOSE_CAP = 200000
+  function pickComposeFiles(files) {
+    const list = Array.from(files || [])
     const chosen = []
-    for (const f of files) {
-      if (total + f.size > cap) break
+    const dropped = []
+    let total = 0
+    for (const f of list) {
+      if (f.size > COMPOSE_CAP || total + f.size > COMPOSE_CAP) {
+        dropped.push(f)
+        continue
+      }
       total += f.size
       chosen.push(f)
     }
+    return { chosen, dropped }
+  }
+  function renderAttachChips(chosen) {
+    const el = $('#email-attach-chips')
+    if (!el) return
+    el.innerHTML = (chosen || []).map((f) => {
+      const kb = Math.max(1, Math.round((Number(f.size) || 0) / 1024))
+      return `<span class="attach-chip">${escapeHtml(f.name || 'file')} · ${kb}KB</span>`
+    }).join('')
+  }
+  function warnDropped(dropped) {
+    ;(dropped || []).forEach((f) => log('WARN', `Attach ${f.name} exceeds 200KB cap`))
+  }
+  function syncComposeAttachments(input) {
+    const { chosen, dropped } = pickComposeFiles(input?.files)
+    renderAttachChips(chosen)
+    warnDropped(dropped)
+    return chosen
+  }
+  function readComposeAttachments(input) {
+    const { chosen } = pickComposeFiles(input?.files)
+    if (!chosen.length) return Promise.resolve([])
     return Promise.all(chosen.map((f) => new Promise((resolve) => {
       const reader = new FileReader()
       reader.onload = () => {
@@ -803,6 +838,14 @@ export async function boot() {
       reader.readAsDataURL(f)
     }))).then((parts) => parts.filter(Boolean))
   }
+
+  const vaultFilter = $('#vault-filter')
+  if (vaultFilter) vaultFilter.addEventListener('input', () => renderVault())
+  const reportsFilter = $('#reports-filter')
+  if (reportsFilter) reportsFilter.addEventListener('input', () => renderReports())
+
+  const attachInputLive = $('#email-attach')
+  if (attachInputLive) attachInputLive.addEventListener('change', () => syncComposeAttachments(attachInputLive))
 
   const emailForm = $('#email-compose')
   if (emailForm) emailForm.addEventListener('submit', (e) => {
@@ -817,6 +860,7 @@ export async function boot() {
       $('#email-subject').value = ''
       $('#email-body').value = ''
       if (attachInput) attachInput.value = ''
+      renderAttachChips([])
       log('INFO', `Compose → ${to}: ${subject}`)
       if (isOnline()) api.sendMail(to, subject, body, attachments).then(() => {
         setEmailFolder('sent')

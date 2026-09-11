@@ -5,9 +5,17 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Orchestrator } from './orchestrator.js'
 import { validateSkills } from './skills.js'
+import { loadStellarisConfig } from './cli-config.js'
+
+loadStellarisConfig()
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 3001
+
+function operatorIdFrom(req) {
+  const body = req.body || {}
+  return body.operatorId || req.get('x-stellaris-operator') || ''
+}
 
 const app = express()
 const server = createServer(app)
@@ -51,7 +59,7 @@ app.post('/api/chat', async (req, res) => {
   const { text } = req.body || {}
   if (!text || typeof text !== 'string') return res.status(400).json({ ok: false })
   try {
-    const result = await orchestrator.handleChat(text)
+    const result = await orchestrator.handleChat(text, { operatorId: operatorIdFrom(req) })
     res.json(result)
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
@@ -61,7 +69,7 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/dispatch', (req, res) => {
   const { task, agent } = req.body || {}
   if (!task || !agent) return res.status(400).json({ ok: false })
-  orchestrator.dispatchTask(task, agent)
+  orchestrator.dispatchTask(task, agent, operatorIdFrom(req))
   res.json({ ok: true })
 })
 
@@ -98,7 +106,9 @@ app.post('/api/alerts/ack-all', (_req, res) => {
 app.post('/api/approval/respond', (req, res) => {
   const { choice } = req.body || {}
   if (!['approve', 'deny'].includes(choice)) return res.status(400).json({ ok: false, error: 'choice must be approve|deny' })
-  res.json(orchestrator.respondApproval(choice))
+  const result = orchestrator.respondApproval(choice, operatorIdFrom(req))
+  if (!result.ok && result.error === 'not owner') return res.status(403).json(result)
+  res.json(result)
 })
 
 app.post('/api/checkpoint', (req, res) => {
@@ -113,17 +123,23 @@ app.post('/api/checkpoint/rollback', (_req, res) => {
   res.json({ ok: true, id: result.id, slices: result.slices })
 })
 
-app.post('/api/control/pause', (_req, res) => {
-  res.json(orchestrator.pause())
+app.post('/api/control/pause', (req, res) => {
+  const result = orchestrator.pause(req.body && req.body.reason, operatorIdFrom(req))
+  if (!result.ok) return res.status(409).json(result)
+  res.json(result)
 })
 
 app.post('/api/control/interrupt', (req, res) => {
   const { reason, agent, goal } = req.body || {}
-  res.json(orchestrator.interrupt(reason, { agent, goal }))
+  const result = orchestrator.interrupt(reason, { agent, goal, operatorId: operatorIdFrom(req) })
+  if (!result.ok) return res.status(409).json(result)
+  res.json(result)
 })
 
-app.post('/api/control/resume', (_req, res) => {
-  res.json(orchestrator.resume())
+app.post('/api/control/resume', (req, res) => {
+  const result = orchestrator.resume(operatorIdFrom(req))
+  if (!result.ok) return res.status(409).json(result)
+  res.json(result)
 })
 
 app.post('/api/email/send', async (req, res) => {
@@ -209,8 +225,11 @@ wss.on('connection', (ws) => {
     } else if (msg.type === 'resync') {
       // client detected a seq gap — re-send the current snapshot
       orchestrator.snapshot(ws)
+    } else if (msg.type === 'hello') {
+      orchestrator.hello(ws, msg)
     }
   })
+  ws.on('close', () => orchestrator.goodbye(ws))
 })
 
 // heartbeat: app-level {type:'ping'} every 15s per client; terminate clients

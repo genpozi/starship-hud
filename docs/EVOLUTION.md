@@ -21,15 +21,13 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 | Optimistic click pending lock | **P11.2** |
 | Trace + checkpoint HUD | **P11.3** |
 | Command palette + keyboard | **P11.4** |
-| Vault filter, compose chips, calendar TODAY | P11.5 (if energy) |
-| Packaged CLI `stellaris-hud serve` | P12 later |
-| Multi-operator sessions | P13 later |
-| Filesystem `data/vault/*.md` | P14 optional |
+| Vault filter, compose chips, calendar TODAY | **P11.5** |
+| Packaged CLI `stellaris-hud serve` | **P12** |
+| Multi-operator sessions | **P13** |
+| Filesystem `data/vault/*.md` | **P14** |
 | Binary downloads, EXDATE, CalDAV REPORT, multi-login | Defer |
 
-P11.1–11.4 **implemented** on this branch (TODAY shipped with 11.4). Vault
-filter / compose chips remain P11.5. Stop after P11 unless an operator asks
-for P12+.
+P11.1–11.5, P12, P13, and P14 **implemented** on this branch.
 
 ```mermaid
 graph TD
@@ -37,7 +35,7 @@ graph TD
     P11["P11 Premium evidence and HUD power"]
     P12["P12 Operator packaging"]
     P13["P13 Multi-operator"]
-    P14["P14 Knowledge core optional"]
+    P14["P14 Knowledge core"]
     Base --> P11
     P11 --> P12
     P12 --> P13
@@ -75,11 +73,11 @@ REST already exists (`POST /api/checkpoint`, rollback, `STATE.trace`, pause).
 - `Esc` closes palette / clears readers. `R` replies when an email is selected.
 - Ignore keys while focus is in an input. Respect `prefers-reduced-motion`.
 
-### 11.5 Knowledge + comms UX (optional follow-up)
+### 11.5 Knowledge + comms UX
 
-- Vault/Reports tag filter + title typeahead.
+- Vault/Reports tag filter + title typeahead (`#vault-filter` / `#reports-filter`).
 - Compose: selected-file chips; WARN log when a file exceeds the 200KB cap.
-- Calendar TODAY (snap `weekStart` to this Sunday).
+- Calendar TODAY (snap `weekStart` to this Sunday) — shipped with 11.4.
 
 ### Verify
 
@@ -91,24 +89,28 @@ REST already exists (`POST /api/checkpoint`, rollback, `STATE.trace`, pause).
 
 README checkbox. `bin/stellaris-hud.js`: `serve` (orbit + `dist`), `demo`,
 `probe`. Config `.stellaris.json` mirroring `.env.example`; env still wins.
-Zero extra runtime deps. No plugin system.
+Zero extra runtime deps. No plugin system. **DONE.**
 
 ## P13 — Multi-operator sessions
 
 `meta.operators[]`. WS hello carries `operatorId`. Approval routes to the run
 owner. Pause stays single-holder (`409`). Identity = HUD setting + optional
-`USER_OPERATOR_NAME`. No in-app OAuth.
+`USER_OPERATOR_NAME`. No in-app OAuth. **DONE.**
 
-## P14 — Real knowledge core (optional)
+## P14 — Real knowledge core
 
-Only if vault should be files again. `data/vault/*.md` + front matter; skills
-write files then state; `STELLARIS_DATA_DIR` isolates tests. Until then,
-state-backed `body` is the honest model — do not re-lie in docs.
+`data/vault/*.md` + YAML-like front matter. Skills and mission completion write
+the file first, then the in-memory state row. Orbit boot `hydrateVault()` overlays
+files onto `state.vault` (files win on matching ids; file-only docs prepend).
+`STELLARIS_DATA_DIR` isolates tests. HUD shape unchanged (`id/title/type/tags/size/updated/agent/body`). **DONE.**
 
-## Implementation notes (P11)
+## Implementation notes (P11–P14)
 
 - No new npm packages.
 - Selection (email/event/vault/report/span) stays in `views.js` module state.
 - Palette lives in `index.html` + `src/main.js`; commands call existing `api.*`.
 - `handleChat` stamps `wf.plan` (`title`, `agent`, `dependsOn`) for the DAG.
 - Pending lock is client-only (`Set` of ids, ~400ms).
+- CLI: `bin/stellaris-hud.js` + `server/cli-config.js`; env wins over `.stellaris.json`.
+- Operators: WS `hello`, `meta.operators[]`, pause holder `409`, approval `owner`.
+- Vault: `server/vault.js`; never throws on IO; cap 30; seed rows stay until a file overlays them.

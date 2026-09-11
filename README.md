@@ -12,7 +12,7 @@
   <a href="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml"><img src="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff" alt="stack"/>
   <img src="https://img.shields.io/badge/license-MIT-ffb347" alt="license"/>
-  <img src="https://img.shields.io/badge/tests-16%20suites-39ff88" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-19%20suites-39ff88" alt="tests"/>
   <img src="https://img.shields.io/badge/node-20%2B-83a598" alt="node"/>
   <img src="https://img.shields.io/badge/status-production--ready-39ff88" alt="status"/>
   <img src="https://img.shields.io/badge/deps-0%20audit%20vulns-39ff88" alt="deps"/>
@@ -39,14 +39,17 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 - **Six crew agents** (`ORCHESTRATOR`, `CODA`, `PILOT`, `SAGE`, `LINK`, `NUDGE`) with state machines, typed tool schemas, retry policies, and error states — no spinning forever.
 - **Superstep DAG scheduling (P8)** — operator goals are planned into steps with `dependsOn` chains; a step only starts once every dependency has completed. No more all-in-parallel chaos.
 - **Operator chat console** — `@AGENT` mentions pin the plan and reply to a specific agent; replies are synthesized in-character and grounded in the fleet's own knowledge vault.
-- **Approval bridge** — tools that need a human in the loop surface an approval card in the HUD (`approve` / `deny` / timeout).
+- **Approval bridge** — tools that need a human in the loop surface an approval card in the HUD (`approve` / `deny` / timeout). Routed to the run owner (P13).
+- **Operator packaging (P12)** — `stellaris-hud serve` / `demo` / `probe`. `.stellaris.json` mirrors `.env.example`; env still wins.
 
 ### Mission-control reliability
 
 - **Checkpoints + rollback (P10)** — a boot-guard snapshot plus on-demand full-state snapshots (capped ledger of 8); SNAP / REWIND on the topbar (or REST) restores the previous state and reports exactly which slices were reverted.
-- **Single-operator interrupt (P11)** — pause/resume via the topbar button or API. In-flight steps finish, dispatch pickup halts, and an interrupt card tells you who stopped the run.
+- **Single-holder interrupt (P11/P13)** — pause/resume via the topbar button or API. In-flight steps finish, dispatch pickup halts. A second operator gets `409` until the holder resumes.
 - **Trace / span telemetry (P12)** — every run/tool call records a span with `ms` + token accounting; Health TRACE strip + reader.
 - **Command palette** — `Ctrl/Cmd+K` jumps views, pause, snap, rewind, ACK ALL, TODAY, compose. `1`–`0` / `[` `]` cycle the rail.
+- **Knowledge filters** — Vault/Reports title+tag typeahead; compose file chips with a WARN when an attachment exceeds the 200KB cap.
+- **Filesystem vault (P14)** — `data/vault/*.md` + front matter; skills write the file first, then state.
 
 ### Realtime data plane
 
@@ -124,6 +127,14 @@ npm run build
 npm start
 ```
 
+Or the packaged CLI (`serve` = orbit + `dist`; `demo` = mock + orbit; `probe` =
+Hermes contract). Copy `.stellaris.json.example` to `.stellaris.json` (env still
+wins):
+
+```bash
+npx stellaris-hud serve
+```
+
 ### Optional LLM planning
 
 Copy `.env.example` to `.env` and set `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL`. The chat planner will then ask the model to decompose operator goals into orchestrated steps. Without a key it uses the deterministic heuristic planner — fully offline.
@@ -183,7 +194,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 ## Testing
 
-16 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
+19 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
 
 ```bash
 npm test
@@ -197,6 +208,8 @@ npm test
 | `superstep` / `channels` / `checkpoints` / `interrupt` / `trace` | P8 dependency barrier, P9 reducers, P10 snapshots, P11 hold/resume, P12 spans |
 | `comms` | Gmail/Graph/ICS mappers, merge, inbound, rfc822 (no network) |
 | `regression` | review-fix guards (escapeHtml, in-flight gating, mention detection) |
+| `cli` / `operators` | P12 argv + `.stellaris.json` (env wins); P13 hello/pause-holder/approval owner |
+| `vault` | P14 filesystem knowledge core (front matter, file-then-state, hydrate) |
 | `integration` | boots a real orbit server — full REST + WebSocket surface |
 
 ---
@@ -225,8 +238,10 @@ npm test
 │   ├── checkpoints.js    # P10 snapshot/rollback (capped ledger)
 │   ├── store.js · seed.js# JSON persistence + seed from src/config.js
 │   ├── github.js · hermes.js · hermes-ingest.js · hermes-contract.js
+│   ├── cli-config.js · operators.js · vault.js
 │   └── mock-hermes.js    # hermes-webui test double
-├── test/                 # 16 suites + run-all.mjs (fresh mock per suite)
+├── bin/stellaris-hud.js  # P12 CLI: serve / demo / probe
+├── test/                 # 19 suites + run-all.mjs (fresh mock per suite)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router
@@ -279,8 +294,9 @@ All dashboard content lives in `src/config.js`. Edit the exports to rename the s
 - [x] GitHub + Hermes WebUI live integrations (operator-supplied creds)
 - [x] Email/calendar (Gmail, Graph, ICS, CalDAV) + HUD folders/week-nav/attach
 - [x] Command palette, SNAP/REWIND, TRACE HUD, TODAY
-- [ ] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
-- [ ] Multi-operator sessions + per-operator approval routing
+- [x] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
+- [x] Multi-operator sessions + per-operator approval routing
+- [x] Filesystem vault (`data/vault/*.md` + front matter)
 
 ---
 

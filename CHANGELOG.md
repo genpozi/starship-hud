@@ -12,6 +12,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `[` `]`), SNAP/REWIND on the topbar, Health TRACE strip + reader, calendar
   TODAY, workflow mini-DAG from `plan[]`. Docs: `docs/CONTEXT.md`,
   `docs/EVOLUTION.md`.
+- **P11.5 knowledge + compose UX** — Vault/Reports title+tag filter, compose
+  file chips, WARN log when an attachment exceeds the 200KB cap.
+- **P12 operator packaging** — `bin/stellaris-hud.js` (`serve` / `demo` /
+  `probe`); `.stellaris.json` mirrors `.env.example` (env still wins).
+- **P13 multi-operator** — `meta.operators[]`, WS `hello` with `operatorId`,
+  approval routes to the run owner, pause is single-holder (`409`).
+- **P14 filesystem vault** — `data/vault/*.md` + front matter; skills and
+  mission reports write the file first, then state. Boot hydrates files onto
+  `state.vault`. Isolated via `STELLARIS_DATA_DIR`.
 
 ### Fixed
 

@@ -16,6 +16,7 @@ import { reduceEvent } from './channels.js'
 const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 30000
 const CONNECT_TIMEOUT_MS = 4000
+const OPERATOR_KEY = 'stellaris.operatorId'
 let ws = null
 let closedByUs = false
 let online = false
@@ -24,12 +25,41 @@ let backoffMs = BASE_BACKOFF_MS
 let reconnectTimer = null
 // link state: 'connecting' (attempt in flight) | 'online' | 'offline'
 let link = 'connecting'
+let operatorId = 'operator'
+
+export function normalizeOperatorId(raw) {
+  const s = String(raw || 'operator')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+  return s || 'operator'
+}
+
+try {
+  if (typeof localStorage !== 'undefined') operatorId = normalizeOperatorId(localStorage.getItem(OPERATOR_KEY) || 'operator')
+} catch {}
+
+export function getOperatorId() {
+  return operatorId
+}
+
+export function setOperatorId(id) {
+  operatorId = normalizeOperatorId(id)
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(OPERATOR_KEY, operatorId)
+  } catch {}
+  send({ type: 'hello', operatorId, name: operatorId })
+  return operatorId
+}
 
 async function post(path, body) {
+  const payload = { ...(body || {}), operatorId }
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body || {})
+    headers: { 'Content-Type': 'application/json', 'X-Stellaris-Operator': operatorId },
+    body: JSON.stringify(payload)
   })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
   return res.json()
@@ -89,6 +119,7 @@ export function connect({ onOnline, onOffline } = {}) {
     online = true
     link = 'online'
     backoffMs = BASE_BACKOFF_MS
+    send({ type: 'hello', operatorId, name: operatorId })
     if (onOnline) onOnline()
   }
   ws.onmessage = (ev) => {

@@ -349,6 +349,25 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 
 .view-title { font-family: var(--font-display); font-size: 12px; letter-spacing: 1.5px; color: var(--amber); display: block; margin-top: 2px; text-shadow: var(--glow-amber); }
 
+.operator-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.operator-id {
+  width: 88px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-main);
+  background: rgba(0, 240, 255, 0.04);
+  border: 1px solid var(--cyan-dim);
+  padding: 3px 6px;
+}
+.approval-card.foreign .approval-actions { display: none; }
 .hud-version {
   font-family: var(--font-mono);
   font-size: 8.5px;
@@ -921,6 +940,12 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 .vault-type { color: var(--cyan); }
 .vault-tags { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
 .vault-tag { font-family: var(--font-mono); font-size: 7.5px; color: var(--text-dim); border: 1px solid rgba(111, 184, 204, 0.2); padding: 1px 5px; text-transform: uppercase; }
+.knowledge-filter-row {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--divider);
+  flex: none;
+}
+.knowledge-filter { width: 100%; }
 
 /* ============================================================================
    EMAIL
@@ -963,6 +988,7 @@ input::selection, textarea::selection { background: rgba(0, 240, 255, 0.35); col
 }
 .email-folder-tab.active { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(0, 240, 255, 0.08); }
 .attach-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.comms-form .attach-chips { flex: 1 1 100%; margin-top: 0; }
 .attach-chip {
   font-family: var(--font-mono);
   font-size: 8px;

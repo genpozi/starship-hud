@@ -19,6 +19,8 @@ client verifies delta continuity and requests a resync on any gap.
 | server → | `{type:'ping'}` | Liveness probe every ~15s. |
 | client → | `{type:'pong'}` | Required reply to `ping`; 3 missed = connection terminated. |
 | client → | `{type:'resync'}` | Client saw a `seq` gap; server answers with a fresh snapshot. |
+| client → | `{type:'hello', operatorId, name?}` | P13 session identity. Roster lives in `meta.operators[]`. |
+| server | WS `close` | Drops that socket from `meta.operators[]` (`goodbye`). |
 
 Client handling in `src/api.js`:
 
@@ -50,15 +52,15 @@ All mutations return JSON; success mutations broadcast the new state.
 
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
-| POST | `/api/chat` | `{text}` | Operator goal. Detects a direct `@AGENT` mention (pins plan + reply owner), plans into steps (P8 `dependsOn` chains preserved), creates a workflow, queues agents, and replies with a synthesized answer. Returns `{ok, steps, agent}`. |
-| POST | `/api/dispatch` | `{task, agent}` | Manually queue a task for an agent. |
+| POST | `/api/chat` | `{text, operatorId?}` | Operator goal. Detects a direct `@AGENT` mention (pins plan + reply owner), plans into steps (P8 `dependsOn` chains preserved), creates a workflow, queues agents, and replies with a synthesized answer. Returns `{ok, steps, agent}`. `operatorId` (or `X-Stellaris-Operator`) stamps the run owner. |
+| POST | `/api/dispatch` | `{task, agent, operatorId?}` | Manually queue a task for an agent. |
 | POST | `/api/kanban/:id/advance` | — | Move card `id` to the next column (removes if already `done`). |
 | POST | `/api/items/:id/status` | — | Cycle item status `open → watch → review → closed`. `404` if missing. |
 | POST | `/api/schedules/:id/pause` | — | Toggle pause on a seed job. Hermes rows return `409`. `404` if missing. |
 | POST | `/api/reports/:id/status` | — | Cycle report status `draft → review → published`. `404` if missing. |
 | POST | `/api/alerts/:id/ack` | — | Acknowledge alert `id`. |
 | POST | `/api/alerts/ack-all` | — | Acknowledge every active alert. Returns `{ok, acked}`. |
-| POST | `/api/approval/respond` | `{choice: 'approve'\|'deny'}` | Resolve the pending Hermes approval. `400` if choice invalid; `{ok:false,error}` if none pending. |
+| POST | `/api/approval/respond` | `{choice: 'approve'\|'deny', operatorId?}` | Resolve the pending Hermes approval. `400` if choice invalid; `{ok:false,error}` if none pending; `403` if not the run owner. |
 | POST | `/api/email/:id/read` | — | Mark email `id` read (numeric index still accepted). |
 | POST | `/api/email/:id/archive` | — | Move email `id` to `folder:'archive'` (best-effort remote). |
 | POST | `/api/email/send` | `{to, subject, body, attachments?}` | Send mail via Gmail/Graph, or a local sent-copy when no provider. Optional `attachments` are `{name, mime, data}` base64 parts (capped ~200KB). `400` if `to`/`subject` missing. |
@@ -70,9 +72,9 @@ All mutations return JSON; success mutations broadcast the new state.
 | POST | `/api/mission` | `{name, agents}` | Create a workflow mission and dispatch the listed agents. |
 | POST | `/api/checkpoint` | `{reason?}` | Capture a full-state snapshot (P10). HUD SNAP uses `reason:'hud'`. Returns `{ok, id}`; ledger capped at 8. |
 | POST | `/api/checkpoint/rollback` | — | Restore the latest checkpoint (P10). HUD REWIND. Returns `{ok, id, slices}` — `slices` lists the top-level slices actually reverted; `409` if none available. |
-| POST | `/api/control/pause` | — | Single-operator hold (P11): sets `meta.paused`, gates dispatch pickup. Returns `{ok, id}`. |
-| POST | `/api/control/interrupt` | `{reason?, agent?, goal?}` | Interrupt with an approval card (P11) carrying `reason`/`agent`; returns `{ok, id}`. |
-| POST | `/api/control/resume` | — | Clears pause/interrupt; in-flight runs continue. Returns `{ok, resumed}`. |
+| POST | `/api/control/pause` | `{reason?, operatorId?}` | Single-operator hold (P11/P13): sets `meta.paused`, gates dispatch pickup. Returns `{ok, id}`. Second holder gets `409`. |
+| POST | `/api/control/interrupt` | `{reason?, agent?, goal?, operatorId?}` | Interrupt with an approval card (P11) carrying `reason`/`agent`; returns `{ok, id}`. `409` if another operator holds pause. |
+| POST | `/api/control/resume` | `{operatorId?}` | Clears pause/interrupt; in-flight runs continue. Returns `{ok, resumed}`. `409` if not the holder. |
 
 ## State shape
 
@@ -89,11 +91,13 @@ snapshots and deltas.
     "lastSync": 0,                               // github/hermes last poll
     "hermes": { "status", "url", "model", "checkedAt" },  // when hermes bridge enabled
     "paused": false,                             // P11 interrupt state
+    "operators": [ { "id", "name", "seenAt" } ], // P13 connected HUD sessions
+    "operatorDefault": "operator",               // USER_OPERATOR_NAME fallback
     "bootCheckpointId": "ckpt_...",              // P10 boot-guard snapshot id
     "lastRollback": null | { "ts", "id", "slices": [] }  // most recent rollback
   },
   "approval": {
-    "pending": null | { "id", "tool", "summary", "detail", "from", "choice", "at" },
+    "pending": null | { "id", "tool", "summary", "detail", "from", "owner", "choice", "at" },
     "history": [ ...resolved approvals, newest first, bounded 20 ]
   },
   "checkpoints": [
@@ -108,7 +112,7 @@ snapshots and deltas.
   "items":      [ { "id", "title", "type", "prio", "assignee", "status", "src" } ],
   "schedules":  [ { "id", "name", "cron", "agent", "next", "dur", "last", "paused", "src" } ],
   "chat":       [...], "dispatch": [...],
-  "vault":      [ { "id", "title", "type", "tags", "size", "updated", "agent", "body" } ],
+  "vault":      [ { "id", "title", "type", "tags", "size", "updated", "agent", "body", "file?" } ],
   "email":      [{ "id", "from", "to", "subject", "preview", "body", "time", "label", "read", "prio", "folder", "src" }],
   "calendar":   { "events": [{ "id", "day", "start", "end", "title", "type", "agents", "src" }], "day": 0, "weekStart", "weekLabel" },
   "alerts":     [ { "id", "level", "msg", "src", "ack" } ],

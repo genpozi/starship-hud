@@ -1,4 +1,5 @@
 import { retrieve } from './knowledge.js'
+import { vaultWrite } from './vault.js'
 
 /**
  * SKILLS // Typed tool registry agents use to execute steps.
@@ -6,8 +7,8 @@ import { retrieve } from './knowledge.js'
  * Every skill carries structured metadata — name, label, description, an
  * explicit parameter schema, approval/usage policy — plus an executor that
  * mutates shared state and emits log lines. Skills are intentionally sandboxed
- * / simulated; extend `executors` to add real integrations (shell, file
- * system, APIs).
+ * / simulated except `memory` / `files` / `hermes`, which persist vault
+ * markdown via `server/vault.js`.
  */
 
 export const SKILLS = {
@@ -227,26 +228,6 @@ export const SKILLS = {
 }
 
 const REQUIRED_KEYS = ['name', 'label', 'description', 'parameters', 'needsApproval', 'maxUsageCount', 'execute']
-
-const MAX_VAULT = 30
-
-/** Append a real document to the canonical vault state (persisted via store). */
-function vaultWrite(ctx, { title, type, tags, body }) {
-  const text = String(body || `${title} — logged by ${ctx.agent || 'ORCH'}`).slice(0, 4000)
-  const doc = {
-    id: `v${Date.now()}${Math.floor(Math.random() * 99)}`,
-    title,
-    type,
-    tags,
-    size: `${Math.max(1, Math.round(text.length / 1024))}KB`,
-    updated: 'just now',
-    agent: ctx.agent || 'ORCH',
-    body: text
-  }
-  ctx.s.vault.unshift(doc)
-  if (ctx.s.vault.length > MAX_VAULT) ctx.s.vault.pop()
-  return doc
-}
 
 /**
  * Validate the tool registry. Throws on duplicate names or malformed entries.

@@ -180,9 +180,7 @@ Out: GitHub issue write-back, Hermes cron create, orchestration research leftove
 
 ## Remaining (not in this slice)
 
-See `docs/EVOLUTION.md`. P11 (palette, SNAP/REWIND, TRACE, TODAY, graph truth,
-SYNC WARN) is implemented on this branch. P12 CLI / P13 multi-operator / P14
-filesystem vault are later.
+See `docs/EVOLUTION.md`. P11–P14 are implemented on this branch.
 
 Orchestration research leftovers stay out: server-side channel reducers,
 AgentSpec vs AgentRuntime split, parse/execute/reflect tool cycle,

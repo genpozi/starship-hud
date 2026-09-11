@@ -12,7 +12,7 @@
 
 ## Verification
 
-- [ ] `npm test` green (all 16 suites)
+- [ ] `npm test` green (all 19 suites)
 - [ ] `npm run build` green
 - [ ] Tested live via `/api/*` + `/ws` (or OFFLINE sim if frontend-only)
 - [ ] Screenshot / preview checked for visual changes

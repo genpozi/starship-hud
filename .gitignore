@@ -108,6 +108,7 @@
 **/.env
 **/.env.local
 **/.env.*.local
+**/.stellaris.json
 *.pem
 *.key
 

@@ -28,6 +28,7 @@ server/
                       chat mention routing + reply dispatch
   planner.js          LLM (if keyed) or heuristic goal decomposition
   knowledge.js        read-only retrieval over state (vault/reports/cards/...)
+  vault.js            filesystem knowledge core (data/vault/*.md + front matter)
   replies.js          conversational reply synthesis (persona + knowledge)
   skills.js           typed tool registry (search/shell/coder/memory/files/terminal/mail/calendar/hermes)
   comms.js            Gmail / Graph / ICS adapters, inbound webhook, sync loop
@@ -38,16 +39,20 @@ server/
   hermes-ingest.js    reverse ingest: sessions/crons → kanban/items/scheduler/alerts
   hermes-contract.js  npm run probe CLI — live-WebUI contract validation
   mock-hermes.js      standalone test double (hermes-webui API) on :8787/:8788
+  cli-config.js       .stellaris.json loader (env wins)
+  operators.js        operatorId normalize + default name
+bin/stellaris-hud.js  P12 CLI: serve / demo / probe
 test/
   run-all.mjs         spawns a fresh mock, runs every suite as a child process
   hermes.test.mjs, hermes-ingest.test.mjs, phase4.test.mjs,
   github.test.mjs, planner.test.mjs, skills.test.mjs, chat.test.mjs,
-  comms.test.mjs
+  comms.test.mjs, cli.test.mjs, operators.test.mjs, vault.test.mjs
 scripts/              demo.sh (mock+orbit+vite), probe.sh (contract check)
 Dockerfile            multi-stage, non-root, healthcheck
 docker-compose.yml    orbit + optional mock, orbit-data volume
 .env.example          canonical operator-credential reference (never commit values)
-data/                 runtime state (gitignored): state.json, hermes-ingest.json
+.stellaris.json.example  P12 declarative config (copy to .stellaris.json)
+data/                 runtime state (gitignored): state.json, vault/*.md, hermes-ingest.json
 ```
 
 ## 2. Data model
@@ -109,6 +114,8 @@ POST /api/chat {text}
 ### Sources of truth
 
 - **Server** writes canonical state to `data/state.json` (debounced).
+- **Vault** markdown lives in `data/vault/*.md` (P14); skills write the file
+  first, then the state row. Boot hydrates files onto `state.vault`.
 - **Browser** never mutates shared state; it POSTs and applies the broadcast.
 - **Offline fallback** clones the config-derived defaults in `store.js` and
   simulates locally so the console never goes dark.
@@ -238,7 +245,7 @@ board source.
 | `USER_COMMS_POLL_MS` | inbox/calendar poll interval (default `120000`) |
 | `USER_COMMS_WEBHOOK_SECRET` | optional `X-Stellaris-Secret` for `POST /api/comms/inbound` |
 | `PORT` | orbit HTTP/WS port (default `3001`) |
-| `STELLARIS_DATA_DIR` | runtime state dir (default `<repo>/data`); lets tests / parallel instances isolate state |
+| `STELLARIS_DATA_DIR` | runtime state dir (default `<repo>/data`); isolates `state.json` and `vault/*.md` |
 
 Without any of them the harness runs fully offline with seed data
 (`meta.dataSource: 'seed'`).
@@ -246,7 +253,7 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-npm test          # run-all.mjs → fresh mock on :8788 → all 16 suites
+npm test          # run-all.mjs → fresh mock on :8788 → all 19 suites
 npm run probe     # validate a live Hermes WebUI (add --url / --password)
 npm run build     # vite build — must stay green
 ```
@@ -257,9 +264,9 @@ npm run build     # vite build — must stay green
   continuously). Each suite runs as its own child with `MOCK_URL` +
   `USER_HERMES_URL` exported. Failures are surfaced per suite; exit code 1 on
   any red.
-- The 16 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
+- The 19 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
   `skills`, `chat`, `regression`, `views`, `superstep`, `channels`,
-  `checkpoints`, `interrupt`, `trace`, `comms`, `integration`. `views` headless-renders
+  `checkpoints`, `interrupt`, `trace`, `comms`, `cli`, `operators`, `vault`, `integration`. `views` headless-renders
   every HUD view via a DOM shim (its `REQUIRED` list plus `renderTrace` guards
   the full slice contract); `superstep` guards the P8 dependency barrier; `channels` guards
   the P9 typed reducers; `checkpoints` guards P10 snapshot/rollback; `interrupt`

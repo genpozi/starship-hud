@@ -24,8 +24,12 @@ the console never goes dark.
 │                              │           │  server/hermes.js   Hermes client │
 │                              │           │  server/hermes-ingest.js  reverse │
 │                              │           │  server/hermes-contract.js  probe │
+│                              │           │  server/cli-config.js   json cfg  │
+│                              │           │  server/operators.js    identity  │
+│                              │           │  server/vault.js     md knowledge │
 │                              │           │  server/mock-hermes.js  test seam │
 │                              │           │  data/state.json     snapshot     │
+│                              │           │  data/vault/*.md     knowledge    │
 └──────────────────────────────┘           └───────────────────────────────────┘
 ```
 
@@ -91,8 +95,11 @@ the console never goes dark.
   titles are validated so the step machine never runs an unregistered tool or
   a dangling dependency.
 - **knowledge.js** — read-only retrieval layer over canonical state (vault
-  docs, reports, kanban cards, items, schedules, probes, email, calendar). `retrieve()` returns
+  docs including markdown bodies, reports, kanban cards, items, schedules, probes, email, calendar). `retrieve()` returns
   ranked hits; `digest()` summarizes. Pure function of state.
+- **vault.js** — P14 filesystem knowledge core. `data/vault/{id}.md` + front
+  matter; `vaultWrite` writes the file first then the state row; `hydrateVault`
+  overlays files onto `state.vault` at boot. Honors `STELLARIS_DATA_DIR`.
 - **replies.js** — conversational reply synthesis. `synthesizeReply()` renders
   a grounded, in-character answer (agent persona + knowledge hits) via the LLM
   when keyed, else a deterministic heuristic — including honest "I don't have
@@ -108,7 +115,7 @@ the console never goes dark.
   parse, inbound webhook normalize, `mergeComms` (keeps `src:'local'`), sync loop.
   Env-driven; seed fallback; never throws into the orbit.
 - **store.js** — JSON persistence (`data/state.json`) with debounced flush;
-  `markDirty()`.
+  `markDirty()`. Vault markdown lives beside it in `data/vault/`.
 - **seed.js** — derives the initial state from `src/config.js` so the server
   and the OFFLINE sim start from identical data.
 - **github.js** — optional GitHub → board sync. ETag polling with persisted

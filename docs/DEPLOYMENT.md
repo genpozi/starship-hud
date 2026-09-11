@@ -85,10 +85,11 @@ Quick facts:
 ## 5. Tests & verification
 
 ```bash
-npm test          # 16 suites: hermes client, reverse ingest, phase-4 engine,
+npm test          # 19 suites: hermes client, reverse ingest, phase-4 engine,
                   # github mapping, planner, skills, chat, regression, views,
                   # superstep, channels, checkpoints, interrupt, trace,
-                  # comms (mappers/ICS/merge, no network), integration
+                  # comms (mappers/ICS/merge, no network), cli, operators,
+                  # vault (filesystem knowledge core), integration
 npm run build     # frontend bundle must compile
 ```
 
@@ -96,6 +97,8 @@ npm run build     # frontend bundle must compile
 
 - `data/state.json` is the persisted runtime state (gitignored). Back it up
   before upgrades; it self-heals from seed on corrupt/missing reads.
+- `data/vault/*.md` is the filesystem knowledge core (P14). Skills write files
+  first, then state; boot hydrates markdown onto `state.vault`.
 - The scheduler rows with `src:'hermes'` are authoritative from upstream — the
   seed emulator never overwrites them.
 - Rotate `GITHUB_TOKEN` / `USER_HERMES_PASSWORD` / any LLM key / OAuth refresh
