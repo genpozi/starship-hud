@@ -6,12 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-09-13
+
 ### Added
 
 - **P11 HUD power** — command palette (`Ctrl/Cmd+K`), keyboard nav (`1`–`0`,
   `[` `]`), SNAP/REWIND on the topbar, Health TRACE strip + reader, calendar
-  TODAY, workflow mini-DAG from `plan[]`. Docs: `docs/CONTEXT.md`,
-  `docs/EVOLUTION.md`.
+  TODAY, workflow mini-DAG from `plan[]`.
 - **P11.5 knowledge + compose UX** — Vault/Reports title+tag filter, compose
   file chips, WARN log when an attachment exceeds the 200KB cap.
 - **P12 operator packaging** — `bin/stellaris-hud.js` (`serve` / `demo` /
@@ -21,6 +22,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **P14 filesystem vault** — `data/vault/*.md` + front matter; skills and
   mission reports write the file first, then state. Boot hydrates files onto
   `state.vault`. Isolated via `STELLARIS_DATA_DIR`.
+- **Comms depth (Phase 9)** — CalDAV PUT/DELETE via `USER_CALDAV_URL`, ICS
+  `RRULE` expand into the displayed week, multi-source inbox/calendar merge,
+  attachment metadata + capped compose parts. HUD folder tabs, reply, week
+  PREV/NEXT, event delete, and a compose file picker (~200KB cap). REST:
+  `POST /api/calendar/week`, `POST /api/calendar/events/:id/delete`;
+  `/api/email/send` accepts `attachments`.
+- **HUD interactivity (Phase 10)** — Items cycle status, scheduler pause/resume
+  (seed jobs only), vault/report reader panes, report status cycle. REST:
+  `POST /api/items/:id/status`, `POST /api/schedules/:id/pause`,
+  `POST /api/reports/:id/status`. Graphs success sparkline from `hist[].jobs`;
+  TOKEN USAGE keeps a dedicated `STREAMING` tag plus a budget caption.
 
 ### Changed
 
@@ -33,22 +45,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - TOKEN USAGE sparkline now plots `token` (was CTX). Topbar version chrome
   binds to `HUD_VERSION` (`2.2.0`). Comms `SYNC WARN` badge. Empty-state
   hints. Short pending lock on item/schedule/report clicks.
-
-## [2.2.0] — 2026-09-09
-
-### Added
-
-- **Comms depth (Phase 9)** — CalDAV PUT/DELETE via `USER_CALDAV_URL`, ICS
-  `RRULE` expand into the displayed week, multi-source inbox/calendar merge,
-  attachment metadata + capped compose parts. HUD folder tabs, reply, week
-  PREV/NEXT, event delete, and a compose file picker (~200KB cap). REST:
-  `POST /api/calendar/week`, `POST /api/calendar/events/:id/delete`;
-  `/api/email/send` accepts `attachments`.
-- **HUD interactivity (Phase 10)** — Items cycle status, scheduler pause/resume
-  (seed jobs only), vault/report reader panes, report status cycle. REST:
-  `POST /api/items/:id/status`, `POST /api/schedules/:id/pause`,
-  `POST /api/reports/:id/status`. Graphs success sparkline from `hist[].jobs`;
-  TOKEN USAGE keeps a dedicated `STREAMING` tag plus a budget caption.
 
 ## [2.1.0] — 2026-09-08
 

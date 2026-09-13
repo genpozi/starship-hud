@@ -11,7 +11,7 @@ state in 12 views over a 3D galaxy. Offline sim keeps the console alive if
 the orbit is down.
 
 **Version:** `2.2.0` (Phase 1–10 shipped; P11–P14 on this branch as
-`eb204c0`). Branch of record: `260909-feat-comms-depth-hud-interact`. PR:
+`fa71aa1`). Branch of record: `260909-feat-comms-depth-hud-interact`. PR:
 https://github.com/genpozi/starship-hud/pull/2
 
 ## Contract (do not break)
