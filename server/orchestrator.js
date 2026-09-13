@@ -7,6 +7,8 @@ import { beginTrace, childSpan, endSpan, flattenTrace } from './trace.js'
 import { captureCheckpoint, rollbackToLatest } from './checkpoints.js'
 import { PROBES as DEFAULT_PROBES } from '../src/config.js'
 import { AGENTS as AGENTS_DEFAULTS } from '../src/config.js'
+import { defaultOperatorName, normalizeOperatorId } from './operators.js'
+import { hydrateVault, vaultWrite } from './vault.js'
 
 /**
  * ORCHESTRATOR // The core engine of the harness.
@@ -41,6 +43,8 @@ export class Orchestrator {
     this.timers = []
     this.paused = false
     this._interrupt = null
+    this._pauseHolder = null
+    this._sessions = new Map()
 
     // realtime protocol state
     this._seq = 0
@@ -114,6 +118,8 @@ export class Orchestrator {
 
     this.s.meta.dataSource = this.s.meta.dataSource || 'seed'
     this.s.meta.comms = this.s.meta.comms || { email: 'seed', calendar: 'seed', lastSync: null, error: null }
+    this.s.meta.operators = Array.isArray(this.s.meta.operators) ? this.s.meta.operators : []
+    this._syncOperators()
     if (this.s.calendar && !this.s.calendar.weekStart) {
       const now = new Date()
       const sun = new Date(now)
@@ -130,6 +136,18 @@ export class Orchestrator {
     ;(this.s.calendar && this.s.calendar.events || []).forEach((ev, i) => {
       if (ev && !ev.id) ev.id = `seed-c${i + 1}`
       if (ev && !ev.src) ev.src = 'seed'
+    })
+    ;(this.s.schedules || []).forEach((j, i) => {
+      if (j && !j.id) j.id = `c${i + 1}`
+      if (j && j.paused == null) j.paused = false
+    })
+    if (!Array.isArray(this.s.vault)) this.s.vault = []
+    hydrateVault(this.s)
+    ;(this.s.vault || []).forEach((d) => {
+      if (d && d.body == null) d.body = ''
+    })
+    ;(this.s.reports || []).forEach((r) => {
+      if (r && r.body == null) r.body = r.abstract || ''
     })
 
     // approval bridge state (Hermes delegation approvals; operator responds via HUD)
@@ -162,6 +180,51 @@ export class Orchestrator {
 
   get s() {
     return this.store.data
+  }
+
+  _operatorId(raw) {
+    return normalizeOperatorId(raw)
+  }
+
+  _syncOperators() {
+    const seen = new Map()
+    for (const sess of this._sessions.values()) {
+      if (!sess || !sess.id) continue
+      seen.set(sess.id, { id: sess.id, name: sess.name || sess.id, seenAt: sess.seenAt || Date.now() })
+    }
+    const list = [...seen.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)))
+    this.s.meta.operators = list
+    if (!this.s.meta.operatorDefault) this.s.meta.operatorDefault = defaultOperatorName()
+    return list
+  }
+
+  hello(client, msg = {}) {
+    const id = this._operatorId(msg.operatorId)
+    const name = String(msg.name || msg.operatorId || defaultOperatorName()).trim() || id
+    if (client) {
+      client.operatorId = id
+      this._sessions.set(client, { id, name, seenAt: Date.now() })
+    }
+    this._syncOperators()
+    this.store.markDirty()
+    return { ok: true, operatorId: id }
+  }
+
+  goodbye(client) {
+    if (client && this._sessions.has(client)) {
+      this._sessions.delete(client)
+      this._syncOperators()
+      this.store.markDirty()
+    }
+  }
+
+  _pauseConflict(operatorId) {
+    const holder = this._pauseHolder || (this._interrupt && this._interrupt.operatorId) || null
+    if (!this.paused && !this._interrupt) return null
+    if (!holder) return null
+    const id = this._operatorId(operatorId)
+    if (holder === id) return null
+    return { ok: false, error: 'pause held', holder }
   }
 
   // ---- infrastructure ---- //
@@ -361,7 +424,7 @@ export class Orchestrator {
       broadcast: (msg) => this.broadcast(msg),
       hermes: this.hermes || null,
       approvalMode: this.approvalMode || 'prompt',
-      awaitApproval: (payload) => this._awaitApproval(payload, a.name),
+      awaitApproval: (payload) => this._awaitApproval(payload, a.name, job && job.operatorId),
       task: job && job.task,
       step: step && step.title
     }
@@ -466,16 +529,13 @@ export class Orchestrator {
    */
   _logMission(name) {
     const ts = Date.now()
-    this.s.vault.unshift({
+    vaultWrite({ agent: 'ORCH', s: this.s }, {
       id: `v${ts}`,
       title: `Mission report — ${name}`,
       type: 'REPORT',
       tags: ['MISSION', 'ORCH'],
-      size: '24KB',
-      updated: 'just now',
-      agent: 'ORCH'
+      body: `Mission ${name} completed. Fleet tokens ${Math.round(this.s.meta.tokenTotal)}. Report archived to the knowledge core.`
     })
-    if (this.s.vault.length > 30) this.s.vault.pop()
     this.s.reports.unshift({
       id: `r${ts}`,
       title: `${name} — run summary`,
@@ -483,7 +543,8 @@ export class Orchestrator {
       status: 'draft',
       tags: ['ORCH', 'MISSION'],
       updated: 'just now',
-      abstract: `Auto-generated on mission completion. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged to the core bank.`
+      abstract: `Auto-generated on mission completion. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged to the core bank.`,
+      body: `Mission ${name} completed. ${Math.round(this.s.meta.tokenTotal)} fleet tokens logged. Superstep DAG honored; vault archive written.`
     })
     if (this.s.reports.length > 12) this.s.reports.pop()
     this.log('OK', `vault: mission report archived — ${name}`)
@@ -637,7 +698,7 @@ export class Orchestrator {
       // hermes-ingested rows are authoritative from the upstream poller; the
       // seed-only emulator must not overwrite their real status/next-run.
       if (job.src === 'hermes') return
-      // every job roughly checks if its minute window has passed; emulate next-run
+      if (job.paused) return
       if (Math.random() < 0.01) {
         job.last = Math.random() < 0.9 ? 'OK' : 'WARN'
         job.next = this._nextCronLabel(job.cron)
@@ -713,7 +774,8 @@ export class Orchestrator {
    * agent, the plan and the reply are pinned to that agent; otherwise the
    * first step's owner answers.
    */
-  async handleChat(text) {
+  async handleChat(text, { operatorId } = {}) {
+    const owner = this._operatorId(operatorId)
     this.pushChat('USER', text)
     const target = this._detectMention(text)
     let steps = await plan(text)
@@ -729,10 +791,12 @@ export class Orchestrator {
       steps: steps.map(() => 0),
       curStep: 0,
       agents: new Set(steps.map((s) => s.agent)).size,
-      eta: `${Math.round(steps.length * 4)} min`
+      eta: `${Math.round(steps.length * 4)} min`,
+      plan: steps.map((s) => ({ title: s.title, agent: s.agent, dependsOn: s.dependsOn || [] })),
+      operatorId: owner
     }
     this.s.workflows.unshift(wf)
-    this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0, completed: new Set() })
+    this._chatWorkflows.set(wf.id, { total: steps.length, done: 0, failed: 0, completed: new Set(), operatorId: owner })
     steps.forEach((step) => {
       this.s.dispatch.push({
         task: step.title,
@@ -740,7 +804,8 @@ export class Orchestrator {
         state: 'waiting',
         steps: [{ tool: step.tool, title: step.title, dependsOn: step.dependsOn || [] }],
         maxAttempts: DEFAULT_MAX_ATTEMPTS,
-        wfId: wf.id
+        wfId: wf.id,
+        operatorId: owner
       })
       this.log('INFO', `${step.agent} queued: ${step.title}`)
     })
@@ -784,8 +849,8 @@ export class Orchestrator {
     this.store.markDirty()
   }
 
-  dispatchTask(task, agent) {
-    this.s.dispatch.push({ task, agent, state: 'waiting' })
+  dispatchTask(task, agent, operatorId) {
+    this.s.dispatch.push({ task, agent, state: 'waiting', operatorId: this._operatorId(operatorId) })
     this.log('INFO', `Manual dispatch: ${agent} ← ${task}`)
     this.store.markDirty()
   }
@@ -802,6 +867,41 @@ export class Orchestrator {
     this.log('INFO', `kanban: ${card.title} → ${card.col.toUpperCase()}`)
     this.store.markDirty()
     return { ok: true }
+  }
+
+  cycleItemStatus(id) {
+    const ITEM_STATUSES = ['open', 'watch', 'review', 'closed']
+    const it = (this.s.items || []).find((x) => x && x.id === id)
+    if (!it) return { ok: false }
+    const cur = String(it.status || 'open').toLowerCase()
+    const idx = ITEM_STATUSES.indexOf(cur === 'merged' ? 'closed' : cur)
+    it.status = ITEM_STATUSES[(idx < 0 ? 0 : idx + 1) % ITEM_STATUSES.length]
+    this.log('INFO', `item ${it.id} → ${it.status}`)
+    this.store.markDirty()
+    return { ok: true, id: it.id, status: it.status }
+  }
+
+  toggleSchedulePause(id) {
+    const job = (this.s.schedules || []).find((x) => x && x.id === id)
+    if (!job) return { ok: false }
+    if (job.src === 'hermes') return { ok: false, error: 'hermes jobs are ingest-authoritative' }
+    job.paused = !job.paused
+    this.log('INFO', `scheduler ${job.name} → ${job.paused ? 'paused' : 'resumed'}`)
+    this.store.markDirty()
+    return { ok: true, id: job.id, paused: !!job.paused }
+  }
+
+  cycleReportStatus(id) {
+    const REPORT_STATUSES = ['draft', 'review', 'published']
+    const r = (this.s.reports || []).find((x) => x && x.id === id)
+    if (!r) return { ok: false }
+    const cur = String(r.status || 'draft').toLowerCase()
+    const idx = REPORT_STATUSES.indexOf(cur)
+    r.status = REPORT_STATUSES[(idx < 0 ? 0 : idx + 1) % REPORT_STATUSES.length]
+    r.updated = 'just now'
+    this.log('INFO', `report ${r.id} → ${r.status}`)
+    this.store.markDirty()
+    return { ok: true, id: r.id, status: r.status }
   }
 
   ackAlert(id) {
@@ -836,13 +936,14 @@ export class Orchestrator {
    * Resolves with 'approve' | 'deny' | 'timeout'. The pending request and a
    * bounded history live in `s.approval` so the HUD renders the card.
    */
-  _awaitApproval(payload, agent) {
+  _awaitApproval(payload, agent, operatorId) {
     const req = {
       id: `ap${Date.now()}`,
       tool: (payload && payload.tool) || 'tool',
       summary: (payload && payload.summary) || (payload && payload.title) || 'Hermes requests approval',
       detail: (payload && payload.detail) || '',
       from: agent,
+      owner: this._operatorId(operatorId),
       choice: null,
       at: Date.now()
     }
@@ -875,9 +976,13 @@ export class Orchestrator {
   }
 
   /** Operator response from the HUD: 'approve' | 'deny' against the pending request. */
-  respondApproval(choice) {
+  respondApproval(choice, operatorId) {
     const req = this.s.approval && this.s.approval.pending
     if (!req) return { ok: false, error: 'no pending approval' }
+    if (req.tool === 'interrupt') return { ok: false, error: 'use resume' }
+    if (req.owner && this._operatorId(operatorId) !== req.owner) {
+      return { ok: false, error: 'not owner' }
+    }
     const resolved = choice === 'deny' ? 'deny' : 'approve'
     req.choice = resolved
     this.store.markDirty()
@@ -889,38 +994,54 @@ export class Orchestrator {
    * pickup (in-flight steps finish), and surfaces an approval-card frame so
    * the HUD shows who/what stopped the run. resume() clears it.
    */
-  pause(reason = 'operator hold') {
+  pause(reason = 'operator hold', operatorId) {
+    const conflict = this._pauseConflict(operatorId)
+    if (conflict) return conflict
     if (this.s.meta.paused) return { ok: true, already: true }
-    return this.interrupt(reason, { agent: 'OPERATOR' })
+    return this.interrupt(reason, { agent: 'OPERATOR', operatorId })
   }
 
-  interrupt(reason = 'operator interrupt', { agent = 'OPERATOR', goal = '', resumable = true } = {}) {
+  interrupt(reason = 'operator interrupt', { agent = 'OPERATOR', goal = '', resumable = true, operatorId } = {}) {
+    const conflict = this._pauseConflict(operatorId)
+    if (conflict) return conflict
+    const holder = this._operatorId(operatorId)
     this.paused = true
     this.s.meta.paused = true
-    this._interrupt = { reason, agent, goal, resumable, at: Date.now() }
+    this._pauseHolder = holder
+    this._interrupt = { reason, agent, goal, resumable, at: Date.now(), operatorId: holder }
+    const pending = {
+      id: `int${Date.now()}`,
+      tool: 'interrupt',
+      summary: reason,
+      detail: goal,
+      from: agent,
+      owner: holder,
+      choice: null,
+      at: this._interrupt.at
+    }
+    this.s.approval = this.s.approval || { pending: null, history: [] }
+    this.s.approval.pending = pending
     this.broadcast({
       type: 'approval',
-      pending: {
-        id: `int${Date.now()}`,
-        tool: 'interrupt',
-        summary: reason,
-        detail: goal,
-        from: agent,
-        choice: null,
-        at: this._interrupt.at
-      }
+      pending
     })
     this.log('WARN', `interrupt by ${agent}: ${reason}`)
     this.store.markDirty()
     return { ok: true, id: this._interrupt.at }
   }
 
-  resume() {
+  resume(operatorId) {
+    const conflict = this._pauseConflict(operatorId)
+    if (conflict) return conflict
     const had = this.paused || !!this._interrupt
     this.paused = false
     this.s.meta.paused = false
     this._interrupt = null
+    this._pauseHolder = null
     if (had) {
+      if (this.s.approval && this.s.approval.pending && this.s.approval.pending.tool === 'interrupt') {
+        this.s.approval.pending = null
+      }
       this.broadcast({ type: 'approval', pending: null })
       this.log('INFO', 'operations resumed')
       this.store.markDirty()
@@ -962,10 +1083,10 @@ export class Orchestrator {
     return { ok: true, id: e.id }
   }
 
-  async sendEmail({ to, subject, body }) {
+  async sendEmail({ to, subject, body, attachments }) {
     if (!to || !subject) return { ok: false, error: 'to and subject required' }
     const { sendMail } = await import('./comms.js')
-    const res = await sendMail({ to, subject, body })
+    const res = await sendMail({ to, subject, body, attachments })
     if (!Array.isArray(this.s.email)) this.s.email = []
     this.s.email.unshift(res.email)
     if (this.s.email.length > 60) this.s.email.pop()
@@ -991,6 +1112,41 @@ export class Orchestrator {
     this.s.calendar.day = d
     this.store.markDirty()
     return { ok: true }
+  }
+
+  async setCalWeek({ weekStart, delta } = {}) {
+    const { shiftWeek, sundayIso, weekLabel, fetchEvents, applyCommsSync, getConfig } = await import('./comms.js')
+    const current = this.s.calendar.weekStart || sundayIso()
+    const next = weekStart
+      ? { weekStart: sundayIso(new Date(`${weekStart}T00:00:00`)), weekLabel: weekLabel(sundayIso(new Date(`${weekStart}T00:00:00`))) }
+      : shiftWeek(current, delta == null ? 0 : delta)
+    this.s.calendar.weekStart = next.weekStart
+    this.s.calendar.weekLabel = next.weekLabel
+    const cfg = getConfig()
+    if (cfg.calendarProvider) {
+      try {
+        const rows = await fetchEvents(cfg, next.weekStart)
+        const failed = rows && rows._errors && rows._errors.length && !rows.length
+        if (rows && !failed) applyCommsSync(this.s, { calendar: rows, errors: rows._errors || [] })
+      } catch {}
+    }
+    this.store.markDirty()
+    return { ok: true, weekStart: next.weekStart, weekLabel: next.weekLabel }
+  }
+
+  async deleteEvent(id) {
+    const events = (this.s.calendar && this.s.calendar.events) || []
+    const idx = events.findIndex((e) => e && e.id === id)
+    if (idx < 0) return { ok: false }
+    const ev = events[idx]
+    events.splice(idx, 1)
+    try {
+      const { deleteRemoteEvent } = await import('./comms.js')
+      await deleteRemoteEvent(ev.id)
+    } catch {}
+    this.log('INFO', `calendar delete: ${ev.title || ev.id}`)
+    this.store.markDirty()
+    return { ok: true, id: ev.id }
   }
 
   async createEvent({ title, day, start, end, type, agents }) {

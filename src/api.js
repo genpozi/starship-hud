@@ -16,6 +16,7 @@ import { reduceEvent } from './channels.js'
 const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 30000
 const CONNECT_TIMEOUT_MS = 4000
+const OPERATOR_KEY = 'stellaris.operatorId'
 let ws = null
 let closedByUs = false
 let online = false
@@ -24,12 +25,41 @@ let backoffMs = BASE_BACKOFF_MS
 let reconnectTimer = null
 // link state: 'connecting' (attempt in flight) | 'online' | 'offline'
 let link = 'connecting'
+let operatorId = 'operator'
+
+export function normalizeOperatorId(raw) {
+  const s = String(raw || 'operator')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+  return s || 'operator'
+}
+
+try {
+  if (typeof localStorage !== 'undefined') operatorId = normalizeOperatorId(localStorage.getItem(OPERATOR_KEY) || 'operator')
+} catch {}
+
+export function getOperatorId() {
+  return operatorId
+}
+
+export function setOperatorId(id) {
+  operatorId = normalizeOperatorId(id)
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(OPERATOR_KEY, operatorId)
+  } catch {}
+  send({ type: 'hello', operatorId, name: operatorId })
+  return operatorId
+}
 
 async function post(path, body) {
+  const payload = { ...(body || {}), operatorId }
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body || {})
+    headers: { 'Content-Type': 'application/json', 'X-Stellaris-Operator': operatorId },
+    body: JSON.stringify(payload)
   })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
   return res.json()
@@ -39,13 +69,18 @@ export const api = {
   chat: (text) => post('/api/chat', { text }),
   dispatch: (task, agent) => post('/api/dispatch', { task, agent }),
   advanceCard: (id) => post(`/api/kanban/${encodeURIComponent(id)}/advance`),
+  cycleItemStatus: (id) => post(`/api/items/${encodeURIComponent(id)}/status`),
+  toggleSchedule: (id) => post(`/api/schedules/${encodeURIComponent(id)}/pause`),
+  cycleReportStatus: (id) => post(`/api/reports/${encodeURIComponent(id)}/status`),
   ackAlert: (id) => post(`/api/alerts/${encodeURIComponent(id)}/ack`),
   ackAll: () => post('/api/alerts/ack-all', {}),
   readEmail: (id) => post(`/api/email/${encodeURIComponent(id)}/read`),
   archiveEmail: (id) => post(`/api/email/${encodeURIComponent(id)}/archive`),
-  sendMail: (to, subject, body) => post('/api/email/send', { to, subject, body }),
+  sendMail: (to, subject, body, attachments) => post('/api/email/send', { to, subject, body, attachments }),
   setCalDay: (day) => post(`/api/calendar/${day}`),
+  setCalWeek: (payload) => post('/api/calendar/week', payload),
   createEvent: (payload) => post('/api/calendar/events', payload),
+  deleteEvent: (id) => post(`/api/calendar/events/${encodeURIComponent(id)}/delete`),
   createMission: (name, agents) => post('/api/mission', { name, agents }),
   approval: (choice) => post('/api/approval/respond', { choice }),
   pause: () => post('/api/control/pause', {}),
@@ -84,6 +119,7 @@ export function connect({ onOnline, onOffline } = {}) {
     online = true
     link = 'online'
     backoffMs = BASE_BACKOFF_MS
+    send({ type: 'hello', operatorId, name: operatorId })
     if (onOnline) onOnline()
   }
   ws.onmessage = (ev) => {

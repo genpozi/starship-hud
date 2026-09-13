@@ -216,7 +216,7 @@ Upgrade `server/store.js`: keep `state.json` as the **latest live state**, but p
 - resume-from-interrupt (P12) needs the pre-interrupt snapshot;
 - a "rollback last step" operator command for free (openai literally rewinds session items on guardrail trips);
 - durability modes `'sync' | 'async' | 'exit'` (langgraph) — start with `async` (current debounced flush) and offer `sync` for state mutations that must not be lost.
-Two-layer split to also adopt: **`store` (append-only vault, e.g. mission log / knowledge) vs `checkpoint` (rewindable working state)** — currently everything lives in one `state.json`.
+Two-layer split to also adopt: **`store` (append-only vault, e.g. mission log / knowledge) vs `checkpoint` (rewindable working state)** — P14 now writes knowledge to `data/vault/*.md`; rewindable working state stays in `state.json` + the checkpoint ledger.
 
 **P11. Interrupts for human-in-the-loop.** (langgraph `interrupt()` + `Command(resume=…)`; openai approvals)
 `needsApproval` on a tool (P5) emits a workflow-level `{ type: 'interrupt', id, tool, input }` event; the workflow's state is checkpointed (P10) and the run **pauses** (no tick progress). A `Command({ resume: { ok } })` from the HUD (a new WS message type) resumes the exact task. Cheap to add once P9/P10 exist — and it's the difference between a demo and a "production-ready" claim.
@@ -235,7 +235,7 @@ Broadcast two channels instead of one:
 
 ### 3.7 Implementation status (2026-08-20)
 
-P8–P12 above shipped in adapted form (see `CHANGELOG.md` [Unreleased]). The
+P8–P12 above shipped in adapted form (see `CHANGELOG.md` [2.1.0]). The
 delivered mapping to these patterns:
 
 - **P3 hooks** — `orchestrator.hooks` (`onRunStart`/`onTurnStart`/`onToolCall`/

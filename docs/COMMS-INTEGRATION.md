@@ -35,7 +35,7 @@ Live rows must match seed so renderers never branch on source.
 {
   id, day, start, end, title, type, agents,
   location, allDay, isoStart, isoEnd,
-  src       // seed | google | microsoft | ics | local
+  src       // seed | google | microsoft | ics | caldav | local
 }
 ```
 
@@ -71,7 +71,7 @@ Rules copied from `server/github.js`:
 
 ```
 USER_COMMS_EMAIL_PROVIDER=     # google | microsoft | auto
-USER_COMMS_CALENDAR_PROVIDER=  # google | microsoft | ics | auto
+USER_COMMS_CALENDAR_PROVIDER=  # google | microsoft | ics | caldav | auto
 USER_COMMS_POLL_MS=120000
 USER_COMMS_WEBHOOK_SECRET=
 
@@ -87,10 +87,14 @@ USER_MS_REFRESH_TOKEN=
 USER_ICS_URL=
 USER_ICS_USER=
 USER_ICS_PASSWORD=
+
+USER_CALDAV_URL=
+USER_CALDAV_USER=
+USER_CALDAV_PASSWORD=
 ```
 
-`auto` picks the first fully-configured provider (Google, then Microsoft, then
-ICS for calendar only).
+`auto` concatenates every configured provider (Google + Microsoft + ICS/CalDAV),
+then `mergeComms`. Writes still prefer Google, then Microsoft, then CalDAV.
 
 ## REST surface
 
@@ -98,15 +102,17 @@ ICS for calendar only).
 | --- | --- | --- | --- |
 | POST | `/api/email/:id/read` | — | Mark read (id, with numeric-index fallback) |
 | POST | `/api/email/:id/archive` | — | Folder → archive; Gmail `TRASH` / Graph move |
-| POST | `/api/email/send` | `{to,subject,body}` | Send via provider or local sent-copy |
+| POST | `/api/email/send` | `{to,subject,body,attachments?}` | Send via provider or local sent-copy |
 | POST | `/api/calendar/events` | `{title,day,start,end,type?}` | Create event |
+| POST | `/api/calendar/week` | `{delta?,weekStart?}` | Shift or jump displayed week |
+| POST | `/api/calendar/events/:id/delete` | — | Delete event (best-effort remote) |
 | POST | `/api/calendar/:day` | — | Select day `0-6` (unchanged) |
 | POST | `/api/comms/inbound` | inbound payload | Webhook ingest; `X-Stellaris-Secret` |
 
 ## HUD work
 
-- Email: real `body`, source badge, compose form, archive, selected-id.
-- Calendar: 7-day grid, create form, source badge, week label from `weekStart`.
+- Email: folder tabs (inbox/sent/archive), reply-to-selected, source badge, compose (file picker, ~200KB cap), archive, attachment chips.
+- Calendar: 7-day grid, PREV/NEXT/TODAY week, delete selected event, create form, source badge.
 - Offline sim: local mutations only (same as kanban/alerts).
 
 ## Skills + planner
@@ -121,10 +127,14 @@ ICS for calendar only).
 Integration — send / create / archive / inbound secret.
 `run-all.mjs` registers `comms`.
 
-## Out of scope (next slice)
+## Phase 9 — Comms depth
 
-- Full IMAP/SMTP client
-- CalDAV write (PUT)
-- Multi-account inboxes
-- Attachment upload
-- Recurrence expansion beyond provider `singleEvents` / calendarView
+| Item | Approach |
+| --- | --- |
+| RRULE | Expand DAILY / WEEKLY / MONTHLY (`INTERVAL`, `BYDAY`, `COUNT`, `UNTIL`) into the displayed week. Google/Graph already send instances via `singleEvents` / `calendarView`. |
+| CalDAV write | `USER_CALDAV_URL` collection → PUT/DELETE `{uid}.ics`. Plain `USER_ICS_URL` stays GET-only. |
+| Attachments | Map Gmail parts / Graph `hasAttachments` to `{name, mime, size}`. Send accepts small base64 parts (capped). No remote binary download. |
+| Multi-source | `auto` concatenates every configured provider (Google + Microsoft + ICS), then `mergeComms`. |
+| HUD | Folder tabs (inbox/sent/archive), reply fills compose, file picker (~200KB cap), week PREV/NEXT/TODAY, delete selected event. |
+
+IMAP/SMTP, per-provider multi-login, EXDATE/RDATE, and CalDAV REPORT stay out.

@@ -36,34 +36,36 @@ export function getConfig() {
     process.env.USER_MS_CLIENT_ID && process.env.USER_MS_CLIENT_SECRET && process.env.USER_MS_REFRESH_TOKEN
   )
   const ics = Boolean(process.env.USER_ICS_URL)
+  const caldav = Boolean(process.env.USER_CALDAV_URL)
   const pollMs = Number(process.env.USER_COMMS_POLL_MS) > 0 ? Number(process.env.USER_COMMS_POLL_MS) : 120000
   const webhookSecret = process.env.USER_COMMS_WEBHOOK_SECRET || ''
 
   const emailPref = String(process.env.USER_COMMS_EMAIL_PROVIDER || 'auto').toLowerCase()
   const calPref = String(process.env.USER_COMMS_CALENDAR_PROVIDER || 'auto').toLowerCase()
 
-  const emailProvider =
-    emailPref === 'google' && google ? 'google'
-      : emailPref === 'microsoft' && microsoft ? 'microsoft'
-        : emailPref === 'auto' ? (google ? 'google' : microsoft ? 'microsoft' : null)
-          : null
+  const emailProviders = []
+  if ((emailPref === 'auto' || emailPref === 'google') && google) emailProviders.push('google')
+  if ((emailPref === 'auto' || emailPref === 'microsoft') && microsoft) emailProviders.push('microsoft')
 
-  const calendarProvider =
-    calPref === 'google' && google ? 'google'
-      : calPref === 'microsoft' && microsoft ? 'microsoft'
-        : calPref === 'ics' && ics ? 'ics'
-          : calPref === 'auto' ? (google ? 'google' : microsoft ? 'microsoft' : ics ? 'ics' : null)
-            : null
+  const calendarProviders = []
+  if ((calPref === 'auto' || calPref === 'google') && google) calendarProviders.push('google')
+  if ((calPref === 'auto' || calPref === 'microsoft') && microsoft) calendarProviders.push('microsoft')
+  if ((calPref === 'auto' || calPref === 'ics' || calPref === 'caldav') && (ics || caldav)) calendarProviders.push(caldav && !ics ? 'caldav' : 'ics')
+
+  const pick = (list) => (list.length === 1 ? list[0] : list.length > 1 ? 'mixed' : null)
 
   return {
     google,
     microsoft,
     ics,
+    caldav,
     pollMs,
     webhookSecret,
-    emailProvider,
-    calendarProvider,
-    enabled: Boolean(emailProvider || calendarProvider)
+    emailProviders,
+    calendarProviders,
+    emailProvider: pick(emailProviders),
+    calendarProvider: pick(calendarProviders),
+    enabled: Boolean(emailProviders.length || calendarProviders.length)
   }
 }
 
@@ -141,6 +143,13 @@ export function weekLabel(weekStart) {
   return `WEEK ${weekStart || sundayIso()}`
 }
 
+export function shiftWeek(weekStart, deltaWeeks) {
+  const { start } = weekBounds(weekStart)
+  start.setDate(start.getDate() + Number(deltaWeeks || 0) * 7)
+  const next = sundayIso(start)
+  return { weekStart: next, weekLabel: weekLabel(next) }
+}
+
 /* ============================================================================
    EMAIL MAPPERS
    ============================================================================ */
@@ -170,6 +179,42 @@ function gmailBody(payload) {
   return ''
 }
 
+function gmailAttachments(payload) {
+  const out = []
+  const walk = (p) => {
+    if (!p) return
+    if (p.filename) out.push({ name: truncate(p.filename, 80), mime: p.mimeType || '', size: Number((p.body && p.body.size) || 0) })
+    ;(p.parts || []).forEach(walk)
+  }
+  walk(payload)
+  return out.slice(0, 8)
+}
+
+function normalizeAttachments(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((a) => a && (a.name || a.filename || a.data))
+    .slice(0, 8)
+    .map((a) => ({
+      name: truncate(a.name || a.filename || 'file', 80),
+      mime: String(a.mime || a.contentType || a.type || 'application/octet-stream'),
+      size: Number(a.size || (a.data ? Buffer.byteLength(String(a.data), 'base64') : 0)),
+      data: a.data ? String(a.data).slice(0, 350000) : undefined
+    }))
+}
+
+export function capAttachments(list) {
+  const out = []
+  let total = 0
+  for (const a of normalizeAttachments(list)) {
+    const bytes = a.size || 0
+    if (total + bytes > 200000) break
+    total += bytes
+    out.push(a)
+  }
+  return out
+}
+
 export function mapGmailMessage(msg) {
   const payload = msg.payload || {}
   const from = headerOf(payload, 'From') || 'unknown'
@@ -191,7 +236,8 @@ export function mapGmailMessage(msg) {
     read: !labels.includes('UNREAD'),
     prio: labels.includes('IMPORTANT') ? 'high' : 'med',
     folder,
-    src: 'google'
+    src: 'google',
+    attachments: gmailAttachments(payload)
   }
 }
 
@@ -214,7 +260,10 @@ export function mapGraphMessage(msg) {
     read: !!msg.isRead,
     prio: String(msg.importance || '').toLowerCase() === 'high' ? 'high' : 'med',
     folder: 'inbox',
-    src: 'microsoft'
+    src: 'microsoft',
+    attachments: msg.hasAttachments
+      ? [{ name: 'attachment', mime: 'application/octet-stream', size: 0 }]
+      : normalizeAttachments(msg.attachments)
   }
 }
 
@@ -237,11 +286,12 @@ export function normalizeInbound(payload) {
     read: false,
     prio: p.prio === 'high' ? 'high' : 'med',
     folder: 'inbox',
-    src: 'webhook'
+    src: 'webhook',
+    attachments: capAttachments(p.attachments)
   }
 }
 
-export function localSentCopy({ to, subject, body }) {
+export function localSentCopy({ to, subject, body, attachments }) {
   return {
     id: `local-${Date.now()}`,
     from: 'operator@stellaris.internal',
@@ -254,7 +304,8 @@ export function localSentCopy({ to, subject, body }) {
     read: true,
     prio: 'med',
     folder: 'sent',
-    src: 'local'
+    src: 'local',
+    attachments: capAttachments(attachments)
   }
 }
 
@@ -303,6 +354,80 @@ export function mapGraphEvent(ev, weekStart) {
   }
 }
 
+export function parseRrule(raw) {
+  const out = { freq: null, interval: 1, count: null, until: null, byday: [] }
+  String(raw || '').split(';').forEach((part) => {
+    const [k, v] = part.split('=')
+    if (!k || v == null) return
+    const key = k.toUpperCase().trim()
+    const val = v.trim()
+    if (key === 'FREQ') out.freq = val.toUpperCase()
+    if (key === 'INTERVAL') out.interval = Math.max(1, Number(val) || 1)
+    if (key === 'COUNT') out.count = Math.max(1, Number(val) || 1)
+    if (key === 'UNTIL') out.until = icsDate(val)
+    if (key === 'BYDAY') out.byday = val.split(',').map((d) => d.trim().toUpperCase()).filter(Boolean)
+  })
+  return out
+}
+
+const BYDAY_INDEX = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 }
+
+export function expandRrule(startDate, endDate, rrule, weekStart, { uid, summary, location, allDay } = {}) {
+  if (!startDate || !rrule || !rrule.freq) return []
+  const { start: week0, end: weekEnd } = weekBounds(weekStart)
+  const duration = Math.max(0, (endDate || startDate).getTime() - startDate.getTime())
+  const until = rrule.until && rrule.until < weekEnd ? rrule.until : weekEnd
+  const occurrences = []
+  const cursor = new Date(startDate)
+  let emitted = 0
+  const max = rrule.count || 366
+  const byday = rrule.byday.map((d) => BYDAY_INDEX[d.replace(/^-?\d+/, '')]).filter((d) => d != null)
+  const originSunday = weekBounds(sundayIso(startDate)).start
+  const dayStep = (rrule.freq === 'WEEKLY' || rrule.freq === 'MONTHLY') && byday.length
+
+  let guard = 0
+  while (cursor < until && emitted < max && occurrences.length < 14 && guard < 800) {
+    guard += 1
+    const weekdayOk = !byday.length || byday.includes(cursor.getDay())
+    let intervalOk = true
+    if (rrule.freq === 'WEEKLY' && rrule.interval > 1) {
+      const weeks = Math.round((weekBounds(sundayIso(cursor)).start - originSunday) / (7 * 86400000))
+      intervalOk = weeks % rrule.interval === 0
+    }
+    if (weekdayOk && intervalOk && cursor >= startDate) {
+      emitted += 1
+      if (cursor >= week0 && cursor < weekEnd) {
+        const instStart = new Date(cursor)
+        const instEnd = new Date(instStart.getTime() + duration)
+        const day = dayOfWeek(instStart, weekStart)
+        if (day >= 0 && day <= 6) {
+          occurrences.push({
+            id: `ics-${uid}-${instStart.toISOString().slice(0, 10)}`.slice(0, 80),
+            day,
+            start: allDay ? '08:00' : hhmm(instStart),
+            end: allDay ? '09:00' : hhmm(instEnd),
+            title: truncate(summary),
+            type: eventTypeFrom(summary),
+            agents: ['USER'],
+            location: location || '',
+            allDay: !!allDay,
+            isoStart: instStart.toISOString(),
+            isoEnd: instEnd.toISOString(),
+            src: 'ics',
+            recurring: true
+          })
+        }
+      }
+    }
+    if (rrule.freq === 'DAILY') cursor.setDate(cursor.getDate() + rrule.interval)
+    else if (dayStep) cursor.setDate(cursor.getDate() + 1)
+    else if (rrule.freq === 'WEEKLY') cursor.setDate(cursor.getDate() + 7 * rrule.interval)
+    else if (rrule.freq === 'MONTHLY') cursor.setMonth(cursor.getMonth() + rrule.interval)
+    else break
+  }
+  return occurrences
+}
+
 export function parseIcs(text, weekStart) {
   const unfolded = String(text || '').replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '')
   const blocks = unfolded.split(/BEGIN:VEVENT/i).slice(1)
@@ -322,9 +447,14 @@ export function parseIcs(text, weekStart) {
     const startDate = icsDate(dtStart)
     const endDate = icsDate(dtEnd)
     if (!startDate) continue
+    const allDay = /^\d{8}$/.test(dtStart.replace(/Z$/, ''))
+    const rrule = parseRrule(field('RRULE'))
+    if (rrule.freq) {
+      events.push(...expandRrule(startDate, endDate, rrule, weekStart, { uid, summary, location, allDay }))
+      continue
+    }
     const day = dayOfWeek(startDate, weekStart)
     if (day < 0 || day > 6) continue
-    const allDay = /^\d{8}$/.test(dtStart.replace(/Z$/, ''))
     events.push({
       id: `ics-${uid}`.slice(0, 80),
       day,
@@ -341,6 +471,29 @@ export function parseIcs(text, weekStart) {
     })
   }
   return events.slice(0, EVENT_CAP)
+}
+
+export function buildIcsEvent(event) {
+  const stamp = (iso) => {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  }
+  const uid = String(event.id || `local-${Date.now()}`).replace(/^(ics-|caldav-|local-|gcal-|mcal-)/, '')
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//STELLARIS-7//COMMS//EN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${stamp(new Date().toISOString())}`,
+    `DTSTART:${stamp(event.isoStart)}`,
+    `DTEND:${stamp(event.isoEnd || event.isoStart)}`,
+    `SUMMARY:${String(event.title || 'Untitled').replace(/\n/g, ' ')}`,
+    event.location ? `LOCATION:${String(event.location).replace(/\n/g, ' ')}` : null,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].filter(Boolean).join('\r\n')
 }
 
 function icsDate(raw) {
@@ -399,16 +552,40 @@ export function inWeek(ev) {
 /* ============================================================================
    RFC822 / AUTH
    ============================================================================ */
-export function buildRfc822({ to, subject, body }) {
-  const lines = [
+export function buildRfc822({ to, subject, body, attachments }) {
+  const files = capAttachments(attachments)
+  if (!files.length) {
+    return [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      String(body || '')
+    ].join('\r\n')
+  }
+  const boundary = `stellaris_${Date.now()}`
+  const parts = [
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
     'Content-Type: text/plain; charset=utf-8',
     '',
     String(body || '')
   ]
-  return lines.join('\r\n')
+  for (const a of files) {
+    parts.push(`--${boundary}`)
+    parts.push(`Content-Type: ${a.mime || 'application/octet-stream'}; name="${a.name}"`)
+    parts.push('Content-Transfer-Encoding: base64')
+    parts.push(`Content-Disposition: attachment; filename="${a.name}"`)
+    parts.push('')
+    parts.push(String(a.data || ''))
+  }
+  parts.push(`--${boundary}--`)
+  return parts.join('\r\n')
 }
 
 export function toBase64Url(text) {
@@ -490,75 +667,118 @@ async function graphGet(path, token) {
 /* ============================================================================
    FETCHERS
    ============================================================================ */
+async function fetchGoogleInbox() {
+  const token = await refreshGoogle()
+  const list = await gmailGet('/messages?maxResults=20&q=in:inbox OR in:sent', token)
+  const ids = (list.messages || []).map((m) => m.id)
+  const rows = []
+  for (const id of ids) {
+    const msg = await gmailGet(`/messages/${id}?format=full`, token)
+    rows.push(mapGmailMessage(msg))
+  }
+  return rows
+}
+
+async function fetchMicrosoftInbox() {
+  const token = await refreshMicrosoft()
+  const json = await graphGet('/me/messages?$top=20&$select=id,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead,importance,hasAttachments', token)
+  return (json.value || []).map(mapGraphMessage)
+}
+
 export async function fetchInbox(cfg = getConfig()) {
-  if (cfg.emailProvider === 'google') {
-    const token = await refreshGoogle()
-    const list = await gmailGet('/messages?maxResults=20&q=in:inbox', token)
-    const ids = (list.messages || []).map((m) => m.id)
-    const rows = []
-    for (const id of ids) {
-      const msg = await gmailGet(`/messages/${id}?format=full`, token)
-      rows.push(mapGmailMessage(msg))
+  const providers = cfg.emailProviders && cfg.emailProviders.length
+    ? cfg.emailProviders
+    : (cfg.emailProvider && cfg.emailProvider !== 'mixed' ? [cfg.emailProvider] : [])
+  const rows = []
+  for (const p of providers) {
+    try {
+      if (p === 'google') rows.push(...await fetchGoogleInbox())
+      if (p === 'microsoft') rows.push(...await fetchMicrosoftInbox())
+    } catch (err) {
+      rows._errors = (rows._errors || []).concat(err.message)
     }
-    return rows
   }
-  if (cfg.emailProvider === 'microsoft') {
-    const token = await refreshMicrosoft()
-    const json = await graphGet('/me/messages?$top=20&$select=id,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead,importance', token)
-    return (json.value || []).map(mapGraphMessage)
-  }
-  return null
+  return rows
+}
+
+function caldavAuthHeaders() {
+  const user = process.env.USER_CALDAV_USER || process.env.USER_ICS_USER
+  if (!user) return {}
+  const pass = process.env.USER_CALDAV_PASSWORD || process.env.USER_ICS_PASSWORD || ''
+  return { Authorization: `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}` }
+}
+
+function icsAuthHeaders() {
+  if (!process.env.USER_ICS_USER) return {}
+  const basic = Buffer.from(`${process.env.USER_ICS_USER}:${process.env.USER_ICS_PASSWORD || ''}`).toString('base64')
+  return { Authorization: `Basic ${basic}` }
+}
+
+async function fetchGoogleEvents(ws, start, end) {
+  const token = await refreshGoogle()
+  const qs = new URLSearchParams({
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '50'
+  })
+  const json = await gcalGet(`/events?${qs}`, token)
+  return (json.items || []).map((ev) => mapGmailEvent(ev, ws)).filter(inWeek)
+}
+
+async function fetchMicrosoftEvents(ws, start, end) {
+  const token = await refreshMicrosoft()
+  const qs = new URLSearchParams({
+    startDateTime: start.toISOString(),
+    endDateTime: end.toISOString(),
+    $top: '50',
+    $select: 'id,subject,start,end,location,isAllDay'
+  })
+  const json = await graphGet(`/me/calendarView?${qs}`, token)
+  return (json.value || []).map((ev) => mapGraphEvent(ev, ws)).filter(inWeek)
+}
+
+async function fetchIcsEvents(ws) {
+  const url = process.env.USER_ICS_URL || process.env.USER_CALDAV_URL
+  if (!url) return []
+  const res = await fetch(url, { headers: process.env.USER_CALDAV_URL && !process.env.USER_ICS_URL ? caldavAuthHeaders() : icsAuthHeaders() })
+  if (!res.ok) throw new Error(`ics ${res.status}`)
+  return parseIcs(await res.text(), ws)
 }
 
 export async function fetchEvents(cfg = getConfig(), weekStart) {
   const { start, end, weekStart: ws } = weekBounds(weekStart)
-  if (cfg.calendarProvider === 'google') {
-    const token = await refreshGoogle()
-    const qs = new URLSearchParams({
-      timeMin: start.toISOString(),
-      timeMax: end.toISOString(),
-      singleEvents: 'true',
-      orderBy: 'startTime',
-      maxResults: '50'
-    })
-    const json = await gcalGet(`/events?${qs}`, token)
-    return (json.items || []).map((ev) => mapGmailEvent(ev, ws)).filter(inWeek)
-  }
-  if (cfg.calendarProvider === 'microsoft') {
-    const token = await refreshMicrosoft()
-    const qs = new URLSearchParams({
-      startDateTime: start.toISOString(),
-      endDateTime: end.toISOString(),
-      $top: '50',
-      $select: 'id,subject,start,end,location,isAllDay'
-    })
-    const json = await graphGet(`/me/calendarView?${qs}`, token)
-    return (json.value || []).map((ev) => mapGraphEvent(ev, ws)).filter(inWeek)
-  }
-  if (cfg.calendarProvider === 'ics') {
-    const headers = {}
-    if (process.env.USER_ICS_USER) {
-      const basic = Buffer.from(`${process.env.USER_ICS_USER}:${process.env.USER_ICS_PASSWORD || ''}`).toString('base64')
-      headers.Authorization = `Basic ${basic}`
+  const providers = cfg.calendarProviders && cfg.calendarProviders.length
+    ? cfg.calendarProviders
+    : (cfg.calendarProvider && cfg.calendarProvider !== 'mixed' ? [cfg.calendarProvider] : [])
+  const rows = []
+  for (const p of providers) {
+    try {
+      if (p === 'google') rows.push(...await fetchGoogleEvents(ws, start, end))
+      if (p === 'microsoft') rows.push(...await fetchMicrosoftEvents(ws, start, end))
+      if (p === 'ics' || p === 'caldav') rows.push(...await fetchIcsEvents(ws))
+    } catch (err) {
+      rows._errors = (rows._errors || []).concat(err.message)
     }
-    const res = await fetch(process.env.USER_ICS_URL, { headers })
-    if (!res.ok) throw new Error(`ics ${res.status}`)
-    const text = await res.text()
-    return parseIcs(text, ws)
   }
-  return null
+  const capped = rows.slice(0, EVENT_CAP)
+  if (rows._errors) capped._errors = rows._errors
+  return capped
 }
 
 /* ============================================================================
    MUTATIONS AGAINST PROVIDERS
    ============================================================================ */
-export async function sendMail({ to, subject, body }, cfg = getConfig()) {
+export async function sendMail({ to, subject, body, attachments }, cfg = getConfig()) {
   if (!to || !subject) return { ok: false, error: 'to and subject required' }
-  const copy = localSentCopy({ to, subject, body })
+  const files = capAttachments(attachments)
+  const copy = localSentCopy({ to, subject, body, attachments: files })
+  const provider = (cfg.emailProviders && cfg.emailProviders[0]) || cfg.emailProvider
   try {
-    if (cfg.emailProvider === 'google') {
+    if (provider === 'google' || cfg.google) {
       const token = await refreshGoogle()
-      const raw = toBase64Url(buildRfc822({ to, subject, body }))
+      const raw = toBase64Url(buildRfc822({ to, subject, body, attachments: files }))
       const res = await fetch(`${GMAIL_API}/messages/send`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -570,18 +790,25 @@ export async function sendMail({ to, subject, body }, cfg = getConfig()) {
       copy.src = 'google'
       return { ok: true, email: copy, remote: true }
     }
-    if (cfg.emailProvider === 'microsoft') {
+    if (provider === 'microsoft' || cfg.microsoft) {
       const token = await refreshMicrosoft()
+      const message = {
+        subject,
+        body: { contentType: 'Text', content: body || '' },
+        toRecipients: [{ emailAddress: { address: to } }]
+      }
+      if (files.length) {
+        message.attachments = files.map((a) => ({
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: a.name,
+          contentType: a.mime,
+          contentBytes: a.data || ''
+        }))
+      }
       const res = await fetch(`${MS_GRAPH}/me/sendMail`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: {
-            subject,
-            body: { contentType: 'Text', content: body || '' },
-            toRecipients: [{ emailAddress: { address: to } }]
-          }
-        })
+        body: JSON.stringify({ message })
       })
       if (!res.ok) throw new Error(`graph send ${res.status}`)
       copy.src = 'microsoft'
@@ -594,9 +821,18 @@ export async function sendMail({ to, subject, body }, cfg = getConfig()) {
   return { ok: true, email: copy, remote: false, simulated: true }
 }
 
+function caldavHref(event) {
+  const base = String(process.env.USER_CALDAV_URL || '').replace(/\/?$/, '/')
+  const uid = String(event.id || `local-${Date.now()}`).replace(/^(ics-|caldav-|local-|gcal-|mcal-)/, '')
+  return `${base}${uid}.ics`
+}
+
 export async function createRemoteEvent(event, cfg = getConfig()) {
+  const providers = cfg.calendarProviders && cfg.calendarProviders.length
+    ? cfg.calendarProviders
+    : (cfg.calendarProvider && cfg.calendarProvider !== 'mixed' ? [cfg.calendarProvider] : [])
   try {
-    if (cfg.calendarProvider === 'google') {
+    if (providers.includes('google') || cfg.google) {
       const token = await refreshGoogle()
       const res = await fetch(`${GCAL_API}/events`, {
         method: 'POST',
@@ -611,7 +847,7 @@ export async function createRemoteEvent(event, cfg = getConfig()) {
       const json = await res.json()
       return { ...event, id: `gcal-${json.id || event.id}`, src: 'google' }
     }
-    if (cfg.calendarProvider === 'microsoft') {
+    if (providers.includes('microsoft') || cfg.microsoft) {
       const token = await refreshMicrosoft()
       const res = await fetch(`${MS_GRAPH}/me/events`, {
         method: 'POST',
@@ -626,16 +862,60 @@ export async function createRemoteEvent(event, cfg = getConfig()) {
       const json = await res.json()
       return { ...event, id: `mcal-${json.id || event.id}`, src: 'microsoft' }
     }
+    if (cfg.caldav || providers.includes('caldav')) {
+      const ics = buildIcsEvent(event)
+      const href = caldavHref(event)
+      const res = await fetch(href, {
+        method: 'PUT',
+        headers: { ...caldavAuthHeaders(), 'Content-Type': 'text/calendar; charset=utf-8' },
+        body: ics
+      })
+      if (!res.ok) throw new Error(`caldav put ${res.status}`)
+      return { ...event, id: `caldav-${String(event.id || '').replace(/^(ics-|caldav-|local-)/, '')}`, src: 'caldav' }
+    }
   } catch (err) {
     return { ...event, src: 'local', error: err.message }
   }
   return { ...event, src: 'local', simulated: true }
 }
 
+export async function deleteRemoteEvent(id, cfg = getConfig()) {
+  const raw = String(id || '')
+  try {
+    if (raw.startsWith('gcal-') && cfg.google) {
+      const token = await refreshGoogle()
+      const res = await fetch(`${GCAL_API}/events/${raw.slice(5)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok && res.status !== 404) throw new Error(`gcal delete ${res.status}`)
+      return { ok: true, remote: true }
+    }
+    if (raw.startsWith('mcal-') && cfg.microsoft) {
+      const token = await refreshMicrosoft()
+      const res = await fetch(`${MS_GRAPH}/me/events/${raw.slice(5)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok && res.status !== 404) throw new Error(`graph delete ${res.status}`)
+      return { ok: true, remote: true }
+    }
+    if ((raw.startsWith('caldav-') || raw.startsWith('ics-') || raw.startsWith('local-')) && cfg.caldav) {
+      const href = caldavHref({ id: raw })
+      const res = await fetch(href, { method: 'DELETE', headers: caldavAuthHeaders() })
+      if (!res.ok && res.status !== 404) throw new Error(`caldav delete ${res.status}`)
+      return { ok: true, remote: true }
+    }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+  return { ok: true, remote: false }
+}
+
 export async function archiveRemote(id, cfg = getConfig()) {
   const raw = String(id || '')
   try {
-    if (raw.startsWith('gm-') && cfg.emailProvider === 'google') {
+    if (raw.startsWith('gm-') && cfg.google) {
       const token = await refreshGoogle()
       const gid = raw.slice(3)
       const res = await fetch(`${GMAIL_API}/messages/${gid}/modify`, {
@@ -646,7 +926,7 @@ export async function archiveRemote(id, cfg = getConfig()) {
       if (!res.ok) throw new Error(`gmail archive ${res.status}`)
       return { ok: true, remote: true }
     }
-    if (raw.startsWith('ms-') && cfg.emailProvider === 'microsoft') {
+    if (raw.startsWith('ms-') && cfg.microsoft) {
       const token = await refreshMicrosoft()
       const mid = raw.slice(3)
       const res = await fetch(`${MS_GRAPH}/me/messages/${mid}`, {
@@ -673,7 +953,8 @@ export async function syncComms(orchestrator, cfg = getConfig()) {
   if (cfg.emailProvider) {
     try {
       const rows = await fetchInbox(cfg)
-      if (rows) out.email = rows.slice(0, MAIL_CAP)
+      if (rows && rows.length) out.email = rows.slice(0, MAIL_CAP)
+      if (rows && rows._errors) out.errors.push(...rows._errors)
     } catch (err) {
       out.errors.push(err.message)
     }
@@ -681,7 +962,8 @@ export async function syncComms(orchestrator, cfg = getConfig()) {
   if (cfg.calendarProvider) {
     try {
       const rows = await fetchEvents(cfg, weekStart)
-      if (rows) out.calendar = rows
+      if (rows && rows.length) out.calendar = rows
+      if (rows && rows._errors) out.errors.push(...rows._errors)
     } catch (err) {
       out.errors.push(err.message)
     }

@@ -2,10 +2,11 @@
  * KNOWLEDGE // Read-only retrieval layer over canonical state.
  *
  * The HUD's canonical state is already a knowledge graph of sorts: the vault
- * documents, research reports, kanban cards, items, schedules and probes each
- * carry titles/tags that answer operator questions. This module indexes those
- * slices on demand (no persisted index) and returns ranked hits so agent
- * replies can be grounded in real data instead of canned strings.
+ * documents (file-backed markdown bodies), research reports, kanban cards,
+ * items, schedules and probes each carry titles/tags that answer operator
+ * questions. This module indexes those slices on demand (no persisted index)
+ * and returns ranked hits so agent replies can be grounded in real data
+ * instead of canned strings.
  *
  * Pure function of state — no side effects, safe to call from skills,
  * the planner and the orchestrator's reply synthesizer.
@@ -37,9 +38,9 @@ export function indexState(state) {
     if (!title) return
     docs.push({ title: String(title), body: String(body || title), kind, id })
   }
-  ;(state.vault || []).forEach((d) => add(d.title, `${d.title} ${(d.tags || []).join(' ')} ${d.type || ''}`, 'vault', d.id))
+  ;(state.vault || []).forEach((d) => add(d.title, `${d.title} ${(d.tags || []).join(' ')} ${d.type || ''} ${d.body || ''}`, 'vault', d.id))
   ;(state.reports || []).forEach((r) => add(r.title, `${r.title} ${(r.status || '').toUpperCase()}`, 'report', r.id))
-  ;(state.items || []).forEach((i) => add(i.label || i.id, `${i.label || i.id} ${i.type || ''} ${i.status || ''}`, 'item', i.id))
+  ;(state.items || []).forEach((i) => add(i.title || i.label || i.id, `${i.title || i.label || i.id} ${i.type || ''} ${i.status || ''}`, 'item', i.id))
   ;(state.kanban && state.kanban.cards || []).forEach((c) => add(c.title, `${c.title} ${(c.tags || []).join(' ')} ${c.agent || ''}`, 'card', c.id))
   ;(state.schedules || []).forEach((s) => add(s.title || s.name, `${s.title || s.name} ${s.cron || ''} ${s.status || ''}`, 'schedule', s.id))
   ;(state.probes || []).forEach((p) => add(p.name, `${p.name} ${p.value || ''}${p.unit || ''} ${(p.desc || '').slice(0, 80)}`, 'probe', p.id))

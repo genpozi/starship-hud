@@ -49,7 +49,11 @@
         </div>
 
         <div class="topbar-right">
-          <span class="hud-version" title="HUD Build">v2.0.0</span>
+          <span class="hud-version" id="hud-version" title="HUD Build">v2.2.0</span>
+          <label class="operator-chip" title="Operator identity">
+            <span>OP</span>
+            <input id="operator-id" class="operator-id" type="text" spellcheck="false" maxlength="40" placeholder="operator" />
+          </label>
           <div class="threat-gauge">
             <span class="gauge-label">THREAT LEVEL</span>
             <span class="gauge-value" id="threat-level">ALPHA</span>
@@ -58,6 +62,8 @@
             <span class="gauge-label">AGENT FLEET</span>
             <span class="gauge-value" id="agent-count">06 ONLINE</span>
           </div>
+          <button class="hud-btn mini" id="snap-btn" type="button" title="Capture checkpoint">SNAP</button>
+          <button class="hud-btn mini" id="rewind-btn" type="button" title="Rollback last checkpoint">REWIND</button>
           <button class="nav-btn" id="pause-btn" title="Pause / resume operations">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 5v14M16 5v14"/></svg>
             <span id="pause-label">PAUSE</span>
@@ -269,6 +275,7 @@
                   <h2>TOKEN USAGE</h2>
                   <span class="panel-sub">24H ROLLING</span>
                   <span class="panel-tag live">STREAMING</span>
+                  <span class="panel-tag" id="graph-token-foot">BUDGET</span>
                 </div>
                 <div id="graph-tokens" class="graph-canvas"></div>
               </div>
@@ -301,13 +308,27 @@
 
           <!-- ========== VAULT ========== -->
           <section id="view-vault" class="view">
-            <div class="hud-panel panel view-panel">
-              <div class="panel-head">
-                <h2>VAULT // KNOWLEDGE CORE</h2>
-                <span class="panel-sub">DOCUMENTS & SCHEMAS</span>
-                <span class="panel-tag" id="vault-count">0 DOCS</span>
+            <div id="vault-layout">
+              <div class="hud-panel panel view-panel">
+                <div class="panel-head">
+                  <h2>VAULT // KNOWLEDGE CORE</h2>
+                  <span class="panel-sub">DOCUMENTS & SCHEMAS</span>
+                  <span class="panel-tag" id="vault-count">0 DOCS</span>
+                </div>
+                <div class="knowledge-filter-row">
+                  <input id="vault-filter" class="dispatch-input knowledge-filter" type="search" placeholder="Filter title or tag…" spellcheck="false" />
+                </div>
+                <div id="vault-grid" class="vault-grid"></div>
               </div>
-              <div id="vault-grid" class="vault-grid"></div>
+              <div class="hud-panel panel vault-read-panel">
+                <div class="panel-head">
+                  <h2>DOCUMENT</h2>
+                  <span class="panel-sub">PREVIEW</span>
+                </div>
+                <div id="vault-reader" class="email-reader">
+                  <span class="empty-hint">SELECT A DOCUMENT ▸</span>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -320,13 +341,21 @@
                   <span class="panel-sub">COMMS RELAY</span>
                   <span class="panel-tag" id="email-count">0 UNREAD</span>
                   <span class="panel-tag" id="email-source">SEED</span>
+                  <span class="panel-tag warn hidden" id="email-sync-warn"></span>
+                </div>
+                <div class="email-folders" id="email-folders">
+                  <button class="email-folder-tab active" type="button" data-folder="inbox">INBOX</button>
+                  <button class="email-folder-tab" type="button" data-folder="sent">SENT</button>
+                  <button class="email-folder-tab" type="button" data-folder="archive">ARCHIVE</button>
                 </div>
                 <div id="email-list" class="email-list"></div>
                 <form id="email-compose" class="comms-form" autocomplete="off">
                   <input id="email-to" class="dispatch-input" type="text" placeholder="to@relay…" spellcheck="false" />
                   <input id="email-subject" class="dispatch-input" type="text" placeholder="Subject" spellcheck="false" />
                   <input id="email-body" class="dispatch-input" type="text" placeholder="Body" spellcheck="false" />
+                  <input id="email-attach" class="email-attach" type="file" multiple />
                   <button id="email-send" class="hud-btn mini" type="submit">SEND</button>
+                  <div id="email-attach-chips" class="attach-chips"></div>
                 </form>
               </div>
               <div class="hud-panel panel email-read-panel">
@@ -334,6 +363,7 @@
                   <h2>MESSAGE</h2>
                   <span class="panel-sub">PREVIEW</span>
                   <span class="panel-tag" id="email-folder">INBOX</span>
+                  <button id="email-reply" class="hud-btn mini" type="button">REPLY</button>
                   <button id="email-archive" class="hud-btn mini" type="button">ARCHIVE</button>
                 </div>
                 <div id="email-reader" class="email-reader">
@@ -350,8 +380,12 @@
                 <div class="panel-head">
                   <h2>MISSION CALENDAR</h2>
                   <span class="panel-sub">CURRENT CYCLE</span>
+                  <button id="cal-prev" class="hud-btn mini" type="button">PREV</button>
                   <span class="panel-tag" id="cal-week"></span>
+                  <button id="cal-next" class="hud-btn mini" type="button">NEXT</button>
+                  <button id="cal-today" class="hud-btn mini" type="button">TODAY</button>
                   <span class="panel-tag" id="cal-source">SEED</span>
+                  <span class="panel-tag warn hidden" id="cal-sync-warn"></span>
                 </div>
                 <div id="calendar-grid" class="calendar-grid"></div>
               </div>
@@ -367,6 +401,7 @@
                   <input id="cal-start" class="dispatch-input" type="text" placeholder="09:00" spellcheck="false" />
                   <input id="cal-end" class="dispatch-input" type="text" placeholder="10:00" spellcheck="false" />
                   <button id="cal-go" class="hud-btn mini" type="submit">BOOK</button>
+                  <button id="cal-delete" class="hud-btn mini" type="button">DELETE</button>
                 </form>
               </div>
             </div>
@@ -413,18 +448,43 @@
                 </div>
                 <div id="health-log" class="health-log"></div>
               </div>
+              <div class="hud-panel panel health-trace">
+                <div class="panel-head">
+                  <h2>TRACE</h2>
+                  <span class="panel-sub">SPAN TREE</span>
+                  <span class="panel-tag" id="trace-count">0 SPANS</span>
+                </div>
+                <div id="trace-list" class="trace-list"></div>
+                <div id="trace-reader" class="email-reader">
+                  <span class="empty-hint">SELECT A SPAN ▸</span>
+                </div>
+              </div>
             </div>
           </section>
 
           <!-- ========== RESEARCH REPORTS ========== -->
           <section id="view-reports" class="view">
-            <div class="hud-panel panel view-panel">
-              <div class="panel-head">
-                <h2>RESEARCH REPORTS</h2>
-                <span class="panel-sub">FLEET FINDINGS</span>
-                <span class="panel-tag" id="reports-count">0 DOCS</span>
+            <div id="reports-layout">
+              <div class="hud-panel panel view-panel">
+                <div class="panel-head">
+                  <h2>RESEARCH REPORTS</h2>
+                  <span class="panel-sub">FLEET FINDINGS</span>
+                  <span class="panel-tag" id="reports-count">0 DOCS</span>
+                </div>
+                <div class="knowledge-filter-row">
+                  <input id="reports-filter" class="dispatch-input knowledge-filter" type="search" placeholder="Filter title or tag…" spellcheck="false" />
+                </div>
+                <div id="reports-grid" class="reports-grid"></div>
               </div>
-              <div id="reports-grid" class="reports-grid"></div>
+              <div class="hud-panel panel vault-read-panel">
+                <div class="panel-head">
+                  <h2>FINDING</h2>
+                  <span class="panel-sub">PREVIEW</span>
+                </div>
+                <div id="reports-reader" class="email-reader">
+                  <span class="empty-hint">SELECT A REPORT ▸</span>
+                </div>
+              </div>
             </div>
           </section>
         </main>
@@ -459,6 +519,14 @@
           <span class="coord-value" id="token-usage">0.0K</span>
         </div>
       </footer>
+
+      <div id="cmd-palette" class="cmd-palette hidden" aria-hidden="true">
+        <div class="cmd-box">
+          <div class="cmd-head">COMMAND PALETTE</div>
+          <input id="cmd-input" type="text" placeholder="Jump view / pause / snap / rewind / ack / today…" autocomplete="off" spellcheck="false" />
+          <div id="cmd-results" class="cmd-results"></div>
+        </div>
+      </div>
 
       <div id="scanline-overlay" aria-hidden="true"></div>
       <div id="screen-frame" aria-hidden="true"></div>

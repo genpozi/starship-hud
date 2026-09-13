@@ -12,7 +12,7 @@
   <a href="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml"><img src="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff" alt="stack"/>
   <img src="https://img.shields.io/badge/license-MIT-ffb347" alt="license"/>
-  <img src="https://img.shields.io/badge/tests-16%20suites-39ff88" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-19%20suites-39ff88" alt="tests"/>
   <img src="https://img.shields.io/badge/node-20%2B-83a598" alt="node"/>
   <img src="https://img.shields.io/badge/status-production--ready-39ff88" alt="status"/>
   <img src="https://img.shields.io/badge/deps-0%20audit%20vulns-39ff88" alt="deps"/>
@@ -39,13 +39,17 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 - **Six crew agents** (`ORCHESTRATOR`, `CODA`, `PILOT`, `SAGE`, `LINK`, `NUDGE`) with state machines, typed tool schemas, retry policies, and error states — no spinning forever.
 - **Superstep DAG scheduling (P8)** — operator goals are planned into steps with `dependsOn` chains; a step only starts once every dependency has completed. No more all-in-parallel chaos.
 - **Operator chat console** — `@AGENT` mentions pin the plan and reply to a specific agent; replies are synthesized in-character and grounded in the fleet's own knowledge vault.
-- **Approval bridge** — tools that need a human in the loop surface an approval card in the HUD (`approve` / `deny` / timeout).
+- **Approval bridge** — tools that need a human in the loop surface an approval card in the HUD (`approve` / `deny` / timeout). Routed to the run owner (P13).
+- **Operator packaging (P12)** — `stellaris-hud serve` / `demo` / `probe`. `.stellaris.json` mirrors `.env.example`; env still wins.
 
 ### Mission-control reliability
 
-- **Checkpoints + rollback (P10)** — a boot-guard snapshot plus on-demand full-state snapshots (capped ledger of 8); one REST call restores the previous state and reports exactly which slices were reverted.
-- **Single-operator interrupt (P11)** — pause/resume via the topbar button or API. In-flight steps finish, dispatch pickup halts, and an interrupt card tells you who stopped the run.
-- **Trace / span telemetry (P12)** — every run/tool call records a span with `ms` + token accounting, streamed to the client as typed events.
+- **Checkpoints + rollback (P10)** — a boot-guard snapshot plus on-demand full-state snapshots (capped ledger of 8); SNAP / REWIND on the topbar (or REST) restores the previous state and reports exactly which slices were reverted.
+- **Single-holder interrupt (P11/P13)** — pause/resume via the topbar button or API. In-flight steps finish, dispatch pickup halts. A second operator gets `409` until the holder resumes.
+- **Trace / span telemetry (P12)** — every run/tool call records a span with `ms` + token accounting; Health TRACE strip + reader.
+- **Command palette** — `Ctrl/Cmd+K` jumps views, pause, snap, rewind, ACK ALL, TODAY, compose. `1`–`0` / `[` `]` cycle the rail.
+- **Knowledge filters** — Vault/Reports title+tag typeahead; compose file chips with a WARN when an attachment exceeds the 200KB cap.
+- **Filesystem vault (P14)** — `data/vault/*.md` + front matter; skills write the file first, then state.
 
 ### Realtime data plane
 
@@ -55,7 +59,7 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 
 ### Views
 
-12 focused screens — **Mission Control** (rollup), **Kanban**, **Open Items**, **Scheduler**, **Chat**, **Graphs**, **Vault**, **Email**, **Calendar**, **Alerts**, **System Health**, **Research Reports**.
+12 focused screens — **Mission Control** (rollup), **Kanban**, **Open Items**, **Scheduler**, **Chat**, **Graphs**, **Vault**, **Email** (folders, reply, compose attach), **Calendar** (week PREV/NEXT/TODAY), **Alerts**, **System Health** (TRACE), **Research Reports** (readers + status cycle).
 
 ### Optional live integrations
 
@@ -64,7 +68,7 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 | **GitHub** | Issues + PRs → kanban board (ETag incremental, rate-limit guarded) | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` |
 | **Hermes WebUI** | Real agent delegation + approval bridge + reverse-ingest of sessions/crons | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL` |
 | **LLM planner** | LLM goal decomposition (heuristic offline fallback) | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` |
-| **Email / calendar** | Inbox + 7-day calendar via Gmail, Microsoft Graph, ICS, or inbound webhook | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*` |
+| **Email / calendar** | Inbox + 7-day calendar via Gmail, Microsoft Graph, ICS, CalDAV, or inbound webhook | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*`, `USER_CALDAV_*` |
 
 ---
 
@@ -76,7 +80,9 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 | **Graphs & Analytics** | **System Health** | **Alerts** |
 | ![Graphs](assets/screenshots/graphs.png) | ![Health](assets/screenshots/health.png) | ![Alerts](assets/screenshots/alerts.png) |
 
-> **Vault** — knowledge core with tagged docs and runbooks (`assets/screenshots/vault.png`).
+> **Vault** — knowledge core with tagged docs and a reader pane (`assets/screenshots/vault.png`). Live preview for Email folders, Calendar week nav, Items/Scheduler, Reports.
+
+> Further evolution: `docs/EVOLUTION.md`. Working context: `docs/CONTEXT.md`.
 
 ### Walkthrough video
 
@@ -121,6 +127,14 @@ npm run build
 npm start
 ```
 
+Or the packaged CLI (`serve` = orbit + `dist`; `demo` = mock + orbit; `probe` =
+Hermes contract). Copy `.stellaris.json.example` to `.stellaris.json` (env still
+wins):
+
+```bash
+npx stellaris-hud serve
+```
+
 ### Optional LLM planning
 
 Copy `.env.example` to `.env` and set `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL`. The chat planner will then ask the model to decompose operator goals into orchestrated steps. Without a key it uses the deterministic heuristic planner — fully offline.
@@ -147,13 +161,14 @@ Browser (Vite SPA)                Orbit server (Node, port 3001)
 │ src/channels.js typed│         │ server/trace.js     span tree  │
 │ src/galaxy.js 3D bg  │         │ server/checkpoints.js snapshots│
 │ src/config.js seed   │         │ server/store.js     persistence│
-└──────────────────────┘         │ data/state.json                │
+│                      │         │ server/vault.js     md files   │
+└──────────────────────┘         │ data/state.json + vault/*.md   │
                                  └────────────────────────────────┘
 ```
 
 - **Single source of truth** — the orbit server owns canonical state; the browser mirrors it over WebSocket (snapshot → diffed deltas) and mutates it via REST.
 - **Agent step machine** — dispatched jobs run through a step machine with `dependsOn` gating; in-flight steps finish during an interrupt; completed spans feed the trace slice.
-- **Persistence** — `data/state.json` is debounced-flushed; it self-heals from seed on corrupt/missing reads; a boot checkpoint is captured every start.
+- **Persistence** — `data/state.json` is debounced-flushed; `data/vault/*.md` is the knowledge core (file first, then state). Both honor `STELLARIS_DATA_DIR`. A boot checkpoint is captured every start.
 
 See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
@@ -170,7 +185,8 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 | `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS email+calendar adapters + inbound webhook |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
 | `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns, implementation status |
-| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and roadmap |
+| `docs/CONTEXT.md` · `docs/EVOLUTION.md` | working memory + post-2.2.0 plan (P11–P14 DONE) |
+| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and Phases 1–10 |
 | `CHANGELOG.md` | version history (Keep a Changelog) |
 | `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
 | `SECURITY.md` | vulnerability reporting + operator security posture |
@@ -180,7 +196,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 ## Testing
 
-16 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
+19 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
 
 ```bash
 npm test
@@ -194,6 +210,8 @@ npm test
 | `superstep` / `channels` / `checkpoints` / `interrupt` / `trace` | P8 dependency barrier, P9 reducers, P10 snapshots, P11 hold/resume, P12 spans |
 | `comms` | Gmail/Graph/ICS mappers, merge, inbound, rfc822 (no network) |
 | `regression` | review-fix guards (escapeHtml, in-flight gating, mention detection) |
+| `cli` / `operators` | P12 argv + `.stellaris.json` (env wins); P13 hello/pause-holder/approval owner |
+| `vault` | P14 filesystem knowledge core (front matter, file-then-state, hydrate) |
 | `integration` | boots a real orbit server — full REST + WebSocket surface |
 
 ---
@@ -210,7 +228,7 @@ npm test
 ├── docker-compose.yml    # orbit + optional mock, orbit-data volume
 ├── LICENSE · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md
 ├── .github/              # CI workflow, issue/PR templates
-├── docs/                 # architecture, API, developer, deployment, research
+├── docs/                 # architecture, API, developer, deployment, research, CONTEXT, EVOLUTION
 ├── assets/screenshots/   # README gallery captures
 ├── server/               # orbit backend
 │   ├── index.js          # express + ws entry point
@@ -222,8 +240,10 @@ npm test
 │   ├── checkpoints.js    # P10 snapshot/rollback (capped ledger)
 │   ├── store.js · seed.js# JSON persistence + seed from src/config.js
 │   ├── github.js · hermes.js · hermes-ingest.js · hermes-contract.js
+│   ├── cli-config.js · operators.js · vault.js
 │   └── mock-hermes.js    # hermes-webui test double
-├── test/                 # 16 suites + run-all.mjs (fresh mock per suite)
+├── bin/stellaris-hud.js  # P12 CLI: serve / demo / probe
+├── test/                 # 19 suites + run-all.mjs (fresh mock per suite)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router
@@ -274,8 +294,11 @@ All dashboard content lives in `src/config.js`. Edit the exports to rename the s
 - [x] Single-operator interrupt / pause / resume (P11)
 - [x] Trace / span telemetry streamed as typed events (P12)
 - [x] GitHub + Hermes WebUI live integrations (operator-supplied creds)
-- [ ] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
-- [ ] Multi-operator sessions + per-operator approval routing
+- [x] Email/calendar (Gmail, Graph, ICS, CalDAV) + HUD folders/week-nav/attach
+- [x] Command palette, SNAP/REWIND, TRACE HUD, TODAY
+- [x] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
+- [x] Multi-operator sessions + per-operator approval routing
+- [x] Filesystem vault (`data/vault/*.md` + front matter)
 
 ---
 

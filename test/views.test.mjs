@@ -100,6 +100,16 @@ function makeFragment() {
 
 globalThis.document = {
   querySelector: (sel) => makeElement(sel),
+  querySelectorAll: (sel) => {
+    if (sel === '.email-folder-tab') {
+      return ['inbox', 'sent', 'archive'].map((folder) => {
+        const el = makeElement(`.email-folder-tab-${folder}`)
+        el.dataset.folder = folder
+        return el
+      })
+    }
+    return []
+  },
   createElement: (tag) => new FakeElement(tag),
   createDocumentFragment: () => makeFragment()
 }
@@ -107,6 +117,7 @@ globalThis.document = {
 // ---- harness ---------------------------------------------------------- //
 const { STATE } = await import('../src/store.js')
 const views = await import('../src/views.js')
+const { HUD_VERSION } = await import('../src/config.js')
 
 const results = []
 const pass = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} ${name}`)
@@ -124,7 +135,8 @@ const TARGETS = {
   renderCalendar: '#calendar-grid',
   renderAlerts: '#alert-feed',
   renderHealth: '#probe-grid',
-  renderReports: '#reports-grid'
+  renderReports: '#reports-grid',
+  renderTrace: '#trace-list'
 }
 
 // ---- 1. every view renderer populates its container, no throw --------- //
@@ -185,6 +197,34 @@ views.renderGraphs({ hist: [{ ts: 1, ctx: 1, lat: 1, temp: 1, token: 1 }], jobs:
 pass('graphs skip rebuild when hist tail unchanged', views._lastHistKey === mark1)
 views.renderGraphs({ hist: [{ ts: 1, ctx: 1, lat: 1, temp: 1, token: 1 }, { ts: 2, ctx: 2, lat: 2, temp: 2, token: 2 }], jobs: { done: 2, failed: 0 } })
 pass('graphs rebuild when hist grows', views._lastHistKey !== mark1)
+
+views.renderGraphs({ hist: [{ ts: 9, ctx: 10, lat: 20, temp: 30, token: 42 }], jobs: { done: 1, failed: 0 } })
+pass('TOKEN USAGE caption uses token series', String(makeElement('#graph-tokens').innerHTML).includes('TOKEN:'))
+pass('TOKEN USAGE sparkline is not CTX-only', String(makeElement('#graph-tokens').innerHTML).includes('TOKEN: 42'))
+pass('graph token foot shows budget', String(makeElement('#graph-token-foot').textContent).includes('BUDGET'))
+
+const savedItems = STATE.items
+STATE.items = []
+views.renderItems()
+pass('empty items shows hint', String(makeElement('#items-table').innerHTML).includes('NO OPEN ITEMS'))
+STATE.items = savedItems
+views.renderItems()
+pass('HUD_VERSION is 2.2.0', HUD_VERSION === '2.2.0')
+
+pass('matchesKnowledge empty query matches all', views.matchesKnowledge({ title: 'x', tags: [] }, '') === true)
+pass('matchesKnowledge title typeahead', views.matchesKnowledge({ title: 'System architecture overview', tags: ['ARCH'] }, 'archit') === true)
+pass('matchesKnowledge tag filter', views.matchesKnowledge({ title: 'Release checklist', tags: ['RELEASE'] }, 'release') === true)
+pass('matchesKnowledge miss', views.matchesKnowledge({ title: 'Webhook', tags: ['INTEGRATION'] }, 'zzz') === false)
+
+makeElement('#vault-filter').value = 'ARCH'
+views.renderVault()
+pass('vault filter shows matching docs', String(makeElement('#vault-grid').innerHTML).toLowerCase().includes('architecture'))
+pass('vault filter hides others', !String(makeElement('#vault-grid').innerHTML).toLowerCase().includes('webhook'))
+makeElement('#vault-filter').value = 'zzz'
+views.renderVault()
+pass('vault filter empty hint', String(makeElement('#vault-grid').innerHTML).includes('NO MATCHING DOCS'))
+makeElement('#vault-filter').value = ''
+views.renderVault()
 
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))

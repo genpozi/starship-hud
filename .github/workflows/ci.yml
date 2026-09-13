@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test suite (all 10 suites)
+      - name: Test suite (all 19 suites)
         run: npm test
 
       - name: Production build

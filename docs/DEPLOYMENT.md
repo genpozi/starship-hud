@@ -33,6 +33,7 @@ mapping. Exit code is non-zero on any FAIL.
 npm ci
 npm run build                 # bundle the frontend
 npm start                     # Express serves dist/ + API + WS on :3001
+# or: npx stellaris-hud serve  (loads .stellaris.json; env still wins)
 ```
 
 ### Docker
@@ -55,13 +56,13 @@ Set these in `.env` (see `.env.example` for the full list):
 | GitHub | `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` | Maps issues + PRs onto the board; ETag polling (`data/github-etags.json`); hermes rows preserved via `mergeReplacement` |
 | Hermes WebUI | `USER_HERMES_URL`, `USER_HERMES_PASSWORD`, `USER_HERMES_MODEL`, `USER_HERMES_POLL_MS`, `USER_HERMES_INGEST_MS`, `USER_HERMES_APPROVAL`, `USER_HERMES_APPROVAL_TIMEOUT` | Chat delegation, HUD approval bridge, reverse ingest of sessions/crons |
 | LLM planner | `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL` | Goal decomposition; falls back to the deterministic heuristic planner offline |
-| Email / calendar | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*` | Gmail, Microsoft Graph, ICS subscribe, inbound webhook. Seed inbox/calendar when unset. See `docs/COMMS-INTEGRATION.md`. |
+| Email / calendar | `USER_COMMS_*`, `USER_GOOGLE_*`, `USER_MS_*`, `USER_ICS_*`, `USER_CALDAV_*` | Gmail, Microsoft Graph, ICS subscribe, CalDAV write, inbound webhook. Seed inbox/calendar when unset. See `docs/COMMS-INTEGRATION.md`. |
 
 Activation rule: `dataSource` flips to `hermes` only when `USER_HERMES_URL` is
 explicitly set **and** `/health` responds; to `github` only when a full
 GitHub sync succeeds. Missing config keeps the seed board. Comms `auto`
-picks Google → Microsoft → ICS (calendar only) and never crashes the orbit
-on upstream failure.
+concatenates every configured provider (Google + Microsoft + ICS/CalDAV)
+and never crashes the orbit on upstream failure.
 
 ## 4. Operator runbook (Hermes)
 
@@ -85,10 +86,11 @@ Quick facts:
 ## 5. Tests & verification
 
 ```bash
-npm test          # 16 suites: hermes client, reverse ingest, phase-4 engine,
+npm test          # 19 suites: hermes client, reverse ingest, phase-4 engine,
                   # github mapping, planner, skills, chat, regression, views,
                   # superstep, channels, checkpoints, interrupt, trace,
-                  # comms (mappers/ICS/merge, no network), integration
+                  # comms (mappers/ICS/merge, no network), cli, operators,
+                  # vault (filesystem knowledge core), integration
 npm run build     # frontend bundle must compile
 ```
 
@@ -96,6 +98,8 @@ npm run build     # frontend bundle must compile
 
 - `data/state.json` is the persisted runtime state (gitignored). Back it up
   before upgrades; it self-heals from seed on corrupt/missing reads.
+- `data/vault/*.md` is the filesystem knowledge core (P14). Skills write files
+  first, then state; boot hydrates markdown onto `state.vault`.
 - The scheduler rows with `src:'hermes'` are authoritative from upstream — the
   seed emulator never overwrites them.
 - Rotate `GITHUB_TOKEN` / `USER_HERMES_PASSWORD` / any LLM key / OAuth refresh

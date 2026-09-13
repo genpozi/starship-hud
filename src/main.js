@@ -1,7 +1,7 @@
 import './style.css'
 import { STATE, applyServerState } from './store.js'
-import { connect, api, isOnline, linkState } from './api.js'
-import { TOOLS, SHIP, AGENDA } from './config.js'
+import { connect, api, isOnline, linkState, getOperatorId, setOperatorId } from './api.js'
+import { TOOLS, SHIP, AGENDA, HUD_VERSION } from './config.js'
 import {
   renderKanban,
   renderItems,
@@ -16,13 +16,18 @@ import {
   renderHealth,
   renderReports,
   renderApproval,
+  renderTrace,
   changed,
   createStreamRenderer,
   escapeHtml,
   logKey,
   pushChat,
-  getSelectedEmailId
+  getSelectedEmailId,
+  getSelectedEventId,
+  setEmailFolder
 } from './views.js'
+
+const HUD_VIEWS = ['mission', 'kanban', 'items', 'scheduler', 'chat', 'graphs', 'vault', 'email', 'calendar', 'alerts', 'health', 'reports']
 
 /**
  * MAIN // Boots the galaxy renderer, the orbit-server bridge and the HUD
@@ -155,9 +160,15 @@ function renderWorkflows() {
           <span>ETA: ${escapeHtml(w.eta)}</span>
           <span class="wf-pct">${w.progress}%</span>
         </div>
-        <div class="wf-bar"><div class="wf-bar-fill" style="width:${w.progress}%"></div></div>
-        <div class="wf-steps">${w.steps.map((s, i) => `<div class="wf-step ${s ? 'on' : ''} ${i === w.curStep && w.state === 'running' ? 'cur' : ''}"></div>`).join('')}</div>
-      `
+         <div class="wf-bar"><div class="wf-bar-fill" style="width:${w.progress}%"></div></div>
+         <div class="wf-steps">${w.steps.map((s, i) => `<div class="wf-step ${s ? 'on' : ''} ${i === w.curStep && w.state === 'running' ? 'cur' : ''}"></div>`).join('')}</div>
+         ${Array.isArray(w.plan) && w.plan.length ? `<div class="wf-dag">${w.plan.map((s, i) => {
+           const on = w.steps[i] ? 'on' : ''
+           const cur = i === w.curStep && w.state === 'running' ? 'cur' : ''
+           const deps = (s.dependsOn || []).length ? ` <-${(s.dependsOn || []).join(',')}` : ''
+           return `<span class="wf-dag-step ${on} ${cur}">${escapeHtml(s.agent || '')} ${escapeHtml(String(s.title || '').slice(0, 18))}${escapeHtml(deps)}</span>`
+         }).join('')}</div>` : ''}
+       `
       list.appendChild(el)
     })
     return
@@ -329,6 +340,8 @@ function renderRollup() {
   const pauseLabel = $('#pause-label')
   if (pauseLabel) pauseLabel.textContent = STATE.meta.paused ? 'RESUME' : 'PAUSE'
   if (pauseBtn) pauseBtn.classList.toggle('active', !!STATE.meta.paused)
+  const opEl = $('#operator-id')
+  if (opEl && document.activeElement !== opEl) opEl.value = getOperatorId()
   if (STATE.meta.paused) {
     sys.innerHTML = `<span class="status-dot warn"></span> OPERATIONS PAUSED · ${src}`
   } else if (bad) {
@@ -350,20 +363,22 @@ function renderAllViews() {
   if (changed('dispatch', STATE.dispatch)) renderDispatch()
   if (changed('graphs', STATE.telemetry)) renderGraphs(STATE.telemetry)
   if (changed('vault', STATE.vault)) renderVault()
-  if (changed('email', STATE.email)) renderEmail()
-  if (changed('calendar', [STATE.calendar.day, STATE.calendar.events])) renderCalendar()
+  if (changed('email', [STATE.email, STATE.meta && STATE.meta.comms])) renderEmail()
+  if (changed('calendar', [STATE.calendar.day, STATE.calendar.weekStart, STATE.calendar.events, STATE.meta && STATE.meta.comms])) renderCalendar()
   if (changed('alerts', STATE.alerts)) renderAlerts()
   renderHealth(STATE.logs, logFilter)
   renderApproval()
   if (changed('reports', STATE.reports)) renderReports()
+  if (changed('trace', STATE.trace)) renderTrace()
 }
 
 // ============================================================================
 // VIEW ROUTER
 // ============================================================================
 function showView(name) {
+  if (!name || !HUD_VIEWS.includes(name)) return
   document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'))
-  document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'))
+  document.querySelectorAll('.nav-btn[data-view]').forEach((b) => b.classList.remove('active'))
   const view = document.getElementById(`view-${name}`)
   if (view) view.classList.add('active')
   const btn = document.querySelector(`.nav-btn[data-view="${name}"]`)
@@ -375,8 +390,177 @@ function showView(name) {
 }
 
 function bindNavigation() {
-  document.querySelectorAll('.nav-btn').forEach((btn) => {
+  document.querySelectorAll('.nav-btn[data-view]').forEach((btn) => {
     btn.addEventListener('click', () => showView(btn.dataset.view))
+  })
+}
+
+function activeViewName() {
+  const on = document.querySelector('.view.active')
+  return on ? String(on.id || '').replace(/^view-/, '') : 'mission'
+}
+
+function isTypingTarget(el) {
+  if (!el) return false
+  const tag = String(el.tagName || '').toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable
+}
+
+function togglePause() {
+  const pauseBtn = $('#pause-btn')
+  if (pauseBtn) pauseBtn.click()
+}
+
+function snapCheckpoint() {
+  if (isOnline()) api.captureCheckpoint('hud').then((r) => log('OK', `Checkpoint ${r.id || 'captured'}`)).catch(() => log('WARN', 'snap failed'))
+  else log('WARN', 'SNAP requires orbit link')
+}
+
+function rewindCheckpoint() {
+  if (isOnline()) api.rollback().then((r) => log('OK', `Rewound ${r.id || ''}`.trim())).catch(() => log('WARN', 'rewind failed'))
+  else log('WARN', 'REWIND requires orbit link')
+}
+
+function jumpToday() {
+  const d = new Date()
+  d.setDate(d.getDate() - d.getDay())
+  const weekStart = d.toISOString().slice(0, 10)
+  if (isOnline()) api.setCalWeek({ weekStart }).then(() => renderCalendar()).catch(() => log('WARN', 'week jump failed'))
+  else {
+    STATE.calendar.weekStart = weekStart
+    STATE.calendar.weekLabel = `WEEK ${weekStart}`
+    renderCalendar()
+  }
+  showView('calendar')
+}
+
+const PALETTE_COMMANDS = HUD_VIEWS.map((v) => ({
+  id: `view-${v}`,
+  label: `VIEW ${v.toUpperCase()}`,
+  hint: '',
+  run: () => showView(v)
+})).concat([
+  { id: 'pause', label: 'PAUSE / RESUME', hint: 'P', run: togglePause },
+  { id: 'snap', label: 'SNAP CHECKPOINT', hint: '', run: snapCheckpoint },
+  { id: 'rewind', label: 'REWIND CHECKPOINT', hint: '', run: rewindCheckpoint },
+  { id: 'ack', label: 'ACK ALL ALERTS', hint: '', run: () => { if (isOnline()) api.ackAll().catch(() => {}); showView('alerts') } },
+  { id: 'today', label: 'CALENDAR TODAY', hint: '', run: jumpToday },
+  { id: 'compose', label: 'COMPOSE EMAIL', hint: '', run: () => { showView('email'); $('#email-to')?.focus() } }
+])
+
+let cmdOpen = false
+let cmdIndex = 0
+let cmdHits = PALETTE_COMMANDS.slice()
+
+function renderPalette(query) {
+  const needle = String(query || '').trim().toLowerCase()
+  cmdHits = PALETTE_COMMANDS.filter((c) => !needle || c.label.toLowerCase().includes(needle) || c.id.includes(needle))
+  cmdIndex = 0
+  const box = $('#cmd-results')
+  if (!box) return
+  box.innerHTML = cmdHits.map((c, i) => `
+    <div class="cmd-item${i === 0 ? ' active' : ''}" data-id="${escapeHtml(c.id)}">
+      <span>${escapeHtml(c.label)}</span>
+      <span class="cmd-hint">${escapeHtml(c.hint || '')}</span>
+    </div>`).join('') || '<div class="cmd-item">NO MATCH</div>'
+}
+
+function openPalette() {
+  const pal = $('#cmd-palette')
+  if (!pal) return
+  pal.classList.remove('hidden')
+  pal.setAttribute('aria-hidden', 'false')
+  cmdOpen = true
+  const input = $('#cmd-input')
+  if (input) {
+    input.value = ''
+    renderPalette('')
+    input.focus()
+  }
+}
+
+function closePalette() {
+  const pal = $('#cmd-palette')
+  if (!pal) return
+  pal.classList.add('hidden')
+  pal.setAttribute('aria-hidden', 'true')
+  cmdOpen = false
+}
+
+function runPalette(id) {
+  const cmd = PALETTE_COMMANDS.find((c) => c.id === id) || cmdHits[cmdIndex]
+  closePalette()
+  if (cmd && typeof cmd.run === 'function') cmd.run()
+}
+
+function bindPalette() {
+  const pal = $('#cmd-palette')
+  const input = $('#cmd-input')
+  const results = $('#cmd-results')
+  if (!pal || !input) return
+  input.addEventListener('input', () => renderPalette(input.value))
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      cmdIndex = Math.min(cmdHits.length - 1, cmdIndex + 1)
+      results.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === cmdIndex))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      cmdIndex = Math.max(0, cmdIndex - 1)
+      results.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === cmdIndex))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const hit = cmdHits[cmdIndex]
+      if (hit) runPalette(hit.id)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      closePalette()
+    }
+  })
+  results.addEventListener('click', (e) => {
+    const row = e.target.closest('.cmd-item')
+    if (row && row.dataset.id) runPalette(row.dataset.id)
+  })
+  pal.addEventListener('click', (e) => {
+    if (e.target === pal) closePalette()
+  })
+}
+
+function bindKeys() {
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+      e.preventDefault()
+      if (cmdOpen) closePalette()
+      else openPalette()
+      return
+    }
+    if (e.key === 'Escape') {
+      if (cmdOpen) {
+        e.preventDefault()
+        closePalette()
+      }
+      return
+    }
+    if (cmdOpen || isTypingTarget(e.target)) return
+    if (e.key >= '1' && e.key <= '9') {
+      const idx = Number(e.key) - 1
+      if (HUD_VIEWS[idx]) showView(HUD_VIEWS[idx])
+      return
+    }
+    if (e.key === '0' && HUD_VIEWS[9]) {
+      showView(HUD_VIEWS[9])
+      return
+    }
+    if (e.key === '[' || e.key === ']') {
+      const cur = HUD_VIEWS.indexOf(activeViewName())
+      const next = e.key === ']' ? (cur + 1) % HUD_VIEWS.length : (cur - 1 + HUD_VIEWS.length) % HUD_VIEWS.length
+      showView(HUD_VIEWS[next])
+      return
+    }
+    if (String(e.key).toLowerCase() === 'r' && getSelectedEmailId()) {
+      showView('email')
+      $('#email-reply')?.click()
+    }
   })
 }
 
@@ -536,11 +720,23 @@ export async function boot() {
   renderGauges()
 
   $('#active-mission').textContent = SHIP.mission
+  const ver = $('#hud-version')
+  if (ver) ver.textContent = `v${HUD_VERSION}`
 
   renderAllViews()
   renderRollup()
 
   bindNavigation()
+  bindPalette()
+  bindKeys()
+
+  const opEl = $('#operator-id')
+  if (opEl) {
+    opEl.value = getOperatorId()
+    const commitOp = () => setOperatorId(opEl.value)
+    opEl.addEventListener('change', commitOp)
+    opEl.addEventListener('blur', commitOp)
+  }
 
   const seedLogs = [
     'INFO', 'HUD link established — all subsystems nominal',
@@ -564,6 +760,10 @@ export async function boot() {
       renderAllViews()
     }
   })
+  const snapBtn = $('#snap-btn')
+  if (snapBtn) snapBtn.addEventListener('click', snapCheckpoint)
+  const rewindBtn = $('#rewind-btn')
+  if (rewindBtn) rewindBtn.addEventListener('click', rewindCheckpoint)
   $('#approval-approve').addEventListener('click', () => {
     api.approval('approve').catch(() => {})
     renderApproval()
@@ -591,6 +791,62 @@ export async function boot() {
       dispatchAgent.appendChild(opt)
     })
   }
+  const COMPOSE_CAP = 200000
+  function pickComposeFiles(files) {
+    const list = Array.from(files || [])
+    const chosen = []
+    const dropped = []
+    let total = 0
+    for (const f of list) {
+      if (f.size > COMPOSE_CAP || total + f.size > COMPOSE_CAP) {
+        dropped.push(f)
+        continue
+      }
+      total += f.size
+      chosen.push(f)
+    }
+    return { chosen, dropped }
+  }
+  function renderAttachChips(chosen) {
+    const el = $('#email-attach-chips')
+    if (!el) return
+    el.innerHTML = (chosen || []).map((f) => {
+      const kb = Math.max(1, Math.round((Number(f.size) || 0) / 1024))
+      return `<span class="attach-chip">${escapeHtml(f.name || 'file')} · ${kb}KB</span>`
+    }).join('')
+  }
+  function warnDropped(dropped) {
+    ;(dropped || []).forEach((f) => log('WARN', `Attach ${f.name} exceeds 200KB cap`))
+  }
+  function syncComposeAttachments(input) {
+    const { chosen, dropped } = pickComposeFiles(input?.files)
+    renderAttachChips(chosen)
+    warnDropped(dropped)
+    return chosen
+  }
+  function readComposeAttachments(input) {
+    const { chosen } = pickComposeFiles(input?.files)
+    if (!chosen.length) return Promise.resolve([])
+    return Promise.all(chosen.map((f) => new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const raw = String(reader.result || '')
+        const data = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw
+        resolve({ name: f.name, mime: f.type || 'application/octet-stream', size: f.size, data })
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(f)
+    }))).then((parts) => parts.filter(Boolean))
+  }
+
+  const vaultFilter = $('#vault-filter')
+  if (vaultFilter) vaultFilter.addEventListener('input', () => renderVault())
+  const reportsFilter = $('#reports-filter')
+  if (reportsFilter) reportsFilter.addEventListener('input', () => renderReports())
+
+  const attachInputLive = $('#email-attach')
+  if (attachInputLive) attachInputLive.addEventListener('change', () => syncComposeAttachments(attachInputLive))
+
   const emailForm = $('#email-compose')
   if (emailForm) emailForm.addEventListener('submit', (e) => {
     e.preventDefault()
@@ -598,28 +854,57 @@ export async function boot() {
     const subject = ($('#email-subject')?.value || '').trim()
     const body = ($('#email-body')?.value || '').trim()
     if (!to || !subject) return
-    $('#email-to').value = ''
-    $('#email-subject').value = ''
-    $('#email-body').value = ''
-    log('INFO', `Compose → ${to}: ${subject}`)
-    if (isOnline()) api.sendMail(to, subject, body).then(() => renderEmail()).catch(() => log('WARN', 'send failed'))
-    else {
-      STATE.email.unshift({
-        id: `local-${Date.now()}`,
-        from: 'operator@stellaris.internal',
-        to,
-        subject,
-        preview: body.slice(0, 140),
-        body,
-        time: new Date().toISOString().slice(11, 16),
-        label: 'MAIL',
-        read: true,
-        prio: 'med',
-        folder: 'sent',
-        src: 'local'
-      })
-      renderEmail()
+    const attachInput = $('#email-attach')
+    readComposeAttachments(attachInput).then((attachments) => {
+      $('#email-to').value = ''
+      $('#email-subject').value = ''
+      $('#email-body').value = ''
+      if (attachInput) attachInput.value = ''
+      renderAttachChips([])
+      log('INFO', `Compose → ${to}: ${subject}`)
+      if (isOnline()) api.sendMail(to, subject, body, attachments).then(() => {
+        setEmailFolder('sent')
+        renderEmail()
+      }).catch(() => log('WARN', 'send failed'))
+      else {
+        STATE.email.unshift({
+          id: `local-${Date.now()}`,
+          from: 'operator@stellaris.internal',
+          to,
+          subject,
+          preview: body.slice(0, 140),
+          body,
+          time: new Date().toISOString().slice(11, 16),
+          label: 'MAIL',
+          read: true,
+          prio: 'med',
+          folder: 'sent',
+          src: 'local',
+          attachments: attachments.map((a) => ({ name: a.name, mime: a.mime, size: a.size }))
+        })
+        setEmailFolder('sent')
+        renderEmail()
+      }
+    })
+  })
+  document.querySelectorAll('.email-folder-tab').forEach((tab) => {
+    tab.addEventListener('click', () => setEmailFolder(tab.dataset.folder))
+  })
+  const replyBtn = $('#email-reply')
+  if (replyBtn) replyBtn.addEventListener('click', () => {
+    const id = getSelectedEmailId()
+    const target = (STATE.email || []).find((m) => m && m.id === id)
+    if (!target) return
+    const toEl = $('#email-to')
+    const subEl = $('#email-subject')
+    const bodyEl = $('#email-body')
+    if (toEl) toEl.value = target.from || target.to || ''
+    if (subEl) {
+      const sub = String(target.subject || '')
+      subEl.value = /^re:/i.test(sub) ? sub : `Re: ${sub}`
     }
+    if (bodyEl) bodyEl.value = ''
+    toEl?.focus()
   })
   const archiveBtn = $('#email-archive')
   if (archiveBtn) archiveBtn.addEventListener('click', () => {
@@ -645,6 +930,37 @@ export async function boot() {
       STATE.calendar.events.push({ id: `local-${Date.now()}`, day, start, end, title, type: 'dep', agents: ['USER'], src: 'local' })
       renderCalendar()
     }
+  })
+  function shiftLocalWeek(delta) {
+    const cur = STATE.calendar.weekStart || new Date().toISOString().slice(0, 10)
+    const d = new Date(`${cur}T00:00:00`)
+    d.setDate(d.getDate() + Number(delta || 0) * 7)
+    STATE.calendar.weekStart = d.toISOString().slice(0, 10)
+    STATE.calendar.weekLabel = `WEEK ${STATE.calendar.weekStart}`
+    renderCalendar()
+  }
+  const calPrev = $('#cal-prev')
+  if (calPrev) calPrev.addEventListener('click', () => {
+    if (isOnline()) api.setCalWeek({ delta: -1 }).then(() => renderCalendar()).catch(() => log('WARN', 'week nav failed'))
+    else shiftLocalWeek(-1)
+  })
+  const calNext = $('#cal-next')
+  if (calNext) calNext.addEventListener('click', () => {
+    if (isOnline()) api.setCalWeek({ delta: 1 }).then(() => renderCalendar()).catch(() => log('WARN', 'week nav failed'))
+    else shiftLocalWeek(1)
+  })
+  const calToday = $('#cal-today')
+  if (calToday) calToday.addEventListener('click', jumpToday)
+  const calDelete = $('#cal-delete')
+  if (calDelete) calDelete.addEventListener('click', () => {
+    const id = getSelectedEventId()
+    if (!id) return
+    const events = STATE.calendar.events || []
+    const idx = events.findIndex((e) => e && e.id === id)
+    if (idx < 0) return
+    events.splice(idx, 1)
+    if (isOnline()) api.deleteEvent(id).catch(() => {})
+    renderCalendar()
   })
 
   const dispatchForm = $('#dispatch-form')

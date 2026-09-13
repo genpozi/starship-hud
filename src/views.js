@@ -6,10 +6,37 @@
  */
 
 import { STATE } from './store.js'
-import { api, isOnline } from './api.js'
+import { api, isOnline, getOperatorId } from './api.js'
 
 const $ = (sel) => document.querySelector(sel)
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const pendingIds = new Set()
+
+export function lockPending(id, ms = 400) {
+  if (!id) return false
+  if (pendingIds.has(id)) return false
+  pendingIds.add(id)
+  setTimeout(() => pendingIds.delete(id), ms)
+  return true
+}
+
+function isPending(id) {
+  return pendingIds.has(id)
+}
+
+function setSyncWarn(el, errs) {
+  if (!el) return
+  const n = Array.isArray(errs) ? errs.length : errs ? 1 : 0
+  if (!n) {
+    el.textContent = ''
+    el.classList.add('hidden')
+    return
+  }
+  el.textContent = n === 1 ? 'SYNC WARN' : `SYNC WARN ${n}`
+  el.classList.remove('hidden')
+  const msg = Array.isArray(errs) ? errs[0] : errs
+  if (msg) el.title = String(msg)
+}
 
 /**
  * Escape a value for safe injection into innerHTML. Every renderer routes
@@ -169,6 +196,14 @@ export function renderKanban() {
 // ============================================================================
 // OPEN ITEMS
 // ============================================================================
+const ITEM_STATUSES = ['open', 'watch', 'review', 'closed']
+
+function nextItemStatus(cur) {
+  const s = String(cur || 'open').toLowerCase()
+  const idx = ITEM_STATUSES.indexOf(s === 'merged' ? 'closed' : s)
+  return ITEM_STATUSES[(idx < 0 ? 0 : idx + 1) % ITEM_STATUSES.length]
+}
+
 export function renderItems() {
   const table = $('#items-table')
   if (!table) return
@@ -177,17 +212,28 @@ export function renderItems() {
     <div class="tbl-row tbl-head">
       <span>ID</span><span>TITLE</span><span>TYPE</span><span>PRIO</span><span>OWNER</span><span>STATUS</span>
     </div>
-    ${STATE.items.map(
+     ${(STATE.items || []).length
+      ? (STATE.items || []).map(
       (it) => `
-    <div class="tbl-row">
+    <div class="tbl-row${isPending(it.id) ? ' pending' : ''}" data-id="${escapeHtml(it.id)}">
       <span class="tbl-id">${escapeHtml(it.id)}</span>
-      <span class="tbl-title">${escapeHtml(it.title)}</span>
-      <span class="tbl-type ${it.type}">${escapeHtml(it.type)}</span>
-      <span class="tbl-prio ${it.prio}">${escapeHtml(it.prio)}</span>
-      <span class="tbl-assignee">${escapeHtml(it.assignee)}</span>
-      <span class="tbl-status ${it.status}">${escapeHtml(it.status).toUpperCase()}</span>
+      <span class="tbl-title">${escapeHtml(it.title || it.label || '')}</span>
+      <span class="tbl-type ${escapeHtml(it.type || '')}">${escapeHtml(it.type || '')}</span>
+      <span class="tbl-prio ${escapeHtml(it.prio || '')}">${escapeHtml(it.prio || '')}</span>
+      <span class="tbl-assignee">${escapeHtml(it.assignee || '')}</span>
+      <span class="tbl-status ${escapeHtml(it.status || 'open')}">${escapeHtml(it.status || 'open').toUpperCase()}</span>
     </div>`
-    ).join('')}`
+    ).join('')
+      : '<div class="tbl-row"><span class="empty-hint">NO OPEN ITEMS ▸</span></div>'}`
+  table.querySelectorAll('.tbl-row[data-id]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const it = (STATE.items || []).find((x) => x && x.id === row.dataset.id)
+      if (!it || !lockPending(it.id)) return
+      it.status = nextItemStatus(it.status)
+      if (isOnline()) api.cycleItemStatus(it.id).catch(() => {})
+      renderItems()
+    })
+  })
 }
 
 // ============================================================================
@@ -201,17 +247,28 @@ export function renderScheduler() {
     <div class="tbl-row tbl-head">
       <span>JOB</span><span>CRON</span><span>AGENT</span><span>NEXT RUN</span><span>DURATION</span><span>LAST</span>
     </div>
-    ${STATE.schedules.map(
+     ${(STATE.schedules || []).length
+      ? (STATE.schedules || []).map(
       (j) => `
-    <div class="cron-row${j.src === 'hermes' ? ' he' : ''}">
-      <span class="cron-name">${escapeHtml(j.name)}</span>
+    <div class="cron-row${j.src === 'hermes' ? ' he' : ''}${j.paused ? ' paused' : ''}${isPending(j.id) ? ' pending' : ''}" data-id="${escapeHtml(j.id)}" title="${j.src === 'hermes' ? 'Hermes ingest-authoritative' : j.paused ? 'Click to resume' : 'Click to pause'}">
+      <span class="cron-name">${escapeHtml(j.name || j.title || '')}</span>
       <span class="cron-cron">${escapeHtml(j.cron)}</span>
-      <span class="cron-agent">◈ ${escapeHtml(j.agent)}</span>
-      <span class="cron-next">${escapeHtml(j.next)}</span>
-      <span class="cron-dur">${escapeHtml(j.dur)}</span>
-      <span class="cron-last ${j.last}">${escapeHtml(j.last)}</span>
+      <span class="cron-agent">◈ ${escapeHtml(j.agent || '')}</span>
+      <span class="cron-next">${escapeHtml(j.paused ? 'HOLD' : j.next)}</span>
+      <span class="cron-dur">${escapeHtml(j.dur || '')}</span>
+      <span class="cron-last ${escapeHtml(j.last || '')}">${escapeHtml(j.paused ? 'HOLD' : j.last || '')}</span>
     </div>`
-    ).join('')}`
+    ).join('')
+      : '<div class="cron-row"><span class="empty-hint">NO SCHEDULED JOBS ▸</span></div>'}`
+  table.querySelectorAll('.cron-row[data-id]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const job = (STATE.schedules || []).find((x) => x && x.id === row.dataset.id)
+      if (!job || job.src === 'hermes' || !lockPending(job.id)) return
+      job.paused = !job.paused
+      if (isOnline()) api.toggleSchedule(job.id).catch(() => {})
+      renderScheduler()
+    })
+  })
 }
 
 // ============================================================================
@@ -270,7 +327,11 @@ export function renderApproval() {
   const detail = $('#approval-detail')
   if (agent) agent.textContent = (p.from || 'HERMES') + ' ▸ tool: ' + (p.tool || 'tool')
   if (summary) summary.textContent = p.summary || 'Hermes requests approval'
-  if (detail) detail.textContent = p.detail || ''
+  const mine = !p.owner || p.owner === getOperatorId()
+  card.classList.toggle('foreign', !mine)
+  if (detail) detail.textContent = mine ? (p.detail || '') : `AWAITING OWNER ${p.owner}`
+  const actions = card.querySelector('.approval-actions')
+  if (actions) actions.classList.toggle('hidden', !mine)
 }
 
 // ============================================================================
@@ -310,8 +371,6 @@ function barChartSvg(values) {
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${bars}</svg>`
 }
 
-const SUCCESS_SPARKLINE = sparklineSvg([100, 100, 100, 100, 100, 100], { min: 80 })
-
 export function renderGraphs(telemetry) {
   const tokens = $('#graph-tokens')
   if (!tokens) return
@@ -340,8 +399,8 @@ export function renderGraphs(telemetry) {
   const lastLat = last ? last.lat : telemetry.lat
   const lastTemp = last ? last.temp : telemetry.temp
 
-  tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">CTX: ${Math.round(lastCtx)}% · LAT: ${Math.round(lastLat)}ms · TEMP: ${Math.round(lastTemp)}°</div>` +
-    sparklineSvg(ctxSeries, { cls: 'amber' })
+  tokens.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-bottom:6px">TOKEN: ${Math.round(tokenSeries[tokenSeries.length - 1] || 0)}% · CTX: ${Math.round(lastCtx)}% · LAT: ${Math.round(lastLat)}ms · TEMP: ${Math.round(lastTemp)}°</div>` +
+    sparklineSvg(tokenSeries, { cls: 'amber' })
 
   const throughput = $('#graph-throughput')
   if (throughput) throughput.innerHTML = barChartSvg(latSeries.map((v) => Math.max(2, Math.round(v / 45))))
@@ -349,24 +408,64 @@ export function renderGraphs(telemetry) {
   const context = $('#graph-context')
   if (context) context.innerHTML = sparklineSvg(ctxSeries)
 
+  const successSeries = hist.map((h) => {
+    const j = h.jobs || jobs
+    const tot = (j.done || 0) + (j.failed || 0)
+    return tot > 0 ? Math.round((j.done / tot) * 100) : 100
+  })
   const success = $('#graph-success')
-  if (success) success.innerHTML = SUCCESS_SPARKLINE +
+  if (success) success.innerHTML = sparklineSvg(successSeries, { min: 80 }) +
     `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-top:6px">SUCCESS ${successPct}% · ${jobs.done} OK / ${jobs.failed} FAIL</div>`
 
   const tokensFoot = $('#graph-token-foot')
-  if (tokensFoot) tokensFoot.textContent = `TOKEN BUDGET ${Math.round(tokenSeries[tokenSeries.length - 1])}%`
+  if (tokensFoot) tokensFoot.textContent = `BUDGET ${Math.round(tokenSeries[tokenSeries.length - 1])}%`
 }
 
 // ============================================================================
 // VAULT
 // ============================================================================
+let selectedVaultId = null
+export function getSelectedVaultId() {
+  return selectedVaultId
+}
+
+export function knowledgeQuery(raw) {
+  return String(raw || '').trim().toLowerCase()
+}
+
+export function matchesKnowledge(item, q) {
+  if (!q) return true
+  if (!item) return false
+  const title = String(item.title || '').toLowerCase()
+  if (title.includes(q)) return true
+  const type = String(item.type || '').toLowerCase()
+  if (type.includes(q)) return true
+  const tags = (item.tags || []).map((t) => String(t).toLowerCase())
+  return tags.some((t) => t.includes(q) || q.includes(t))
+}
+
+function filterKnowledge(items, sel) {
+  const q = knowledgeQuery($(sel)?.value)
+  return (items || []).filter((item) => matchesKnowledge(item, q))
+}
+
+function setKnowledgeCount(sel, shown, total, unit) {
+  const el = $(sel)
+  if (!el) return
+  const label = unit || 'DOCS'
+  el.textContent = shown === total ? `${total} ${label}` : `${shown}/${total} ${label}`
+}
+
 export function renderVault() {
   const grid = $('#vault-grid')
   if (!grid) return
-  $('#vault-count').textContent = `${STATE.vault.length} DOCS`
-  grid.innerHTML = STATE.vault.map(
+  const all = STATE.vault || []
+  const docs = filterKnowledge(all, '#vault-filter')
+  setKnowledgeCount('#vault-count', docs.length, all.length, 'DOCS')
+  grid.innerHTML = docs.length
+    ? docs.map(
     (d) => `
-  <div class="vault-card" title="Open ${escapeHtml(d.title)}">
+  <div class="vault-card${d.id === selectedVaultId ? ' selected' : ''}" data-id="${escapeHtml(d.id)}" title="Open ${escapeHtml(d.title)}">
     <div class="vault-title">${escapeHtml(d.title)}</div>
     <div class="vault-meta">
       <span class="vault-type">${escapeHtml(d.type)}</span>
@@ -376,18 +475,55 @@ export function renderVault() {
     <div class="vault-tags">${(d.tags || []).map((t) => `<span class="vault-tag">${escapeHtml(t)}</span>`).join('')}</div>
   </div>`
   ).join('')
+    : '<span class="empty-hint">NO MATCHING DOCS ▸</span>'
+  grid.querySelectorAll('.vault-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      selectedVaultId = card.dataset.id || null
+      renderVault()
+    })
+  })
+  const reader = $('#vault-reader')
+  if (!reader) return
+  const doc = all.find((d) => d && d.id === selectedVaultId)
+  if (!doc) {
+    reader.innerHTML = '<span class="empty-hint">SELECT A DOCUMENT ▸</span>'
+    return
+  }
+  reader.innerHTML = `
+    <div class="reader-head">
+      <div class="reader-subject">${escapeHtml(doc.title)}</div>
+      <div class="reader-meta">
+        <span>${escapeHtml(doc.type)}</span>
+        <span>${escapeHtml(doc.agent || '')}</span>
+        <span>${escapeHtml(doc.updated)}</span>
+      </div>
+    </div>
+    <div class="reader-body">${escapeHtml(doc.body || '')}</div>`
 }
 
 // ============================================================================
 // EMAIL
 // ============================================================================
 let selectedEmailId = null
+let emailFolder = 'inbox'
+let selectedEventId = null
 export function getSelectedEmailId() {
   return selectedEmailId
 }
+export function getEmailFolder() {
+  return emailFolder
+}
+export function setEmailFolder(folder) {
+  emailFolder = folder === 'sent' || folder === 'archive' ? folder : 'inbox'
+  selectedEmailId = null
+  renderEmail()
+}
+export function getSelectedEventId() {
+  return selectedEventId
+}
 
 function emailRows() {
-  return (STATE.email || []).filter((e) => e && e.folder !== 'archive')
+  return (STATE.email || []).filter((e) => e && (e.folder || 'inbox') === emailFolder)
 }
 
 function openEmail(e) {
@@ -402,14 +538,19 @@ export function renderEmail() {
   const list = $('#email-list')
   if (!list) return
   const rows = emailRows()
-  const unread = rows.filter((e) => !e.read).length
+  const unread = (STATE.email || []).filter((e) => e && (e.folder || 'inbox') === 'inbox' && !e.read).length
   const count = $('#email-count')
   if (count) count.textContent = `${unread} UNREAD`
+  document.querySelectorAll('.email-folder-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.folder === emailFolder)
+  })
   const src = (STATE.meta.comms && STATE.meta.comms.email) || 'seed'
   const srcEl = $('#email-source')
   if (srcEl) srcEl.textContent = String(src).toUpperCase()
+  const mailErrs = (STATE.email && STATE.email._errors) || (STATE.meta.comms && STATE.meta.comms.email !== 'seed' ? STATE.meta.comms.error : null)
+  setSyncWarn($('#email-sync-warn'), mailErrs)
   const selectedId = selectedEmailId
-  list.innerHTML = rows.map(
+  list.innerHTML = rows.length ? rows.map(
     (e) => `
   <div class="email-row ${e.read ? '' : 'unread'}${e.src && e.src !== 'seed' ? ' he' : ''}${e.id === selectedId ? ' selected' : ''}" data-id="${escapeHtml(e.id)}">
     <span class="email-from">${escapeHtml(e.from)}</span>
@@ -417,9 +558,9 @@ export function renderEmail() {
       <div class="email-subject">${escapeHtml(e.subject)}</div>
       <div class="email-preview">${escapeHtml(e.preview)}</div>
     </div>
-    <span class="email-time">${escapeHtml(e.time)}</span>
+     <span class="email-time">${escapeHtml(e.time)}</span>
   </div>`
-  ).join('')
+  ).join('') : '<span class="empty-hint">NO MESSAGES IN THIS FOLDER ▸</span>'
   list.querySelectorAll('.email-row').forEach((row) => {
     row.addEventListener('click', () => {
       const e = rows.find((x) => x.id === row.dataset.id)
@@ -444,9 +585,15 @@ export function renderEmail() {
               <span class="email-src">${escapeHtml(selected.src || 'seed')}</span>
             </div>
           </div>
-          <div class="reader-body">${escapeHtml(selected.body || selected.preview || '')}</div>`
+          <div class="reader-body">${escapeHtml(selected.body || selected.preview || '')}</div>
+          ${attachChips(selected.attachments)}`
     }
   }
+}
+
+function attachChips(list) {
+  if (!Array.isArray(list) || !list.length) return ''
+  return `<div class="attach-chips">${list.map((a) => `<span class="attach-chip">${escapeHtml(a.name || 'file')}</span>`).join('')}</div>`
 }
 
 // ============================================================================
@@ -461,10 +608,12 @@ export function renderCalendar() {
   const grid = $('#calendar-grid')
   if (!grid) return
   const week = $('#cal-week')
-  if (week) week.textContent = STATE.calendar.weekLabel
+  if (week) week.textContent = STATE.calendar.weekLabel || STATE.calendar.weekStart || ''
   const src = (STATE.meta.comms && STATE.meta.comms.calendar) || 'seed'
   const srcEl = $('#cal-source')
   if (srcEl) srcEl.textContent = String(src).toUpperCase()
+  const calErrs = (STATE.calendar.events && STATE.calendar.events._errors) || (STATE.meta.comms && STATE.meta.comms.calendar !== 'seed' ? STATE.meta.comms.error : null)
+  setSyncWarn($('#cal-sync-warn'), calErrs)
   const start = 8
   const end = 18
   let html = '<div></div>' + weekdays.map((d) => `<div class="cal-day-head">${d}</div>`).join('')
@@ -473,13 +622,17 @@ export function renderCalendar() {
     for (let day = 0; day < 7; day++) {
       const events = (STATE.calendar.events || []).filter((e) => e.day === day && hourOf(e.start) === hour)
       html += `<div class="cal-slot">${events
-        .map((e) => `<div class="evt ${e.type}${e.src && e.src !== 'seed' ? ' he' : ''}" data-day="${day}" title="${escapeHtml(e.title)}" style="height:${Math.max(18, (hourOf(e.end) - hourOf(e.start)) * 26)}px">${escapeHtml(e.title)}</div>`)
+        .map((e) => `<div class="evt ${e.type}${e.src && e.src !== 'seed' ? ' he' : ''}${e.id === selectedEventId ? ' selected' : ''}" data-day="${day}" data-id="${escapeHtml(e.id)}" title="${escapeHtml(e.title)}" style="height:${Math.max(18, (hourOf(e.end) - hourOf(e.start)) * 26)}px">${escapeHtml(e.title)}</div>`)
         .join('')}</div>`
     }
   }
   grid.innerHTML = html
   grid.querySelectorAll('.evt').forEach((ev) => {
-    ev.addEventListener('click', () => selectCalDay(+ev.dataset.day))
+    ev.addEventListener('click', (e) => {
+      e.stopPropagation()
+      selectedEventId = ev.dataset.id || selectedEventId
+      selectCalDay(+ev.dataset.day)
+    })
   })
   selectCalDay(STATE.calendar.day, true)
 }
@@ -490,14 +643,14 @@ function selectCalDay(day, force) {
   if (isOnline()) api.setCalDay(day).catch(() => {})
   const label = $('#cal-day-label')
   if (label) label.textContent = `${weekdays[day] || 'DAY'} // ${STATE.calendar.weekLabel || 'WEEK'}`
-  const events = STATE.calendar.events.filter((e) => e.day === day)
+  const events = (STATE.calendar.events || []).filter((e) => e.day === day)
   const box = $('#calendar-day')
   if (!box) return
   box.innerHTML = events.length
     ? events
         .map(
           (e) => `
-      <div class="day-evt ${e.type}">
+      <div class="day-evt ${e.type}${e.id === selectedEventId ? ' selected' : ''}" data-id="${escapeHtml(e.id)}">
         <div class="day-evt-time">${escapeHtml(e.start)} – ${escapeHtml(e.end)}</div>
         <div class="day-evt-title">${escapeHtml(e.title)}</div>
         <div class="day-evt-agents">AGENTS: ${escapeHtml((e.agents || []).join(', '))}</div>
@@ -505,6 +658,12 @@ function selectCalDay(day, force) {
         )
         .join('')
     : '<span class="empty-hint">NO EVENTS SCHEDULED</span>'
+  box.querySelectorAll('.day-evt').forEach((row) => {
+    row.addEventListener('click', () => {
+      selectedEventId = row.dataset.id || null
+      selectCalDay(day, true)
+    })
+  })
 }
 
 // ============================================================================
@@ -605,28 +764,125 @@ export function renderHealth(logs, filter = 'ALL') {
   if (grid) _renderProbeGrid(grid, STATE.probes)
 
   const box = $('#health-log')
-  if (!box) return
-  const rows = Array.isArray(logs) && filter !== 'ALL' ? logs.filter((l) => l.level === filter) : Array.isArray(logs) ? logs : []
-  renderHealthLog(box, rows)
+  if (box) {
+    const rows = Array.isArray(logs) && filter !== 'ALL' ? logs.filter((l) => l.level === filter) : Array.isArray(logs) ? logs : []
+    renderHealthLog(box, rows)
+  }
+  renderTrace()
+}
+
+// ============================================================================
+// TRACE
+// ============================================================================
+let selectedSpanId = null
+
+export function renderTrace() {
+  const list = $('#trace-list')
+  if (!list) return
+  const spans = (STATE.trace || []).slice(0, 12)
+  const count = $('#trace-count')
+  if (count) count.textContent = `${(STATE.trace || []).length} SPANS`
+  if (!spans.length) {
+    list.innerHTML = '<span class="empty-hint">NO SPANS YET ▸</span>'
+  } else {
+    list.innerHTML = spans.map((s) => `
+      <div class="trace-row${s.ok === false ? ' fail' : ''}${s.id === selectedSpanId ? ' selected' : ''}" data-id="${escapeHtml(s.id)}">
+        <span class="trace-name">${escapeHtml(s.name || s.type || 'span')}</span>
+        <span>${Number(s.ms || 0)}ms</span>
+        <span>${Number(s.tokenIn || 0)}/${Number(s.tokenOut || 0)} TK</span>
+        <span>${s.ok === false ? 'FAIL' : 'OK'}</span>
+      </div>`).join('')
+    list.querySelectorAll('.trace-row[data-id]').forEach((row) => {
+      row.addEventListener('click', () => {
+        selectedSpanId = row.dataset.id
+        renderTrace()
+      })
+    })
+  }
+  const reader = $('#trace-reader')
+  if (!reader) return
+  const span = (STATE.trace || []).find((s) => s && s.id === selectedSpanId)
+  if (!span) {
+    reader.innerHTML = '<span class="empty-hint">SELECT A SPAN ▸</span>'
+    return
+  }
+  reader.innerHTML = `
+    <div class="reader-head">
+      <div class="reader-subject">${escapeHtml(span.name || span.type || 'span')}</div>
+      <div class="reader-meta">
+        <span>${escapeHtml(span.id)}</span>
+        <span>${Number(span.ms || 0)} ms</span>
+        <span>${span.ok === false ? 'FAIL' : 'OK'}</span>
+      </div>
+    </div>
+    <div class="reader-body">depth ${Number(span.depth || 0)} · in ${Number(span.tokenIn || 0)} / out ${Number(span.tokenOut || 0)} · parent ${escapeHtml(span.parent || 'root')}</div>`
 }
 
 // ============================================================================
 // RESEARCH REPORTS
 // ============================================================================
+let selectedReportId = null
+const REPORT_STATUSES = ['draft', 'review', 'published']
+
+function nextReportStatus(cur) {
+  const s = String(cur || 'draft').toLowerCase()
+  const idx = REPORT_STATUSES.indexOf(s)
+  return REPORT_STATUSES[(idx < 0 ? 0 : idx + 1) % REPORT_STATUSES.length]
+}
+
+export function getSelectedReportId() {
+  return selectedReportId
+}
+
 export function renderReports() {
   const grid = $('#reports-grid')
   if (!grid) return
-  $('#reports-count').textContent = `${STATE.reports.length} DOCS`
-  grid.innerHTML = STATE.reports.map(
+  const all = STATE.reports || []
+  const rows = filterKnowledge(all, '#reports-filter')
+  setKnowledgeCount('#reports-count', rows.length, all.length, 'DOCS')
+  grid.innerHTML = rows.length
+    ? rows.map(
     (r) => `
-  <div class="report-card" title="Open ${escapeHtml(r.title)}">
+  <div class="report-card${r.id === selectedReportId ? ' selected' : ''}" data-id="${escapeHtml(r.id)}" title="Open ${escapeHtml(r.title)}">
     <div class="report-title">${escapeHtml(r.title)}</div>
     <div class="report-abstract">${escapeHtml(r.abstract)}</div>
     <div class="report-meta">
       <span>BY ${escapeHtml(r.author)} · ${escapeHtml(r.updated)}</span>
-      <span class="report-status ${r.status}">${escapeHtml(r.status).toUpperCase()}</span>
+      <span class="report-status ${escapeHtml(r.status)}">${escapeHtml(r.status).toUpperCase()}</span>
     </div>
     <div class="report-tags">${(r.tags || []).map((t) => `<span class="report-tag">${escapeHtml(t)}</span>`).join('')}</div>
   </div>`
   ).join('')
+    : '<span class="empty-hint">NO MATCHING REPORTS ▸</span>'
+  grid.querySelectorAll('.report-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      const r = all.find((x) => x && x.id === card.dataset.id)
+      if (!r) return
+      if (e.target && e.target.classList && e.target.classList.contains('report-status')) {
+        if (!lockPending(r.id)) return
+        r.status = nextReportStatus(r.status)
+        r.updated = 'just now'
+        if (isOnline()) api.cycleReportStatus(r.id).catch(() => {})
+      }
+      selectedReportId = r.id
+      renderReports()
+    })
+  })
+  const reader = $('#reports-reader')
+  if (!reader) return
+  const doc = all.find((r) => r && r.id === selectedReportId)
+  if (!doc) {
+    reader.innerHTML = '<span class="empty-hint">SELECT A REPORT ▸</span>'
+    return
+  }
+  reader.innerHTML = `
+    <div class="reader-head">
+      <div class="reader-subject">${escapeHtml(doc.title)}</div>
+      <div class="reader-meta">
+        <span>BY ${escapeHtml(doc.author)}</span>
+        <span>${escapeHtml(doc.updated)}</span>
+        <span class="report-status ${escapeHtml(doc.status)}">${escapeHtml(doc.status).toUpperCase()}</span>
+      </div>
+    </div>
+    <div class="reader-body">${escapeHtml(doc.body || doc.abstract || '')}</div>`
 }
