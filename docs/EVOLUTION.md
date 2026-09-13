@@ -12,7 +12,7 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 
 | Item | Verdict |
 | --- | --- |
-| Merge PR #2, CI, tag `2.2.0` | In progress |
+| Merge PR #2, CI, tag `2.2.0` | **DONE** (`fc614af`, tag `2.2.0`) |
 | Topbar version chrome | **P11.1** |
 | TOKEN USAGE sparkline uses tokens not CTX | **P11.1** |
 | Recapture 12-view screenshots + walkthrough | P11.1 (manual; gallery honest until recaptured) |
@@ -27,9 +27,9 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 | Filesystem `data/vault/*.md` | **P14** |
 | Binary downloads, EXDATE, CalDAV REPORT, multi-login | Defer |
 
-P11.1–11.5, P12, P13, and P14 **implemented** on this branch (`fa71aa1`).
-Ship hygiene remaining: merge PR #2, tag `2.2.0`, recapture 12-view screenshots
-(gallery stays 7 PNGs until then).
+P11.1–11.5, P12, P13, and P14 **shipped** in `2.2.0` (`fc614af`).
+PR #2 merged, tag `2.2.0` cut, release published. Remaining: recapture 12-view
+screenshots + `assets/video/walkthrough.webm` (gallery stays 7 PNGs until then).
 
 ```mermaid
 graph TD
