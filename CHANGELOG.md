@@ -22,6 +22,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mission reports write the file first, then state. Boot hydrates files onto
   `state.vault`. Isolated via `STELLARIS_DATA_DIR`.
 
+### Changed
+
+- Docs honesty pass: vault is `data/vault/*.md`, 19 suites, CalDAV `src`,
+  WS `hello`/`goodbye`, interrupt cards resume-only, `.stellaris.json`
+  never committed.
+
 ### Fixed
 
 - TOKEN USAGE sparkline now plots `token` (was CTX). Topbar version chrome

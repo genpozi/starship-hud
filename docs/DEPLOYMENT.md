@@ -33,6 +33,7 @@ mapping. Exit code is non-zero on any FAIL.
 npm ci
 npm run build                 # bundle the frontend
 npm start                     # Express serves dist/ + API + WS on :3001
+# or: npx stellaris-hud serve  (loads .stellaris.json; env still wins)
 ```
 
 ### Docker

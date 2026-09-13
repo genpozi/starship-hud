@@ -10,8 +10,8 @@ WebSocket orbit server is the single source of truth. The Vite SPA mirrors
 state in 12 views over a 3D galaxy. Offline sim keeps the console alive if
 the orbit is down.
 
-**Version:** `2.2.0` (Phase 1–10 + P11–P14 on this branch). Branch of record
-for the 2.2.0 cut: `260909-feat-comms-depth-hud-interact`. PR:
+**Version:** `2.2.0` (Phase 1–10 shipped; P11–P14 on this branch as
+`eb204c0`). Branch of record: `260909-feat-comms-depth-hud-interact`. PR:
 https://github.com/genpozi/starship-hud/pull/2
 
 ## Contract (do not break)
@@ -69,8 +69,8 @@ Operator chip (HUD setting + `USER_OPERATOR_NAME`); pause is single-holder.
 | `bin/stellaris-hud.js` | P12 CLI (`serve` / `demo` / `probe`) |
 | `src/config.js` | Seed + crew + `HUD_VERSION` |
 | `server/vault.js` | P14 filesystem vault (`*.md` + front matter) |
-| `docs/PLAN.md` | Phases 1–10 DONE |
-| `docs/EVOLUTION.md` | P11–P14 (P14 filesystem vault DONE) |
+| `docs/PLAN.md` | Phases 1–10 DONE (historical) |
+| `docs/EVOLUTION.md` | P11–P14 DONE on this branch |
 | `docs/API.md` | REST/WS contract |
 | `docs/COMMS-INTEGRATION.md` | Provider contract |
 

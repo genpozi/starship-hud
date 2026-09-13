@@ -42,8 +42,8 @@ This project ships an **operator console**, not a public-facing SaaS. It is
 intended to run on a trusted host, behind your own auth, with operator-supplied
 credentials. Treat the following as required practices:
 
-- **Never** commit `.env` or real credential values. `.env.example` contains
-  placeholders only.
+- **Never** commit `.env`, `.stellaris.json`, or real credential values.
+  `.env.example` and `.stellaris.json.example` contain placeholders only.
 - The orbit server binds `localhost` by default. If you expose it, put it
   behind a reverse proxy with TLS + authentication.
 - Rotate `GITHUB_TOKEN`, `USER_HERMES_PASSWORD`, and LLM API keys on a

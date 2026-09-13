@@ -37,8 +37,8 @@ the console never goes dark.
 
 | Mode | When | State owner | Chat planning | Persistence |
 |------|------|-------------|---------------|-------------|
-| ONLINE | `/ws` connects | orbit server (WS snapshots + deltas) | server planner (LLM if keyed, else heuristic) | `data/state.json` |
-| OFFLINE | WS fails/unreachable | browser sim in `main.js` | canned local replies | none |
+| ONLINE | `/ws` connects | orbit server (WS snapshots + deltas) | server planner (LLM if keyed, else heuristic) | `data/state.json` + `data/vault/*.md` |
+| OFFLINE | WS fails/unreachable | browser sim in `main.js` | in-character replies from `STATE` (persona + vault) | none |
 
 `src/api.js` reconnects with backoff; while disconnected the OFFLINE sim owns
 `STATE` so every view keeps animating.
@@ -85,9 +85,9 @@ the console never goes dark.
   workflows, telemetry/probes, scheduler; the WS broadcast diff; the step
   machine for dispatched jobs with the P8 superstep dependency barrier; the
   probe alert condition engine; the operator approval bridge
-  (`approval.pending` / `respondApproval`); the P10 checkpoint capture/rollback
-  surface; and P11 `pause`/`interrupt`/`resume` (single-operator hold that
-  gates dispatch pickup while in-flight steps finish).
+   (`approval.pending` / `respondApproval`); the P10 checkpoint capture/rollback
+   surface; P11 `pause`/`interrupt`/`resume` (single-holder — second operator
+   `409`); and P13 `hello`/`goodbye` roster plus approval `owner`.
 - **planner.js** — `plan(goal)` → `[{title, agent, tool, dependsOn}]`. Uses a
   real LLM when `USER_LLM_API_KEY` is set, otherwise the deterministic
   heuristic engine. Output is sanitized (`normalizeSteps`) — unknown agent
@@ -142,14 +142,19 @@ the console never goes dark.
 - **checkpoints.js** — P10 snapshot + rollback (`captureCheckpoint` capped at
   8, `rollbackToLatest` deep-diffs and restores changed slices, never reverting
   the checkpoint ledger itself).
+- **cli-config.js** — `.stellaris.json` loader; empty env keys filled from JSON,
+  env still wins.
+- **operators.js** — `normalizeOperatorId` / `defaultOperatorName`
+  (`USER_OPERATOR_NAME`).
 
 ## Frontend modules
 
 - **store.js** — `STATE` object + `applyServerState(snap)` /
   `applyDelta(updates)`. Every renderer reads from `STATE`; local-only UI state
-  (calendar selection) is preserved across server snapshots.
+  (email/event/vault/report/span selection) is preserved across server snapshots.
 - **api.js** — WebSocket client with auto-reconnect and seq-gap resync,
-  `isOnline()` probe, and REST helpers for every mutation
+  `isOnline()` probe, operatorId (`hello` + `X-Stellaris-Operator` / body),
+  and REST helpers for every mutation
   (`api.approval`, `api.pause`, `api.resume`, `api.captureCheckpoint`,
   `api.rollback`, `api.sendMail`, `api.archiveEmail`, `api.createEvent`, …).
 - **channels.js** — P9 typed event channels. Every non-state frame type has a
@@ -161,7 +166,8 @@ the console never goes dark.
   Hermes-sourced entities get a cyan `he` accent (`.kan-card.he`,
   `.cron-row.he`, `.alert-row.he`). Health TRACE strip + reader. Comms
   `SYNC WARN` from `meta.comms.error`. Short pending lock on item/schedule/
-  report clicks.
+  report clicks. Vault/Reports title+tag typeahead (`#vault-filter` /
+  `#reports-filter`). Compose file chips (WARN over the 200KB cap).
 - **main.js** — boot, mission-control rollup renderers, view router, approval
   card wiring, command palette (`Ctrl/Cmd+K`), SNAP/REWIND, keyboard nav,
   and the OFFLINE simulation fallback. Offline chat replies are synthesized
@@ -185,6 +191,8 @@ the console never goes dark.
   `STATE.trace` via the `events` channel.
 - `{type:'chat'}` — hint that chat changed; authoritative rows arrive in the
   next delta.
+- `{type:'hello', operatorId, name?}` — client identifies the HUD session (P13);
+  roster lives in `meta.operators[]`. WS `close` drops that socket (`goodbye`).
 - Server `{type:'ping'}` every ~15s; client replies `{type:'pong'}`. A client
   that misses 3 consecutive pongs is terminated (half-open detection).
 
@@ -224,7 +232,10 @@ npm run build
 npm start
 
 # full demo with the bundled hermes mock (mock :8787 + orbit :3001 + vite :5173)
-./scripts/demo.sh
+  ./scripts/demo.sh
+
+  # packaged CLI (orbit + dist; env wins over .stellaris.json)
+  npx stellaris-hud serve
 ```
 
 ## Optional LLM planning

@@ -161,13 +161,14 @@ Browser (Vite SPA)                Orbit server (Node, port 3001)
 │ src/channels.js typed│         │ server/trace.js     span tree  │
 │ src/galaxy.js 3D bg  │         │ server/checkpoints.js snapshots│
 │ src/config.js seed   │         │ server/store.js     persistence│
-└──────────────────────┘         │ data/state.json                │
+│                      │         │ server/vault.js     md files   │
+└──────────────────────┘         │ data/state.json + vault/*.md   │
                                  └────────────────────────────────┘
 ```
 
 - **Single source of truth** — the orbit server owns canonical state; the browser mirrors it over WebSocket (snapshot → diffed deltas) and mutates it via REST.
 - **Agent step machine** — dispatched jobs run through a step machine with `dependsOn` gating; in-flight steps finish during an interrupt; completed spans feed the trace slice.
-- **Persistence** — `data/state.json` is debounced-flushed; it self-heals from seed on corrupt/missing reads; a boot checkpoint is captured every start.
+- **Persistence** — `data/state.json` is debounced-flushed; `data/vault/*.md` is the knowledge core (file first, then state). Both honor `STELLARIS_DATA_DIR`. A boot checkpoint is captured every start.
 
 See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
@@ -184,7 +185,8 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 | `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS email+calendar adapters + inbound webhook |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
 | `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns, implementation status |
-| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and roadmap |
+| `docs/CONTEXT.md` · `docs/EVOLUTION.md` | working memory + post-2.2.0 plan (P11–P14 DONE) |
+| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and Phases 1–10 |
 | `CHANGELOG.md` | version history (Keep a Changelog) |
 | `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
 | `SECURITY.md` | vulnerability reporting + operator security posture |

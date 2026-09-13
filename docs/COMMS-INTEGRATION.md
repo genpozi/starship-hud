@@ -35,7 +35,7 @@ Live rows must match seed so renderers never branch on source.
 {
   id, day, start, end, title, type, agents,
   location, allDay, isoStart, isoEnd,
-  src       // seed | google | microsoft | ics | local
+  src       // seed | google | microsoft | ics | caldav | local
 }
 ```
 
@@ -71,7 +71,7 @@ Rules copied from `server/github.js`:
 
 ```
 USER_COMMS_EMAIL_PROVIDER=     # google | microsoft | auto
-USER_COMMS_CALENDAR_PROVIDER=  # google | microsoft | ics | auto
+USER_COMMS_CALENDAR_PROVIDER=  # google | microsoft | ics | caldav | auto
 USER_COMMS_POLL_MS=120000
 USER_COMMS_WEBHOOK_SECRET=
 
@@ -112,7 +112,7 @@ then `mergeComms`. Writes still prefer Google, then Microsoft, then CalDAV.
 ## HUD work
 
 - Email: folder tabs (inbox/sent/archive), reply-to-selected, source badge, compose (file picker, ~200KB cap), archive, attachment chips.
-- Calendar: 7-day grid, PREV/NEXT week, delete selected event, create form, source badge.
+- Calendar: 7-day grid, PREV/NEXT/TODAY week, delete selected event, create form, source badge.
 - Offline sim: local mutations only (same as kanban/alerts).
 
 ## Skills + planner
@@ -135,6 +135,6 @@ Integration — send / create / archive / inbound secret.
 | CalDAV write | `USER_CALDAV_URL` collection → PUT/DELETE `{uid}.ics`. Plain `USER_ICS_URL` stays GET-only. |
 | Attachments | Map Gmail parts / Graph `hasAttachments` to `{name, mime, size}`. Send accepts small base64 parts (capped). No remote binary download. |
 | Multi-source | `auto` concatenates every configured provider (Google + Microsoft + ICS), then `mergeComms`. |
-| HUD | Folder tabs (inbox/sent/archive), reply fills compose, file picker (~200KB cap), week PREV/NEXT, delete selected event. |
+| HUD | Folder tabs (inbox/sent/archive), reply fills compose, file picker (~200KB cap), week PREV/NEXT/TODAY, delete selected event. |
 
 IMAP/SMTP, per-provider multi-login, EXDATE/RDATE, and CalDAV REPORT stay out.

@@ -41,8 +41,9 @@ Run the stack to try changes live:
 ## Rules
 
 1. `npm test` and `npm run build` must pass before you push.
-2. Never commit operator credentials — `.env`, real `USER_LLM_*`/`GITHUB_*`
-   values, or tokens. `.env.example` is the only allowed credential file and
+2. Never commit operator credentials — `.env`, `.stellaris.json`, real
+   `USER_LLM_*`/`GITHUB_*` values, or tokens. `.env.example` and
+   `.stellaris.json.example` are the only allowed credential files and
    must contain placeholders only.
 3. No new dependencies without a stated reason; the server intentionally ships
    with only `express` + `ws`.

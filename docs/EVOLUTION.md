@@ -27,7 +27,8 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 | Filesystem `data/vault/*.md` | **P14** |
 | Binary downloads, EXDATE, CalDAV REPORT, multi-login | Defer |
 
-P11.1–11.5, P12, P13, and P14 **implemented** on this branch.
+P11.1–11.5, P12, P13, and P14 **implemented** on this branch (`eb204c0`).
+Remaining ship hygiene: merge PR #2, recapture 12-view screenshots.
 
 ```mermaid
 graph TD

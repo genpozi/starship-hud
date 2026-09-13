@@ -79,7 +79,7 @@ exact fields.
 
 `src` on kanban cards, items, schedules, and alerts is
 `seed | github | hermes` and drives the cyan Hermes accent class.
-Email/calendar `src` is `seed | google | microsoft | ics | webhook | local`.
+Email/calendar `src` is `seed | google | microsoft | ics | caldav | webhook | local`.
 
 ### Chat pipeline (operator → agent reply)
 
@@ -130,8 +130,12 @@ POST /api/chat {text}
 - Probe engine: thresholds per probe; sustained breach → alert with signature
   dedup.
 - Approval bridge: `_awaitApproval(payload, agent)` sets `s.approval.pending`,
-  broadcasts `{type:'approval', pending}`, resolves `approve|deny|timeout` on
-  `respondApproval(choice)` or a timeout (`USER_HERMES_APPROVAL_TIMEOUT`).
+  broadcasts `{type:'approval', pending}`, stamps `owner`, resolves
+  `approve|deny|timeout` on `respondApproval(choice)` or a timeout
+  (`USER_HERMES_APPROVAL_TIMEOUT`). Foreign operators get `403`. Interrupt
+  cards are not resolvable via `/api/approval/respond` (use resume).
+- Pause is single-holder (P13): a second operator gets `409` until the holder
+  resumes. WS `hello` records `meta.operators[]`; close drops the socket.
 
 Add a mutation: implement a method on the `Orchestrator` (mutate `this.s`,
 `markDirty()`, optionally `broadcast`), then register the REST route in
@@ -142,18 +146,18 @@ answers on.
 
 ### Skills (`server/skills.js`)
 
-The registry is an array of typed tool definitions. Each entry:
+The registry is an object of typed tool definitions keyed by name. Each entry:
 
 ```js
 {
   name: 'myTool',
   label: 'My Tool',
-  desc: 'One-line description shown to the planner',
+  description: 'One-line description shown to the planner',
   parameters: [{ name, type, required, desc }],
   needsApproval: false,            // prompts the approval bridge before running
-  maxUsageCount: 3,
-  execute: async ({ s, log, pushChat, hermes, approvalMode, _user }) => ({
-    ok: true, text: 'did the thing', tokens: 120
+  maxUsageCount: Infinity,
+  execute: async ({ s, log, pushChat, hermes, approvalMode }) => ({
+    ok: true
   })
 }
 ```
@@ -167,6 +171,8 @@ The registry is an array of typed tool definitions. Each entry:
   delegation when `USER_HERMES_URL` is unset.
 - `mail` and `calendar` dynamically import `server/comms.js`. Without a
   provider they write a local sent-copy / local event (`simulated: true`).
+- `memory` / `files` / `hermes` persist vault markdown via `server/vault.js`
+  (file first, then state).
 - Add a skill, then point the planner's toolset at it, then cover it in
   `test/skills.test.mjs`.
 

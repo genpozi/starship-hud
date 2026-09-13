@@ -1,5 +1,8 @@
 # STELLARIS-7 Evolution Plan
 
+Historical plan for Phases 1–10 (shipped in `2.2.0`). Post-2.2.0 work
+(P11–P14) lives in `docs/EVOLUTION.md` and is implemented on this branch.
+
 Goal: evolve the starship HUD from a working demo into a **premium
 multi-agent orchestration harness** — modeled on the research in
 `docs/RESEARCH.md` + `docs/ORCHESTRATION-RESEARCH.md` — with every surface

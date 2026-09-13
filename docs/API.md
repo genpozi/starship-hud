@@ -87,7 +87,7 @@ snapshots and deltas.
     "mission": "OP ORBITAL CANARY", "coordinates": "...", "threat": "MODERATE",
     "tokenTotal": 0, "bootedAt": 0,
     "dataSource": "seed | github | hermes",      // which source owns the board
-    "comms": { "email": "seed|google|microsoft|webhook", "calendar": "seed|google|microsoft|ics", "lastSync", "error" },
+    "comms": { "email": "seed|google|microsoft|webhook", "calendar": "seed|google|microsoft|ics|caldav", "lastSync", "error" },
     "lastSync": 0,                               // github/hermes last poll
     "hermes": { "status", "url", "model", "checkedAt" },  // when hermes bridge enabled
     "paused": false,                             // P11 interrupt state
@@ -127,7 +127,11 @@ snapshots and deltas.
 
 `src` on kanban cards, items, schedules and alerts is `seed | github | hermes`
 and drives the cyan `he` accent on Hermes-sourced rows. Email/calendar `src` is
-`seed | google | microsoft | ics | webhook | local`.
+`seed | google | microsoft | ics | caldav | webhook | local`.
+
+Interrupt cards (`pending.tool === 'interrupt'`) are not resolvable via
+`/api/approval/respond` — use `/api/control/resume`. Approvals route to the run
+`owner`; a foreign operator gets `403`.
 
 ## Examples
 
