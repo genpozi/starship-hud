@@ -16,8 +16,9 @@
 - [ ] `npm run build` green
 - [ ] Tested live via `/api/*` + `/ws` (or OFFLINE sim if frontend-only)
 - [ ] Screenshot / preview checked for visual changes
-- [ ] Docs updated (`docs/ARCHITECTURE.md`, `docs/API.md`, `docs/DEVELOPER.md`,
-      `docs/DEPLOYMENT.md`, `docs/HERMES-INTEGRATION.md`, README) where relevant
+- [ ] Docs updated (`docs/MANUAL.md`, `docs/ARCHITECTURE.md`, `docs/API.md`,
+      `docs/DEVELOPER.md`, `docs/DEPLOYMENT.md`, `docs/HERMES-INTEGRATION.md`,
+      README) where relevant
 - [ ] No hardcoded credentials — `.env.example` placeholders only
 
 ## Notes for reviewers

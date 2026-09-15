@@ -1,5 +1,7 @@
 # STELLARIS-7 // Deployment & operations
 
+Version `2.2.0`. Day-to-day HUD use: `docs/MANUAL.md`.
+
 How to run the orbit server in production, wire it to real data sources, and
 validate it before it touches your Hermes WebUI / GitHub / LLM.
 
@@ -31,16 +33,27 @@ mapping. Exit code is non-zero on any FAIL.
 
 ```bash
 npm ci
-npm run build                 # bundle the frontend
-npm start                     # Express serves dist/ + API + WS on :3001
-# or: npx stellaris-hud serve  (loads .stellaris.json; env still wins)
+
+# bundle the frontend
+npm run build
+
+# Express serves dist/ + API + WS on :3001
+npm start
+```
+
+Or the packaged CLI (loads `.stellaris.json`; env still wins):
+
+```bash
+npx stellaris-hud serve
 ```
 
 ### Docker
 
 ```bash
 docker compose up -d --build orbit
-docker compose ps             # healthcheck hits /api/health every 30s
+
+# healthcheck hits /api/health every 30s
+docker compose ps
 ```
 
 `data/` is a named volume (`orbit-data`) so state survives restarts. The
@@ -86,12 +99,11 @@ Quick facts:
 ## 5. Tests & verification
 
 ```bash
-npm test          # 19 suites: hermes client, reverse ingest, phase-4 engine,
-                  # github mapping, planner, skills, chat, regression, views,
-                  # superstep, channels, checkpoints, interrupt, trace,
-                  # comms (mappers/ICS/merge, no network), cli, operators,
-                  # vault (filesystem knowledge core), integration
-npm run build     # frontend bundle must compile
+# 19 suites (isolated STELLARIS_DATA_DIR + fresh Hermes mock)
+npm test
+
+# frontend bundle must compile
+npm run build
 ```
 
 ## 6. Operations notes
@@ -104,3 +116,7 @@ npm run build     # frontend bundle must compile
   seed emulator never overwrites them.
 - Rotate `GITHUB_TOKEN` / `USER_HERMES_PASSWORD` / any LLM key / OAuth refresh
   tokens on a schedule; never commit real values.
+- Identity: `USER_OPERATOR_NAME` is the default operator when the HUD chip is
+  unset. Pause is single-holder (`409`); approvals route to the run owner (`403`).
+- CLI: `npx stellaris-hud serve` / `demo` / `probe`. `.stellaris.json` fills
+  empty env keys; env still wins. Never commit `.stellaris.json`.

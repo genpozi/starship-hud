@@ -28,8 +28,9 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 | Binary downloads, EXDATE, CalDAV REPORT, multi-login | Defer |
 
 P11.1–11.5, P12, P13, and P14 **shipped** in `2.2.0` (`fc614af`).
-PR #2 merged, tag `2.2.0` cut, release published. Remaining: recapture 12-view
-screenshots + `assets/video/walkthrough.webm` (gallery stays 7 PNGs until then).
+PR #2 merged, tag `2.2.0` cut, release published. Operator use: `docs/MANUAL.md`.
+Remaining: recapture 12-view screenshots + `assets/video/walkthrough.webm`
+(gallery stays 7 PNGs until then).
 
 ```mermaid
 graph TD

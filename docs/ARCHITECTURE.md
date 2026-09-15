@@ -1,5 +1,7 @@
 # STELLARIS-7 Architecture
 
+Version `2.2.0`. Operator use: `docs/MANUAL.md`. REST/WS contract: `docs/API.md`.
+
 The HUD is a single-page console that renders fleet state in 12 views. State
 has a single source of truth: the **orbit server** (Node/Express + WebSocket).
 The browser mirrors state over a WebSocket and issues mutations via REST. If
@@ -56,9 +58,11 @@ the console never goes dark.
    reducers (`channels.js`). A fixed render loop re-renders the rollup every 1s
    and all views every 1.8s. Renderers diff slices (`changed(slice, value)`) so
    idle ticks do not rebuild unchanged DOM.
-4. Operator interactions (chat, kanban advance, alert ack, approval respond,
-    email read/send/archive, calendar select/create, inbound webhook, mission create, manual dispatch, checkpoint capture/
-   rollback, pause/interrupt/resume) POST to `/api/*`. The server mutates
+ 4. Operator interactions (chat, kanban advance, item/report status, schedule
+    pause, alert ack, approval respond, email read/send/archive/reply, calendar
+    select/create/week/delete, inbound webhook, mission create, manual dispatch,
+    checkpoint capture/rollback, pause/interrupt/resume) POST to `/api/*`. The
+    server mutates
    canonical state and the next broadcast reflects it back.
    Chat is special: `handleChat` detects a direct `@AGENT` mention, pins the
    plan + reply owner to that agent, plans the goal into steps (P8 `dependsOn`
@@ -72,9 +76,10 @@ the console never goes dark.
 6. Optional data sources poll on their own cadence and write onto the same
    board shape: **GitHub** (issues/PRs) replaces the seed board;
    **Hermes WebUI** (sessions/crons) reverse-ingests onto kanban/items/
-    scheduler/alerts. **Comms** (Gmail / Graph / ICS / webhook) syncs email +
-    calendar onto the same seed shapes; `meta.comms` records the live source.
-    `meta.dataSource` tells the HUD which board source is live.
+     scheduler/alerts. **Comms** (Gmail / Graph / ICS / CalDAV / webhook) syncs
+     email + calendar onto the same seed shapes; `meta.comms` records the live
+     source (`mixed` when `auto` concatenates more than one provider).
+     `meta.dataSource` tells the HUD which board source is live.
 
 ## Server modules
 
@@ -111,9 +116,11 @@ the console never goes dark.
   skill delegates to a real WebUI through `streamChat`/`syncChat`, handles
   approvals per `USER_HERMES_APPROVAL`, and falls back to simulated delegation.
   `mail` / `calendar` call `server/comms.js` and simulate locally when no provider is set.
-- **comms.js** — Gmail / Microsoft Graph / ICS adapters, OAuth refresh, ICS
-  parse, inbound webhook normalize, `mergeComms` (keeps `src:'local'`), sync loop.
-  Env-driven; seed fallback; never throws into the orbit.
+- **comms.js** — Gmail / Microsoft Graph / ICS / CalDAV adapters, OAuth refresh,
+   ICS parse + RRULE expand, inbound webhook normalize, `mergeComms` (keeps
+   `src:'local'`), sync loop. `USER_CALDAV_URL` is writable (`{uid}.ics`
+   PUT/DELETE); plain `USER_ICS_URL` is GET-only. Env-driven; seed fallback;
+   never throws into the orbit.
 - **store.js** — JSON persistence (`data/state.json`) with debounced flush;
   `markDirty()`. Vault markdown lives beside it in `data/vault/`.
 - **seed.js** — derives the initial state from `src/config.js` so the server
@@ -232,10 +239,10 @@ npm run build
 npm start
 
 # full demo with the bundled hermes mock (mock :8787 + orbit :3001 + vite :5173)
-  ./scripts/demo.sh
+./scripts/demo.sh
 
-  # packaged CLI (orbit + dist; env wins over .stellaris.json)
-  npx stellaris-hud serve
+# packaged CLI (orbit + dist; env wins over .stellaris.json)
+npx stellaris-hud serve
 ```
 
 ## Optional LLM planning

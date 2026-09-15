@@ -1,7 +1,8 @@
 # STELLARIS-7 Evolution Plan
 
-Historical plan for Phases 1–10 (shipped in `2.2.0`). Post-2.2.0 work
-(P11–P14) lives in `docs/EVOLUTION.md` and is implemented on this branch.
+Historical plan for Phases 1–10 (shipped in `2.2.0`). P11–P14 also shipped in
+`2.2.0`. Post-cut leftovers (screenshot recapture) live in `docs/EVOLUTION.md`.
+Operator use: `docs/MANUAL.md`.
 
 Goal: evolve the starship HUD from a working demo into a **premium
 multi-agent orchestration harness** — modeled on the research in
@@ -111,7 +112,8 @@ no extra npm deps, orbit never crashes on upstream failure.
   with numeric-index fallback.
 - HUD: compose, archive, BOOK, 7-day grid, source badges; offline local mutate.
 - Skills `mail` (LINK) + `calendar` (NUDGE); heuristic planner steps.
-- `test/comms.test.mjs` + integration coverage; 16 suites green.
+- `test/comms.test.mjs` + integration coverage (suite count at that cut: 16;
+  current runner is 19).
 
 IMAP/SMTP stays out. CalDAV write, attachments, and RRULE expansion shipped in
 Phase 9.
@@ -147,14 +149,15 @@ Out: GitHub issue write-back, Hermes cron create, orchestration research leftove
 - `LICENSE` (MIT), `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.editorconfig`.
 - `.github/`: CI workflow (Node 20/22 test+build, Docker build), bug report +
   feature request issue templates, PR template, template `config.yml`.
-- `CHANGELOG.md` (Keep a Changelog, 1.0.0 → 2.2.0 → Unreleased).
+- `CHANGELOG.md` (Keep a Changelog; current cut is `[2.2.0]`).
 - `.env.example` completed with `PORT`, `STELLARIS_DATA_DIR`, `MOCK_PASSWORD`;
   `docker-compose.yml` passes `MOCK_PASSWORD` through.
 - README: CI/test badges, docs table + project tree updated for all repo meta
   files, suite count corrected (16); `docs/DEVELOPER.md` + `docs/DEPLOYMENT.md`
   suite counts and env tables corrected; `docs/API.md` documents the
   `telemetry.hist` + `telemetry.jobs` shapes.
-- All YAML validated; `npm test` (16/16) + `npm run build` green; pushed.
+- All YAML validated; later cuts grew the suite list to **19** (`cli`,
+  `operators`, `vault`). `npm test` + `npm run build` stay green.
 - Test isolation fix: `run-all.mjs` now sets a fresh `STELLARIS_DATA_DIR` per
   run and `hermes-ingest.js`/`github.js` persistence respects it — eliminates
   the flake where a live demo orbit server recreated `data/state.json` mid-test
@@ -183,7 +186,8 @@ Out: GitHub issue write-back, Hermes cron create, orchestration research leftove
 
 ## Remaining (not in this slice)
 
-See `docs/EVOLUTION.md`. P11–P14 are implemented on this branch.
+See `docs/EVOLUTION.md`. P11–P14 shipped in `2.2.0`; leftover is 12-view
+screenshot recapture (gallery stays 7 PNGs).
 
 Orchestration research leftovers stay out: server-side channel reducers,
 AgentSpec vs AgentRuntime split, parse/execute/reflect tool cycle,

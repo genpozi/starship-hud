@@ -1,7 +1,8 @@
 # STELLARIS-7 Developer Guide
 
-Everything you need to extend, test, and debug the mission-control HUD.
+Version `2.2.0`. Everything you need to extend, test, and debug the mission-control HUD.
 
+- **Operator use manual** → `docs/MANUAL.md`
 - **Architecture overview** → `docs/ARCHITECTURE.md`
 - **Full API + state reference** → `docs/API.md`
 - **Deployment / runbook** → `docs/DEPLOYMENT.md`
@@ -31,7 +32,7 @@ server/
   vault.js            filesystem knowledge core (data/vault/*.md + front matter)
   replies.js          conversational reply synthesis (persona + knowledge)
   skills.js           typed tool registry (search/shell/coder/memory/files/terminal/mail/calendar/hermes)
-  comms.js            Gmail / Graph / ICS adapters, inbound webhook, sync loop
+  comms.js            Gmail / Graph / ICS / CalDAV adapters, RRULE, inbound webhook, sync loop
   store.js            debounced JSON persistence (data/state.json)
   seed.js             derives server initial state from src/config.js
   github.js           GitHub → board sync (ETag polling, dedupe, mergeReplacement)
@@ -104,8 +105,9 @@ POST /api/chat {text}
   `capabilities[]` (tool names). `server/replies.js` renders these in reply.
 - Persisted state is backfilled with these fields on boot (constructor
   normalization), so pre-identity state rows still answer persona queries.
-- `server/knowledge.js` indexes vault docs, reports, kanban cards, items,
-  schedules, and probes on demand. `retrieve(state, query)` → ranked hits;
+- `server/knowledge.js` indexes vault docs (including markdown bodies), reports,
+  kanban cards, items, schedules, probes, email, and calendar on demand.
+  `retrieve(state, query)` → ranked hits;
   `digest(state)` → summary lines. The `search`/`memory` skills ground their
   results in it, and `replies.js` uses it so answers cite real content.
 - Offline (browser) chat replies are synthesized in-character from `STATE`
@@ -225,9 +227,11 @@ board source.
 - **Render-gating** (`src/views.js`): `changed(name, value)` computes a
   signature per slice; unchanged slices skip DOM rebuilds on idle ticks.
 - **View router** (`src/main.js`): nav buttons toggle `.view.active` by id.
+  Command palette (`Ctrl/Cmd+K`), `1`–`0` / `[` `]` rail jumps, SNAP/REWIND,
+  TODAY, operator chip (`stellaris.operatorId`). Interrupt cards are resume-only.
 - **Approval card** (`src/main.js`): reacts to `{type:'approval', pending}`
   frames, renders the pending request, wires `approve`/`deny` to
-  `api.approval(choice)`.
+  `api.approval(choice)`. Does not resolve `pending.tool === 'interrupt'`.
 - **Hermes accents**: rows with `src === 'hermes'` get `.he` classes
   (`.kan-card.he`, `.cron-row.he`, `.alert-row.he`) styled cyan.
 
@@ -237,6 +241,7 @@ board source.
 
 | Variable | Effect |
 |----------|--------|
+| `USER_OPERATOR_NAME` | default operator identity when the HUD chip is unset |
 | `USER_LLM_API_KEY` | real LLM planning (else heuristic) |
 | `GITHUB_TOKEN` + `GITHUB_OWNER`/`GITHUB_REPO` | GitHub board sync |
 | `USER_HERMES_URL` | Hermes bridge + reverse ingest ACTIVE |
@@ -259,9 +264,14 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-npm test          # run-all.mjs → fresh mock on :8788 → all 19 suites
-npm run probe     # validate a live Hermes WebUI (add --url / --password)
-npm run build     # vite build — must stay green
+# run-all.mjs → fresh mock on :8788 → all 19 suites
+npm test
+
+# validate a live Hermes WebUI (add --url / --password)
+npm run probe
+
+# vite build — must stay green
+npm run build
 ```
 
 - `test/run-all.mjs` spawns a **fresh** mock (deterministic approval parity) and

@@ -18,6 +18,7 @@ P11–P14 shipped. Release: https://github.com/genpozi/starship-hud/releases/tag
 - Env-driven live sources; **seed fallback** when credentials are missing.
 - **No extra npm runtime deps.** No orbit crash on upstream 4xx/5xx.
 - Operator credentials only via `USER_*` / `GITHUB_*` in `.env` (never commit).
+  `.stellaris.json` is the same contract and is never committed; env wins.
 - Live email/calendar rows **match HUD seed shapes** so renderers do not branch on source.
 - `npm test` (19 suites) and `npm run build` stay green.
 - Offline: mutate `STATE` locally. Online: REST, then WS snapshot/delta confirms.
@@ -70,6 +71,7 @@ Operator chip (HUD setting + `USER_OPERATOR_NAME`); pause is single-holder.
 | `server/vault.js` | P14 filesystem vault (`*.md` + front matter) |
 | `docs/PLAN.md` | Phases 1–10 DONE (historical) |
 | `docs/EVOLUTION.md` | P11–P14 shipped in `2.2.0`; leftover is screenshot recapture |
+| `docs/MANUAL.md` | Operator use manual (chrome, 12 views, keyboard) |
 | `docs/API.md` | REST/WS contract |
 | `docs/COMMS-INTEGRATION.md` | Provider contract |
 
@@ -89,4 +91,4 @@ npm run dev
 ```
 
 Orbit `:3001`, Vite `:5173` (proxies `/api` and `/ws`). Preview host allowlist:
-`.monkeycode-ai.live`.
+`.monkeycode-ai.live`. Operator use: `docs/MANUAL.md`.
