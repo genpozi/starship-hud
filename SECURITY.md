@@ -3,7 +3,8 @@
 ## Supported versions
 
 STELLARIS-7 is under active development and follows a rolling release model on
-`master`. Only the latest commit is officially supported.
+`master`. Only the latest commit is officially supported. Current tagged
+release: `2.2.0`.
 
 | Version | Supported |
 | --- | --- |

@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Operator use manual (`docs/MANUAL.md`) covering chrome, 12 views, keyboard,
+  live sources, persistence, and troubleshooting.
+
+### Changed
+
+- Docs honesty pass for the `2.2.0` cut: README, API, Architecture, Comms,
+  Developer, Deployment, Hermes, PLAN, CONTEXT, EVOLUTION, CONTRIBUTING.
+
 ## [2.2.0] — 2026-09-13
 
 ### Added

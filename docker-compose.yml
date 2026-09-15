@@ -10,7 +10,7 @@
 services:
   orbit:
     build: .
-    image: starship-orbit:2.0.0
+    image: starship-orbit:2.2.0
     restart: unless-stopped
     ports:
       - "3001:3001"

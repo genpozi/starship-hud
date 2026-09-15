@@ -80,7 +80,7 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 | **Graphs & Analytics** | **System Health** | **Alerts** |
 | ![Graphs](assets/screenshots/graphs.png) | ![Health](assets/screenshots/health.png) | ![Alerts](assets/screenshots/alerts.png) |
 
-> **Vault** — knowledge core with tagged docs and a reader pane (`assets/screenshots/vault.png`). Live preview for Email folders, Calendar week nav, Items/Scheduler, Reports.
+> Screenshot gallery is **7 PNGs** (Mission Control, Kanban, Chat, Graphs, Health, Alerts, Vault). Email folders, Calendar week nav, Items, Scheduler, and Reports are live in the HUD; recapture of all 12 views is still outstanding.
 
 > Further evolution: `docs/EVOLUTION.md`. Working context: `docs/CONTEXT.md`.
 
@@ -112,7 +112,7 @@ npm run dev:server
 npm run dev
 ```
 
-Open the URL Vite prints (default `http://localhost:5173`) and use the left nav rail to switch views.
+Open the URL Vite prints (default `http://localhost:5173`) and use the left nav rail to switch views. Day-to-day operator guide: `docs/MANUAL.md`.
 
 **One-command demo** (mock Hermes WebUI :8787 + orbit :3001 + Vite :5173):
 
@@ -145,7 +145,7 @@ Validate a live Hermes WebUI against the bridge contract before enabling it:
 ./scripts/probe.sh --url http://127.0.0.1:8787
 ```
 
-See `docs/DEPLOYMENT.md` and `docs/HERMES-INTEGRATION.md` for the full operator runbook.
+See `docs/MANUAL.md` for the operator use manual, `docs/DEPLOYMENT.md` for Docker/probe, and `docs/HERMES-INTEGRATION.md` for the Hermes bridge.
 
 ---
 
@@ -178,15 +178,16 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 | Doc | What it covers |
 | --- | --- |
+| `docs/MANUAL.md` | **operator use manual** — chrome, 12 views, keyboard, live sources, troubleshooting |
 | `docs/ARCHITECTURE.md` | runtime modes, data flow, module map, WS protocol, adding integrations |
 | `docs/API.md` | full REST + WebSocket reference, state shape |
 | `docs/DEVELOPER.md` | developer guide — data model, skills, mutations, testing, debugging |
-| `docs/HERMES-INTEGRATION.md` | operator runbook for the Hermes bridge + GitHub sync |
-| `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS email+calendar adapters + inbound webhook |
+| `docs/HERMES-INTEGRATION.md` | Hermes bridge + GitHub reverse ingest (historical plan + current runbook) |
+| `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS / CalDAV adapters + inbound webhook |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
-| `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns, implementation status |
-| `docs/CONTEXT.md` · `docs/EVOLUTION.md` | working memory + post-2.2.0 plan (P11–P14 DONE) |
-| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and Phases 1–10 |
+| `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns |
+| `docs/CONTEXT.md` · `docs/EVOLUTION.md` | working memory + post-2.2.0 leftovers (screenshot recapture) |
+| `docs/RESEARCH.md` · `docs/PLAN.md` | design history and Phases 1–10 (historical) |
 | `CHANGELOG.md` | version history (Keep a Changelog) |
 | `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
 | `SECURITY.md` | vulnerability reporting + operator security posture |
@@ -235,7 +236,7 @@ npm test
 │   ├── orchestrator.js   # heartbeat engine, step machine, all mutations
 │   ├── planner.js        # LLM-backed (optional) + heuristic planning (P8 deps)
 │   ├── skills.js         # sandboxed tool registry (incl. hermes/mail/calendar)
-│   ├── comms.js          # Gmail / Graph / ICS adapters + inbound webhook
+│   ├── comms.js          # Gmail / Graph / ICS / CalDAV adapters + inbound webhook
 │   ├── trace.js          # P12 span tree + token accounting
 │   ├── checkpoints.js    # P10 snapshot/rollback (capped ledger)
 │   ├── store.js · seed.js# JSON persistence + seed from src/config.js
@@ -299,6 +300,7 @@ All dashboard content lives in `src/config.js`. Edit the exports to rename the s
 - [x] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
 - [x] Multi-operator sessions + per-operator approval routing
 - [x] Filesystem vault (`data/vault/*.md` + front matter)
+- [ ] Recapture 12-view screenshots + `assets/video/walkthrough.webm` (gallery stays 7 PNGs until then)
 
 ---
 

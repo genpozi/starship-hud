@@ -1,6 +1,8 @@
 # Hermes WebUI — Integration Analysis & Plan
 
-Date: 2026-08-13 · Status: STEPS 1-7 SHIPPED (client, skill, planner, approval bridge, reverse ingest, mock+tests+docs, HUD surface) — operator runbook below
+Date: 2026-08-13 · Status: STEPS 1-7 SHIPPED in `2.2.0` (client, skill, planner,
+approval bridge, reverse ingest, mock+tests+docs, HUD surface). HUD operator
+guide: `docs/MANUAL.md`. Runbook below is still the Hermes-specific wiring.
 
 Research target: [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)
 Goal: make STELLARIS-7's orchestrator delegate real work to Hermes (and
@@ -111,7 +113,7 @@ Shipped (2026-08-10):
   (SSE token/tool/done), blocking `/api/chat`, approvals, `/api/auth/login`.
 - `.env.example` — `USER_HERMES_URL/PASSWORD/MODEL/POLL_MS`.
 
-Verified: 16/16 client+skill tests against the mock (incl. SSE parse, offline
+Verified at the time of ship: client+skill tests against the mock (incl. SSE parse, offline
 fallback, simulated fallback); live E2E via orbit server — a "research and
 analyze …" chat produced a 3-step plan, LINK delegated to Hermes
 (`hermes: delegated → …`), vault `DELEGATE` doc written, workflow completed

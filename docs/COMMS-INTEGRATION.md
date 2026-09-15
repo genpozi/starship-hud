@@ -1,8 +1,11 @@
-# STELLARIS-7 Comms Integration Plan
+# STELLARIS-7 Comms Integration
+
+Version `2.2.0`. Day-to-day Email/Calendar use: `docs/MANUAL.md`.
 
 Wire the Email and Calendar HUD surfaces to the operator's real inbox and
 calendar — same contract as GitHub/Hermes: env-driven, seed fallback, no extra
-npm deps, HUD never goes dark.
+npm deps, HUD never goes dark. Phase 9 (CalDAV write, RRULE, attachments,
+multi-source, HUD folders/week-nav) is **shipped**.
 
 ## Why these providers
 
@@ -29,6 +32,7 @@ Live rows must match seed so renderers never branch on source.
   id, from, to, subject, preview, body, time, label, read, prio,
   folder,   // inbox | sent | archive
   src       // seed | google | microsoft | webhook | local
+  // optional attachments: [{ name, mime, size }]
 }
 
 // calendar.events[]
@@ -51,7 +55,7 @@ Browser HUD                         Orbit server
 │ Email inbox+compose │────────────►│ server/comms.js     facade       │
 │ Calendar grid+create│  snapshot   │  providers/google.js             │
 │ api.sendMail        │◄─ delta ───│  providers/microsoft.js          │
-│ api.createEvent     │             │  providers/ics.js                │
+│ api.createEvent     │             │  providers/ics.js + CalDAV write │
 └─────────────────────┘             │ orchestrator mutations           │
                                     │ skills: mail, calendar           │
                                     └──────────────────────────────────┘
@@ -127,7 +131,7 @@ then `mergeComms`. Writes still prefer Google, then Microsoft, then CalDAV.
 Integration — send / create / archive / inbound secret.
 `run-all.mjs` registers `comms`.
 
-## Phase 9 — Comms depth
+## Phase 9 — Comms depth (shipped in 2.2.0)
 
 | Item | Approach |
 | --- | --- |

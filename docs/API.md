@@ -1,6 +1,7 @@
 # STELLARIS-7 API Reference
 
-Base URL: `http://localhost:3001` (or the proxied origin in dev/preview).
+Version `2.2.0`. Base URL: `http://localhost:3001` (or the proxied origin in
+dev/preview). Operator chrome and 12-view behavior: `docs/MANUAL.md`.
 
 ## WebSocket (`/ws`)
 
@@ -87,7 +88,7 @@ snapshots and deltas.
     "mission": "OP ORBITAL CANARY", "coordinates": "...", "threat": "MODERATE",
     "tokenTotal": 0, "bootedAt": 0,
     "dataSource": "seed | github | hermes",      // which source owns the board
-    "comms": { "email": "seed|google|microsoft|webhook", "calendar": "seed|google|microsoft|ics|caldav", "lastSync", "error" },
+    "comms": { "email": "seed|google|microsoft|webhook|mixed", "calendar": "seed|google|microsoft|ics|caldav|mixed", "lastSync", "error" },
     "lastSync": 0,                               // github/hermes last poll
     "hermes": { "status", "url", "model", "checkedAt" },  // when hermes bridge enabled
     "paused": false,                             // P11 interrupt state
@@ -127,7 +128,13 @@ snapshots and deltas.
 
 `src` on kanban cards, items, schedules and alerts is `seed | github | hermes`
 and drives the cyan `he` accent on Hermes-sourced rows. Email/calendar `src` is
-`seed | google | microsoft | ics | caldav | webhook | local`.
+`seed | google | microsoft | ics | caldav | webhook | local`. Mixed comms
+(`auto` with more than one live provider) sets `meta.comms.email` /
+`meta.comms.calendar` to `mixed`.
+
+REST mutations that stamp an owner accept `operatorId` in the JSON body and/or
+the `X-Stellaris-Operator` header. The HUD stores the id in `localStorage`
+(`stellaris.operatorId`).
 
 Interrupt cards (`pending.tool === 'interrupt'`) are not resolvable via
 `/api/approval/respond` — use `/api/control/resume`. Approvals route to the run
