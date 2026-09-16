@@ -10,6 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Operator use manual (`docs/MANUAL.md`) covering chrome, 12 views, keyboard,
   live sources, persistence, and troubleshooting.
+- Full **12-view screenshot gallery** captured live against the orbit server
+  (1440×900) plus a refreshed `assets/video/walkthrough.webm`.
 
 ### Changed
 

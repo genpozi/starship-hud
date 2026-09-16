@@ -394,5 +394,5 @@ ALS traces, WS `Command(resume)`.
 | `docs/DEPLOYMENT.md` | Probe, Docker, data sources |
 | `docs/HERMES-INTEGRATION.md` | Hermes bridge + reverse ingest |
 | `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS / CalDAV |
-| `docs/EVOLUTION.md` | Post-2.2.0 leftovers (screenshot recapture) |
+| `docs/EVOLUTION.md` | Post-2.2.0 plan/status |
 | `CHANGELOG.md` | Version history |

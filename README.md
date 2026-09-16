@@ -74,15 +74,21 @@ It runs **fully offline** out of the box (deterministic heuristic planner), and 
 
 ## Screenshots
 
-| Mission Control (rollup) | Kanban | Agent Chat |
+All **12 views**, captured live against the running orbit server (1440×900).
+
+| Mission Control (rollup) | Kanban | Open Items |
 |:---:|:---:|:---:|
-| ![Mission Control](assets/screenshots/mission-control.png) | ![Kanban](assets/screenshots/kanban.png) | ![Chat](assets/screenshots/chat.png) |
-| **Graphs & Analytics** | **System Health** | **Alerts** |
-| ![Graphs](assets/screenshots/graphs.png) | ![Health](assets/screenshots/health.png) | ![Alerts](assets/screenshots/alerts.png) |
+| ![Mission Control](assets/screenshots/mission-control.png) | ![Kanban](assets/screenshots/kanban.png) | ![Items](assets/screenshots/items.png) |
+| **Scheduler** | **Agent Chat** | **Graphs & Analytics** |
+| ![Scheduler](assets/screenshots/scheduler.png) | ![Chat](assets/screenshots/chat.png) | ![Graphs](assets/screenshots/graphs.png) |
+| **Vault & Knowledge** | **Email** | **Calendar** |
+| ![Vault](assets/screenshots/vault.png) | ![Email](assets/screenshots/email.png) | ![Calendar](assets/screenshots/calendar.png) |
+| **Alerts** | **System Health** | **Research Reports** |
+| ![Alerts](assets/screenshots/alerts.png) | ![Health](assets/screenshots/health.png) | ![Reports](assets/screenshots/reports.png) |
 
-> Screenshot gallery is **7 PNGs** (Mission Control, Kanban, Chat, Graphs, Health, Alerts, Vault). Email folders, Calendar week nav, Items, Scheduler, and Reports are live in the HUD; recapture of all 12 views is still outstanding.
-
-> Further evolution: `docs/EVOLUTION.md`. Working context: `docs/CONTEXT.md`.
+> Captured with the default seed data (`SRC: SEED`). Live providers change the
+> row contents, not the shapes. Further evolution: `docs/EVOLUTION.md`.
+> Working context: `docs/CONTEXT.md`.
 
 ### Walkthrough video
 
@@ -186,7 +192,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 | `docs/COMMS-INTEGRATION.md` | Gmail / Graph / ICS / CalDAV adapters + inbound webhook |
 | `docs/DEPLOYMENT.md` | Docker, compose, demo/probe, data sources |
 | `docs/ORCHESTRATION-RESEARCH.md` | framework research (openai-agents, langgraph, crewAI) → adopted patterns |
-| `docs/CONTEXT.md` · `docs/EVOLUTION.md` | working memory + post-2.2.0 leftovers (screenshot recapture) |
+| `docs/CONTEXT.md` · `docs/EVOLUTION.md` | working memory + post-2.2.0 plan/history |
 | `docs/RESEARCH.md` · `docs/PLAN.md` | design history and Phases 1–10 (historical) |
 | `CHANGELOG.md` | version history (Keep a Changelog) |
 | `CONTRIBUTING.md` | commit style, branch/PR flow, review checklist |
@@ -300,7 +306,7 @@ All dashboard content lives in `src/config.js`. Edit the exports to rename the s
 - [x] Publish a packaged CLI (`stellaris-hud serve`) with declarative config
 - [x] Multi-operator sessions + per-operator approval routing
 - [x] Filesystem vault (`data/vault/*.md` + front matter)
-- [ ] Recapture 12-view screenshots + `assets/video/walkthrough.webm` (gallery stays 7 PNGs until then)
+- [x] All 12-view screenshots + `assets/video/walkthrough.webm` recaptured
 
 ---
 
