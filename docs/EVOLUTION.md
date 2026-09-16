@@ -15,7 +15,7 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 | Merge PR #2, CI, tag `2.2.0` | **DONE** (`fc614af`, tag `2.2.0`) |
 | Topbar version chrome | **P11.1** |
 | TOKEN USAGE sparkline uses tokens not CTX | **P11.1** |
-| Recapture 12-view screenshots + walkthrough | P11.1 (manual; gallery honest until recaptured) |
+| Recapture 12-view screenshots + walkthrough | **DONE** (12 PNGs + `walkthrough.webm`) |
 | Comms `_errors` / `meta.comms.error` badge | **P11.2** |
 | Empty states | **P11.2** |
 | Optimistic click pending lock | **P11.2** |
@@ -29,8 +29,8 @@ handoffs-as-tools, ALS traces, WS `Command(resume)`).
 
 P11.1–11.5, P12, P13, and P14 **shipped** in `2.2.0` (`fc614af`).
 PR #2 merged, tag `2.2.0` cut, release published. Operator use: `docs/MANUAL.md`.
-Remaining: recapture 12-view screenshots + `assets/video/walkthrough.webm`
-(gallery stays 7 PNGs until then).
+All 12-view screenshots and `assets/video/walkthrough.webm` recaptured — no
+outstanding items on this line.
 
 ```mermaid
 graph TD

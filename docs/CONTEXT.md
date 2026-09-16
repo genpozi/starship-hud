@@ -8,10 +8,10 @@ changing product behavior. Detailed next-phase work lives in `docs/EVOLUTION.md`
 A **starship HUD** wrapping a real multi-agent orchestrator. Node/Express +
 WebSocket orbit server is the single source of truth. The Vite SPA mirrors
 state in 12 views over a 3D galaxy. Offline sim keeps the console alive if
-the orbit is down.
+the orbit is down. README shows all 12 captured views.
 
-**Version:** `2.2.0` on `master` (`fc614af`, tag `2.2.0`). Phase 1–10 plus
-P11–P14 shipped. Release: https://github.com/genpozi/starship-hud/releases/tag/2.2.0
+**Version:** `2.2.0` on `master` (tag `2.2.0`). Phase 1–10 plus P11–P14
+shipped. Release: https://github.com/genpozi/starship-hud/releases/tag/2.2.0
 
 ## Contract (do not break)
 
@@ -70,7 +70,7 @@ Operator chip (HUD setting + `USER_OPERATOR_NAME`); pause is single-holder.
 | `src/config.js` | Seed + crew + `HUD_VERSION` |
 | `server/vault.js` | P14 filesystem vault (`*.md` + front matter) |
 | `docs/PLAN.md` | Phases 1–10 DONE (historical) |
-| `docs/EVOLUTION.md` | P11–P14 shipped in `2.2.0`; leftover is screenshot recapture |
+| `docs/EVOLUTION.md` | P11–P14 shipped in `2.2.0`; nothing outstanding |
 | `docs/MANUAL.md` | Operator use manual (chrome, 12 views, keyboard) |
 | `docs/API.md` | REST/WS contract |
 | `docs/COMMS-INTEGRATION.md` | Provider contract |
