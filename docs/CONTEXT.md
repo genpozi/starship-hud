@@ -20,7 +20,7 @@ shipped. Release: https://github.com/genpozi/starship-hud/releases/tag/2.2.0
 - Operator credentials only via `USER_*` / `GITHUB_*` in `.env` (never commit).
   `.stellaris.json` is the same contract and is never committed; env wins.
 - Live email/calendar rows **match HUD seed shapes** so renderers do not branch on source.
-- `npm test` (19 suites) and `npm run build` stay green.
+- `npm test` (all suites) and `npm run build` stay green.
 - Offline: mutate `STATE` locally. Online: REST, then WS snapshot/delta confirms.
 
 ## Surfaces (12)

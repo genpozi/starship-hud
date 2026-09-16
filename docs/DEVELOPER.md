@@ -264,7 +264,7 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-# run-all.mjs → fresh mock on :8788 → all 19 suites
+# run-all.mjs → fresh mock on :8788 → all suites
 npm test
 
 # validate a live Hermes WebUI (add --url / --password)
@@ -280,9 +280,9 @@ npm run build
   continuously). Each suite runs as its own child with `MOCK_URL` +
   `USER_HERMES_URL` exported. Failures are surfaced per suite; exit code 1 on
   any red.
-- The 19 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
+- The suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
   `skills`, `chat`, `regression`, `views`, `superstep`, `channels`,
-  `checkpoints`, `interrupt`, `trace`, `comms`, `cli`, `operators`, `vault`, `integration`. `views` headless-renders
+  `checkpoints`, `interrupt`, `trace`, `comms`, `cli`, `operators`, `vault`, `integration`, `brand`. `views` headless-renders
   every HUD view via a DOM shim (its `REQUIRED` list plus `renderTrace` guards
   the full slice contract); `superstep` guards the P8 dependency barrier; `channels` guards
   the P9 typed reducers; `checkpoints` guards P10 snapshot/rollback; `interrupt`

@@ -12,7 +12,7 @@
   <a href="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml"><img src="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff" alt="stack"/>
   <img src="https://img.shields.io/badge/license-MIT-ffb347" alt="license"/>
-  <img src="https://img.shields.io/badge/tests-19%20suites-39ff88" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-20%20suites-39ff88" alt="tests"/>
   <img src="https://img.shields.io/badge/node-20%2B-83a598" alt="node"/>
   <img src="https://img.shields.io/badge/status-production--ready-39ff88" alt="status"/>
   <img src="https://img.shields.io/badge/deps-0%20audit%20vulns-39ff88" alt="deps"/>
@@ -203,7 +203,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 ## Testing
 
-19 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
+20 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
 
 ```bash
 npm test
@@ -219,6 +219,7 @@ npm test
 | `regression` | review-fix guards (escapeHtml, in-flight gating, mention detection) |
 | `cli` / `operators` | P12 argv + `.stellaris.json` (env wins); P13 hello/pause-holder/approval owner |
 | `vault` | P14 filesystem knowledge core (front matter, file-then-state, hydrate) |
+| `brand` | landing token parity, suite-count truth, brand asset sizes |
 | `integration` | boots a real orbit server — full REST + WebSocket surface |
 
 ---
@@ -250,7 +251,7 @@ npm test
 │   ├── cli-config.js · operators.js · vault.js
 │   └── mock-hermes.js    # hermes-webui test double
 ├── bin/stellaris-hud.js  # P12 CLI: serve / demo / probe
-├── test/                 # 19 suites + run-all.mjs (fresh mock per suite)
+├── test/                 # suites + run-all.mjs (fresh mock per suite)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router

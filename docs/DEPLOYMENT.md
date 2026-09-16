@@ -99,7 +99,7 @@ Quick facts:
 ## 5. Tests & verification
 
 ```bash
-# 19 suites (isolated STELLARIS_DATA_DIR + fresh Hermes mock)
+# all suites (isolated STELLARIS_DATA_DIR + fresh Hermes mock)
 npm test
 
 # frontend bundle must compile

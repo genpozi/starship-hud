@@ -20,6 +20,7 @@
  *   views        — headless render of every HUD view body (DOM shim, no browser)
  *   integration  — REST + WS against a freshly booted orbit server (self-isolating)
  *   vault        — filesystem knowledge core (front matter, file-then-state, hydrate)
+ *   brand        — landing tokens parity + suite-count truthfulness
  */
 
 import { spawn } from 'node:child_process'
@@ -32,7 +33,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url))
 const REPO = join(ROOT, '..')
 const MOCK_PORT = '8788'
 const MOCK_URL = `http://127.0.0.1:${MOCK_PORT}`
-const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills', 'chat', 'regression', 'views', 'superstep', 'channels', 'checkpoints', 'interrupt', 'trace', 'comms', 'cli', 'operators', 'vault', 'integration']
+const SUITES = ['hermes', 'hermes-ingest', 'phase4', 'github', 'planner', 'skills', 'chat', 'regression', 'views', 'superstep', 'channels', 'checkpoints', 'interrupt', 'trace', 'comms', 'cli', 'operators', 'vault', 'integration', 'brand']
 
 // A fresh per-run data dir, so no suite ever touches the live demo's
 // data/state.json (which a running orbit server flushes to continuously).
