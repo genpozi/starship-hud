@@ -181,3 +181,6 @@ data/
 
 # Generated walkthrough captures (raw Playwright webm)
 assets/video/page@*.webm
+
+# brainstorm visual companion sessions
+.superpowers/
