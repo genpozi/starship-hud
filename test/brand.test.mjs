@@ -38,11 +38,12 @@ const drifted = Object.keys(appTokens).filter(
 pass('tokens.css parses a full token set', Object.keys(siteTokens).length > 20)
 pass('tokens.css mirrors every app token', missing.length === 0)
 pass('tokens.css has no drifted values', drifted.length === 0)
+pass('tokens.css has no extra tokens', Object.keys(siteTokens).length === Object.keys(appTokens).length)
 
 // --- suite count ------------------------------------------------------------
 const runner = read('test/run-all.mjs')
 const suitesMatch = runner.match(/const SUITES = \[([\s\S]*?)\]/)
-const suiteCount = (suitesMatch[1].match(/'[^']+'/g) || []).length
+const suiteCount = suitesMatch ? (suitesMatch[1].match(/'[^']+'/g) || []).length : 0
 pass('suite count is discoverable', suiteCount > 0)
 
 const readme = read('README.md')
@@ -58,6 +59,9 @@ pass('CI does not hardcode a suite count', !/all \d+ suites/.test(ci))
 
 const prTemplate = read('.github/PULL_REQUEST_TEMPLATE.md')
 pass('PR template does not hardcode a suite count', !/all \d+ suites/.test(prTemplate))
+
+const contributing = read('CONTRIBUTING.md')
+pass('CONTRIBUTING does not hardcode a suite count', !/all \d+ suites/.test(contributing))
 
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))
