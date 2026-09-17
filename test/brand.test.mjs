@@ -4,7 +4,7 @@
  * Guards that site/tokens.css mirrors src/style.css and that the README,
  * CI, and PR template advertise the real suite count.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -62,6 +62,32 @@ pass('PR template does not hardcode a suite count', !/all \d+ suites/.test(prTem
 
 const contributing = read('CONTRIBUTING.md')
 pass('CONTRIBUTING does not hardcode a suite count', !/all \d+ suites/.test(contributing))
+
+// --- brand + gallery assets -------------------------------------------------
+function pngSize(p) {
+  const buf = readFileSync(join(ROOT, p))
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
+}
+
+pass('banner.svg source exists', existsSync(join(ROOT, 'assets/brand/banner.svg')))
+pass('mark.svg source exists', existsSync(join(ROOT, 'assets/brand/mark.svg')))
+
+const banner = pngSize('assets/brand/banner.png')
+pass('banner.png is a wide 2x render', banner.w === 2560 && banner.h === 720)
+const social = pngSize('assets/brand/social-preview.png')
+pass('social-preview.png is 1280x640', social.w === 1280 && social.h === 640)
+
+const shots = readdirSync(join(ROOT, 'assets/screenshots')).filter((f) => f.endsWith('.png'))
+pass('12 gallery screenshots present', shots.length === 12)
+const badThumbs = shots.filter((f) => {
+  const p = `assets/screenshots/thumbs/${f}`
+  try {
+    return pngSize(p).w !== 720
+  } catch {
+    return true
+  }
+})
+pass('every screenshot has a 720px thumbnail', badThumbs.length === 0)
 
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))

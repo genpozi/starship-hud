@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-label="STELLARIS-7 Starship HUD Mission Control">
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M20 0H0V20" fill="none" stroke="#00f0ff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="rule" x1="0" x2="1">
+      <stop offset="0" stop-color="#00f0ff"/>
+      <stop offset="0.55" stop-color="#ffb347"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </linearGradient>
+    <style>
+      .fig { font: 400 13px 'Share Tech Mono', monospace; letter-spacing: .22em; fill: #6fb8cc; }
+      .fig-a { fill: #ffb347; }
+      .word { font: 700 54px 'Orbitron', sans-serif; letter-spacing: .10em; fill: #d8faff; }
+      .sub { font: 400 15px 'Share Tech Mono', monospace; letter-spacing: .14em; fill: #00f0ff; }
+      .note { font: 400 13px 'Share Tech Mono', monospace; fill: #8fd4e2; }
+      .note-a { fill: #d6bd93; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="360" fill="#02040c"/>
+  <rect width="1280" height="360" fill="url(#grid)"/>
+
+  <g stroke="#00f0ff" stroke-width="2" fill="none">
+    <path d="M2 30V2h28"/><path d="M1250 2h28v28"/>
+    <path d="M1278 330v28h-28"/><path d="M30 358H2v-28"/>
+  </g>
+
+  <text class="fig" x="48" y="72">FIG. 01 &#8212; <tspan class="fig-a">SYSTEM OVERVIEW</tspan></text>
+
+  <text class="word" x="48" y="152">STELLARIS-7</text>
+  <text class="sub" x="48" y="186">STARSHIP HUD MISSION CONTROL</text>
+
+  <rect x="48" y="212" width="1184" height="2" fill="url(#rule)"/>
+
+  <g class="note">
+    <text x="48" y="252">browser &#8596; orbit &#8596; planner &#8596; skills</text>
+    <text class="note-a" x="48" y="278">WS snapshot/delta &#183; 12 views &#183; 6 agents &#183; offline-first</text>
+  </g>
+
+  <g font-family="'Share Tech Mono', monospace" font-size="13">
+    <rect x="48" y="302" width="104" height="30" fill="#00f0ff"/>
+    <text x="66" y="322" fill="#02040c">LAUNCH</text>
+    <rect x="164" y="302" width="104" height="30" fill="none" stroke="#00f0ff" stroke-opacity="0.5"/>
+    <text x="182" y="322" fill="#00f0ff">SOURCE</text>
+    <rect x="280" y="302" width="132" height="30" fill="none" stroke="#39ff88" stroke-opacity="0.45"/>
+    <text x="298" y="322" fill="#39ff88">&#9679; CI GATED</text>
+  </g>
+
+  <g fill="none" stroke="#ffb347" stroke-opacity="0.45" stroke-dasharray="5 5">
+    <rect x="1006" y="112" width="226" height="132"/>
+  </g>
+  <text class="fig fig-a" x="1018" y="104">MODULE MAP</text>
+  <g font-family="'Share Tech Mono', monospace" font-size="12" fill="#8fd4e2">
+    <text x="1022" y="140">src/main.js &#8594; boot</text>
+    <text x="1022" y="162">src/views.js &#8594; 12 views</text>
+    <text x="1022" y="184">server/orchestrator.js</text>
+    <text x="1022" y="206">data/state.json</text>
+    <text x="1022" y="228" fill="#d6bd93">ws:// &#8230;/ws</text>
+  </g>
+</svg>
