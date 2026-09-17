@@ -89,6 +89,18 @@ const badThumbs = shots.filter((f) => {
 })
 pass('every screenshot has a 720px thumbnail', badThumbs.length === 0)
 
+// --- claim truthfulness -----------------------------------------------------
+pass(
+  'README does not claim zero audit vulns',
+  !/0(%20|\s)audit(%20|\s)vulns/i.test(readme)
+)
+pass('README does not claim production-ready status', !/status-production/i.test(readme))
+pass('README links the live demo', readme.includes('genpozi.github.io/starship-hud'))
+pass(
+  'landing page labels the offline simulation',
+  /offline simulation/i.test(read('site/index.html'))
+)
+
 console.log(results.join('\n'))
 const fails = results.filter((r) => r.startsWith('FAIL'))
 console.log(fails.length ? `\n${fails.length} FAILURES` : '\nALL PASS')

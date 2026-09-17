@@ -329,3 +329,34 @@ npm run build
   hermes client and probe are dependency-free fetch/SSE.
 - Commit small, message-style `type(scope): subject`; never commit operator
   credentials (`.env`, real keys).
+
+## Building the Pages site
+
+The GitHub Pages site is the landing page in `site/` plus the real HUD built
+with a derived base path.
+
+```bash
+# Build _site/ (landing page + HUD demo + assets)
+npm run build:pages
+
+# Serve the built site at http://localhost:4173
+npm run preview:pages
+
+# Verify the built site the way Pages serves it (needs global playwright)
+NODE_PATH=$(npm root -g) npm run verify:pages
+```
+
+The demo is served under `PAGES_BASE` (default `/starship-hud/`). Override it
+with `PAGES_BASE=/ npm run build:pages`.
+
+Brand assets and gallery thumbnails are **committed**, not built in CI. To
+regenerate them you need a global Playwright:
+
+```bash
+npm i -g playwright && npx playwright install chromium
+NODE_PATH=$(npm root -g) node scripts/render-brand.mjs
+```
+
+`test/brand.test.mjs` fails if `site/tokens.css` drifts from `src/style.css`,
+if a suite count goes stale, if the README overclaims, or if a brand asset has
+the wrong dimensions.

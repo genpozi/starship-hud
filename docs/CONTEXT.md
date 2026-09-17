@@ -10,6 +10,11 @@ WebSocket orbit server is the single source of truth. The Vite SPA mirrors
 state in 12 views over a 3D galaxy. Offline sim keeps the console alive if
 the orbit is down. README shows all 12 captured views.
 
+**GitHub presence:** `site/` is the Pages landing page; `npm run build:pages`
+emits `_site/` (landing page + HUD demo at `/starship-hud/demo/`), deployed by
+`.github/workflows/pages.yml`. Landing tokens mirror `src/style.css` and are
+guarded by `test/brand.test.mjs`. Brand assets are committed.
+
 **Version:** `2.2.0` on `master` (tag `2.2.0`). Phase 1–10 plus P11–P14
 shipped. Release: https://github.com/genpozi/starship-hud/releases/tag/2.2.0
 
