@@ -184,3 +184,7 @@ assets/video/page@*.webm
 
 # brainstorm visual companion sessions
 .superpowers/
+
+# Pages build output
+_site/
+.pages-tmp/
