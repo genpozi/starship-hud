@@ -5,7 +5,7 @@
 ```bash
 npm install
 
-# all 19 suites must pass
+# all suites must pass
 npm test
 
 # bundle must build

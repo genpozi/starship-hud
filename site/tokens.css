@@ -1,0 +1,86 @@
+/* ============================================================================
+   STELLARIS-7 // GH-PAGES DESIGN TOKENS
+   Mirrored from src/style.css :root — that file is authoritative.
+   test/brand.test.mjs fails if these drift.
+   ============================================================================ */
+:root {
+  /* palette */
+  --cyan: #00f0ff;
+  --cyan-dim: rgba(0, 240, 255, 0.35);
+  --cyan-hi: #7df9ff;
+  --amber: #ffb347;
+  --amber-dim: rgba(255, 179, 71, 0.35);
+  --amber-hi: #ffd28a;
+  --magenta: #ff4fd8;
+  --magenta-dim: rgba(255, 79, 216, 0.35);
+  --ok: #39ff88;
+  --ok-dim: rgba(57, 255, 136, 0.4);
+  --warn: #ffb347;
+  --crit: #ff4d5e;
+  --crit-dim: rgba(255, 77, 94, 0.4);
+
+  /* surfaces */
+  --bg: #05070c;
+  --bg-deep: #02040c;
+  --panel-bg: rgba(8, 14, 22, 0.78);
+  --panel-bg-dim: rgba(8, 14, 22, 0.55);
+  --panel-bg-solid: rgba(6, 12, 20, 0.94);
+  --panel-bg-bleed: rgba(0, 240, 255, 0.04);
+  --tbl-head-bg: rgba(6, 12, 20, 0.97);
+  --border-alpha: 0.16;
+  --panel-border: rgba(0, 240, 255, var(--border-alpha));
+  --panel-border-strong: rgba(0, 240, 255, 0.4);
+  --track-bg: rgba(111, 184, 204, 0.15);
+  --divider: rgba(111, 184, 204, 0.12);
+
+  /* text */
+  --text-main: #d8faff;
+  --text-dim: #6fb8cc;
+  --text-faint: #3d6b7a;
+
+  /* glow system */
+  --glow-cyan: 0 0 6px rgba(0, 240, 255, 0.55), 0 0 14px rgba(0, 240, 255, 0.28), 0 0 26px rgba(0, 240, 255, 0.12);
+  --glow-cyan-soft: 0 0 4px rgba(0, 240, 255, 0.4), 0 0 10px rgba(0, 240, 255, 0.2), 0 0 18px rgba(0, 240, 255, 0.08);
+  --glow-amber: 0 0 6px rgba(255, 179, 71, 0.55), 0 0 14px rgba(255, 179, 71, 0.28), 0 0 26px rgba(255, 179, 71, 0.12);
+  --glow-ok: 0 0 6px rgba(57, 255, 136, 0.5), 0 0 14px rgba(57, 255, 136, 0.25), 0 0 26px rgba(57, 255, 136, 0.1);
+  --glow-crit: 0 0 6px rgba(255, 77, 94, 0.55), 0 0 14px rgba(255, 77, 94, 0.28), 0 0 26px rgba(255, 77, 94, 0.12);
+  --shadow-panel: 0 0 0 1px rgba(0, 240, 255, 0.05), 0 0 22px rgba(0, 240, 255, 0.07), inset 0 0 26px rgba(0, 240, 255, 0.045);
+
+  /* type */
+  --font-display: 'Orbitron', 'Segoe UI', sans-serif;
+  --font-ui: 'Rajdhani', 'Segoe UI', sans-serif;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --tracking-label: 0.14em;
+  --tracking-wide: 0.2em;
+
+  /* geometry */
+  --cut-sm: 6px;
+  --cut-md: 10px;
+  --cut-lg: 14px;
+  --frame-inset: 2px;
+  --blur: 2px;
+  --gap: 10px;
+
+  /* spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  /* motion */
+  --ease-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 0.2s;
+  --dur-data: 0.4s;
+  --scan-time: 9s;
+
+  /* aliases — referenced by JS inline styles (main.js / views.js) */
+  --line-cyan: var(--cyan);
+  --line-cyan-dim: var(--cyan-dim);
+  --line-amber: var(--amber);
+  --line-amber-dim: var(--amber-dim);
+  --line-magenta: var(--magenta);
+  --bg-panel: var(--panel-bg);
+  --bg-panel-solid: var(--panel-bg-solid);
+}

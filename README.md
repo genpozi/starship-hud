@@ -1,5 +1,11 @@
 <p align="center">
-  <img src="assets/screenshots/mission-control.png" alt="STELLARIS-7 Mission Control — realtime agent-fleet HUD over a 3D procedural galaxy" width="880"/>
+  <img src="assets/brand/banner.png" alt="STELLARIS-7 blueprint banner: starship HUD mission control with a module map and status chips" width="880"/>
+</p>
+
+<p align="center">
+  <a href="https://genpozi.github.io/starship-hud/"><strong>Live site</strong></a> ·
+  <a href="https://genpozi.github.io/starship-hud/demo/">Interactive HUD demo</a> ·
+  <a href="#getting-started">Run it locally</a>
 </p>
 
 <h1 align="center">STELLARIS-7 · Starship HUD Mission Control</h1>
@@ -8,14 +14,16 @@
   A realtime <strong>starship HUD</strong> for orchestrating <strong>multi-agent agentic workflows</strong> — six crew agents, superstep DAG scheduling, checkpoints, interrupts, span-level traces, and a live 3D procedural galaxy, all driven by a single Node orbit server over WebSocket.
 </p>
 
+> **What this is.** A real multi-agent orchestrator with a starship HUD on top. One orbit server owns the state; the browser mirrors it over WebSocket. It runs fully offline on seed data and upgrades to live sources when you supply credentials. The starship is a metaphor — the orchestration, transport, persistence, and tests are real. The [live demo](https://genpozi.github.io/starship-hud/) is this HUD running in offline simulation on seed data.
+
 <p align="center">
   <a href="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml"><img src="https://github.com/genpozi/starship-hud/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00e5ff" alt="stack"/>
+  <a href="https://genpozi.github.io/starship-hud/"><img src="https://img.shields.io/badge/demo-live%20HUD-00f0ff" alt="live demo"/></a>
+  <img src="https://img.shields.io/badge/stack-Vite%20%2B%20Three.js-00f0ff" alt="stack"/>
   <img src="https://img.shields.io/badge/license-MIT-ffb347" alt="license"/>
-  <img src="https://img.shields.io/badge/tests-19%20suites-39ff88" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-20%20suites-39ff88" alt="tests"/>
   <img src="https://img.shields.io/badge/node-20%2B-83a598" alt="node"/>
-  <img src="https://img.shields.io/badge/status-production--ready-39ff88" alt="status"/>
-  <img src="https://img.shields.io/badge/deps-0%20audit%20vulns-39ff88" alt="deps"/>
+  <img src="https://img.shields.io/badge/status-reference%20implementation-ffb347" alt="status"/>
 </p>
 
 <p align="center">
@@ -184,6 +192,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 | Doc | What it covers |
 | --- | --- |
+| [Live site](https://genpozi.github.io/starship-hud/) | landing page + interactive HUD demo (offline simulation on seed data) |
 | `docs/MANUAL.md` | **operator use manual** — chrome, 12 views, keyboard, live sources, troubleshooting |
 | `docs/ARCHITECTURE.md` | runtime modes, data flow, module map, WS protocol, adding integrations |
 | `docs/API.md` | full REST + WebSocket reference, state shape |
@@ -203,7 +212,7 @@ See `docs/ARCHITECTURE.md` and `docs/API.md` for details.
 
 ## Testing
 
-19 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
+20 headless suites, each isolated with a fresh `STELLARIS_DATA_DIR` and a fresh Hermes mock:
 
 ```bash
 npm test
@@ -219,6 +228,7 @@ npm test
 | `regression` | review-fix guards (escapeHtml, in-flight gating, mention detection) |
 | `cli` / `operators` | P12 argv + `.stellaris.json` (env wins); P13 hello/pause-holder/approval owner |
 | `vault` | P14 filesystem knowledge core (front matter, file-then-state, hydrate) |
+| `brand` | landing token parity, suite-count truth, brand asset sizes |
 | `integration` | boots a real orbit server — full REST + WebSocket surface |
 
 ---
@@ -250,7 +260,7 @@ npm test
 │   ├── cli-config.js · operators.js · vault.js
 │   └── mock-hermes.js    # hermes-webui test double
 ├── bin/stellaris-hud.js  # P12 CLI: serve / demo / probe
-├── test/                 # 19 suites + run-all.mjs (fresh mock per suite)
+├── test/                 # suites + run-all.mjs (fresh mock per suite)
 ├── scripts/              # demo.sh, probe.sh
 └── src/
     ├── main.js           # boot, offline sim fallback, view router
@@ -272,7 +282,7 @@ All dashboard content lives in `src/config.js`. Edit the exports to rename the s
 - **Workflow states** — `running | queued | done | failed`.
 - **Kanban** — edit `KANBAN_COLUMNS` to rename/reorder columns; cards reference `col` by id.
 - **Alerts** — `sev` is `crit | warn | info`; drives summary cards and feed styling.
-- **Theme** — color and motion tokens are CSS custom properties at the top of `src/style.css` (`--line-cyan: #00e5ff`, `--line-amber: #ffb347`, `--ok: #39ff88`, `--crit: #ff4d5e`, `--scan-time: 9s`). The 3D scene parameters (arm count, particle counts, planet positions, nebula colors) are constants at the top of `src/galaxy.js`.
+- **Theme** — color and motion tokens are CSS custom properties at the top of `src/style.css` (`--line-cyan: #00f0ff`, `--line-amber: #ffb347`, `--ok: #39ff88`, `--crit: #ff4d5e`, `--scan-time: 9s`). The 3D scene parameters (arm count, particle counts, planet positions, nebula colors) are constants at the top of `src/galaxy.js`.
 
 ### Adding a new view
 

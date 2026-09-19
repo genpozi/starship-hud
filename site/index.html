@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STELLARIS-7 // Starship HUD Mission Control</title>
+    <meta name="description" content="STELLARIS-7 is a realtime starship HUD wrapping a real multi-agent orchestrator: superstep DAG scheduling, checkpoints, single-holder interrupt, and span traces over WebSocket. Runs fully offline." />
+    <meta property="og:title" content="STELLARIS-7 // Starship HUD Mission Control" />
+    <meta property="og:description" content="A real multi-agent orchestrator wrapped in a starship HUD. Runs fully offline; 12 live views." />
+    <meta property="og:image" content="assets/brand/social-preview.png" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="assets/brand/mark.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <span class="nav-brand">STELLARIS-7</span>
+      <nav aria-label="Primary">
+        <a href="#capabilities">Capabilities</a>
+        <a href="#integrations">Integrations</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#quickstart">Quickstart</a>
+      </nav>
+      <a class="btn btn-primary" href="{{DEMO_URL}}">Launch demo</a>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <img class="hero-banner" src="assets/brand/banner.svg" alt="STELLARIS-7 blueprint banner: starship HUD mission control, module map, and status chips" width="1280" height="360" />
+        <p class="hero-lede">
+          A real multi-agent orchestrator &mdash; superstep DAG scheduling, checkpoints and
+          rollback, single-holder interrupts, span-level traces &mdash; wrapped in a starship HUD
+          with a live 3D galaxy. One Node orbit server owns the state; 12 views mirror it over
+          WebSocket.
+        </p>
+        <p class="chips">
+          <span class="chip chip-ok">v{{VERSION}}</span>
+          <span class="chip">MIT</span>
+          <span class="chip">{{SUITES}} test suites</span>
+          <span class="chip chip-amber">runs fully offline</span>
+        </p>
+        <p class="cta">
+          <a class="btn btn-primary" href="{{DEMO_URL}}">Launch live demo</a>
+          <a class="btn" href="{{REPO_URL}}">View source</a>
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="label">FIG. 00 &mdash; BEFORE YOU CLICK</p>
+        <p>
+          The demo is the <strong>real HUD</strong>, built and served as static files. With no
+          orbit server reachable it falls back to its built-in <strong>offline simulation on seed
+          data</strong> &mdash; every panel is live and clickable, but the numbers are synthetic.
+          Run it locally with an orbit server to drive it for real.
+        </p>
+      </section>
+
+      <section class="split" aria-labelledby="scope-heading">
+        <h2 id="scope-heading">What it is, and what it isn't</h2>
+        <div class="split-cols">
+          <div class="panel panel-ok">
+            <h3>What it is</h3>
+            <ul>
+              <li>A working orchestrator: six agents with state machines, retry policies, and typed tools.</li>
+              <li>Superstep DAG scheduling &mdash; a step starts only when every dependency is complete.</li>
+              <li>Real transport: WebSocket snapshot/delta with sequence numbers, gap detection, and resync.</li>
+              <li>Checkpoints, rollback, single-holder interrupt, and span-level trace telemetry.</li>
+              <li>A headless test suite per subsystem, including a full REST + WebSocket integration suite.</li>
+              <li>Optional live integrations: GitHub, Hermes WebUI, an LLM planner, and Gmail/Graph/ICS/CalDAV comms.</li>
+            </ul>
+          </div>
+          <div class="panel panel-amber">
+            <h3>What it isn't</h3>
+            <ul>
+              <li>Not a hosted service. There is no account, no billing, and no cloud backend.</li>
+              <li>Not a real starship. The HUD is a deliberate interface metaphor for observability.</li>
+              <li>Not a distributed system. One orbit server process owns the state; it is single-node.</li>
+              <li>Not an LLM product by default. The planner is a deterministic heuristic unless you supply a key.</li>
+              <li>No IMAP/SMTP, no GitHub issue write-back, no binary attachment download.</li>
+              <li>The demo is seed data, not your data.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="capabilities" aria-labelledby="cap-heading">
+        <h2 id="cap-heading">Signature capabilities</h2>
+        <p class="label">FIG. 02 &mdash; MECHANISMS</p>
+        <div class="cards">
+          <article class="card">
+            <p class="card-fig">P8</p>
+            <h3>Superstep DAG scheduling</h3>
+            <p>Goals decompose into steps with <code>dependsOn</code> chains; a step is never dispatched until its dependencies complete.</p>
+            <p class="src">server/planner.js</p>
+          </article>
+          <article class="card">
+            <p class="card-fig">P10</p>
+            <h3>Checkpoints and rollback</h3>
+            <p>A boot-guard snapshot plus on-demand full-state captures in a capped ledger. SNAP and REWIND restore state and report which slices were reverted.</p>
+            <p class="src">server/checkpoints.js</p>
+          </article>
+          <article class="card">
+            <p class="card-fig">P11</p>
+            <h3>Single-holder interrupt</h3>
+            <p>Pause halts dispatch while in-flight steps finish. A second operator receives <code>409</code> until the holder resumes.</p>
+            <p class="src">server/orchestrator.js</p>
+          </article>
+          <article class="card">
+            <p class="card-fig">P12</p>
+            <h3>Span traces</h3>
+            <p>Every run and tool call records a span with duration and token accounting, streamed as typed events into the Health view.</p>
+            <p class="src">server/trace.js</p>
+          </article>
+          <article class="card">
+            <p class="card-fig">P9</p>
+            <h3>Typed event channels</h3>
+            <p>Non-state frames fold through client-side reducers. Unknown frame types are ignored, so a newer server never breaks an older client.</p>
+            <p class="src">src/channels.js</p>
+          </article>
+          <article class="card">
+            <p class="card-fig">P14</p>
+            <h3>Filesystem knowledge vault</h3>
+            <p>Markdown with front matter on disk. Writes hit the file first, then state; boot hydrates files back onto the state slice.</p>
+            <p class="src">server/vault.js</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="integrations" aria-labelledby="int-heading">
+        <h2 id="int-heading">Optional live integrations</h2>
+        <p class="label">FIG. 03 &mdash; OFF UNTIL YOU SUPPLY CREDENTIALS</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Source</th><th>What it syncs</th><th>Environment</th></tr></thead>
+            <tbody>
+              <tr><td>GitHub</td><td>Issues and PRs onto the kanban board, incremental via ETag and rate-limit guarded</td><td><code>GITHUB_TOKEN</code>, <code>GITHUB_OWNER</code>, <code>GITHUB_REPO</code></td></tr>
+              <tr><td>Hermes WebUI</td><td>Real agent delegation, the approval bridge, and reverse ingestion of sessions and crons</td><td><code>USER_HERMES_URL</code>, <code>USER_HERMES_PASSWORD</code></td></tr>
+              <tr><td>LLM planner</td><td>Goal decomposition into orchestrated steps, with a heuristic fallback</td><td><code>USER_LLM_API_KEY</code>, <code>USER_LLM_BASE_URL</code>, <code>USER_LLM_MODEL</code></td></tr>
+              <tr><td>Email and calendar</td><td>Inbox and a seven-day week via Gmail, Microsoft Graph, ICS, CalDAV, or an inbound webhook</td><td><code>USER_COMMS_*</code>, <code>USER_GOOGLE_*</code>, <code>USER_MS_*</code>, <code>USER_ICS_*</code>, <code>USER_CALDAV_*</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Credentials live in <code>.env</code> or <code>.stellaris.json</code>, both never committed. Missing credentials leave the corresponding view on its seed fallback.</p>
+      </section>
+
+      <section id="gallery" aria-labelledby="gal-heading">
+        <h2 id="gal-heading">All twelve views</h2>
+        <p class="label">FIG. 04 &mdash; CAPTURED LIVE, SEED DATA, 1440&times;900</p>
+        <div class="gallery">
+          <a class="shot" href="assets/screenshots/mission-control.png"><img src="assets/screenshots/thumbs/mission-control.png" alt="Mission Control rollup" loading="lazy" width="720" height="450"><span>Mission Control</span></a>
+          <a class="shot" href="assets/screenshots/kanban.png"><img src="assets/screenshots/thumbs/kanban.png" alt="Kanban board" loading="lazy" width="720" height="450"><span>Kanban</span></a>
+          <a class="shot" href="assets/screenshots/items.png"><img src="assets/screenshots/thumbs/items.png" alt="Open items" loading="lazy" width="720" height="450"><span>Open Items</span></a>
+          <a class="shot" href="assets/screenshots/scheduler.png"><img src="assets/screenshots/thumbs/scheduler.png" alt="Scheduler" loading="lazy" width="720" height="450"><span>Scheduler</span></a>
+          <a class="shot" href="assets/screenshots/chat.png"><img src="assets/screenshots/thumbs/chat.png" alt="Agent chat" loading="lazy" width="720" height="450"><span>Agent Chat</span></a>
+          <a class="shot" href="assets/screenshots/graphs.png"><img src="assets/screenshots/thumbs/graphs.png" alt="Graphs and analytics" loading="lazy" width="720" height="450"><span>Graphs</span></a>
+          <a class="shot" href="assets/screenshots/vault.png"><img src="assets/screenshots/thumbs/vault.png" alt="Vault and knowledge" loading="lazy" width="720" height="450"><span>Vault</span></a>
+          <a class="shot" href="assets/screenshots/email.png"><img src="assets/screenshots/thumbs/email.png" alt="Email" loading="lazy" width="720" height="450"><span>Email</span></a>
+          <a class="shot" href="assets/screenshots/calendar.png"><img src="assets/screenshots/thumbs/calendar.png" alt="Calendar" loading="lazy" width="720" height="450"><span>Calendar</span></a>
+          <a class="shot" href="assets/screenshots/alerts.png"><img src="assets/screenshots/thumbs/alerts.png" alt="Alerts" loading="lazy" width="720" height="450"><span>Alerts</span></a>
+          <a class="shot" href="assets/screenshots/health.png"><img src="assets/screenshots/thumbs/health.png" alt="System health and traces" loading="lazy" width="720" height="450"><span>System Health</span></a>
+          <a class="shot" href="assets/screenshots/reports.png"><img src="assets/screenshots/thumbs/reports.png" alt="Research reports" loading="lazy" width="720" height="450"><span>Research Reports</span></a>
+        </div>
+        <details class="video">
+          <summary>Walkthrough video (33s, webm)</summary>
+          <video src="assets/video/walkthrough.webm" width="880" controls preload="metadata" loop></video>
+        </details>
+      </section>
+
+      <section id="architecture" aria-labelledby="arch-heading">
+        <h2 id="arch-heading">Architecture</h2>
+        <p class="label">FIG. 05 &mdash; SINGLE SOURCE OF TRUTH</p>
+        <pre class="diagram"><code>Browser (Vite SPA)                 Orbit server (Node, :3001)
++----------------------+    WS    +--------------------------------+
+| src/main.js   boot   |&lt;--------&gt;| server/index.js   express + ws |
+| src/store.js  state  |   /ws    | server/orchestrator.js  engine |
+| src/views.js  views  |   REST   | server/planner.js  LLM/heuris. |
+| src/api.js    bridge |  /api/*  | server/skills.js   tool reg.   |
+| src/channels.js typed|          | server/trace.js    span tree   |
+| src/galaxy.js 3D bg  |          | server/checkpoints.js snapshots |
+| src/config.js seed   |          | server/store.js    persistence |
++----------------------+          | server/vault.js    md files    |
+                                  | data/state.json + vault/*.md   |
+                                  +--------------------------------+</code></pre>
+        <p class="note">The orbit server owns canonical state. The browser mirrors it over WebSocket and mutates it over REST. If the server is unreachable the HUD switches to the offline simulation described above.</p>
+      </section>
+
+      <section id="quickstart" aria-labelledby="qs-heading">
+        <h2 id="qs-heading">Quickstart</h2>
+        <p class="label">FIG. 06 &mdash; NODE 20+, ZERO EXTERNAL SERVICES</p>
+        <pre class="code"><code># 1. Install dependencies
+npm install
+
+# 2. Orbit server: REST + WebSocket on :3001, owns fleet state
+npm run dev:server
+
+# 3. In a second terminal: Vite dev server on :5173
+npm run dev</code></pre>
+        <p class="note">Production: <code>npm run build</code> then <code>npm start</code>. Or the packaged CLI: <code>npx stellaris-hud serve</code>.</p>
+      </section>
+    </main>
+
+    <footer>
+      <p class="label">STELLARIS-7 &mdash; MIT</p>
+      <nav aria-label="Documentation">
+        <a href="{{REPO_URL}}/blob/master/docs/MANUAL.md">Operator manual</a>
+        <a href="{{REPO_URL}}/blob/master/docs/ARCHITECTURE.md">Architecture</a>
+        <a href="{{REPO_URL}}/blob/master/docs/API.md">API</a>
+        <a href="{{REPO_URL}}/blob/master/CHANGELOG.md">Changelog</a>
+      </nav>
+      <p class="note">A mission-control reference for observable, human-in-the-loop agent orchestration. The starship is a metaphor; the orchestration is real.</p>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

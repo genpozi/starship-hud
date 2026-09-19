@@ -14,7 +14,10 @@
     "start": "node --env-file-if-exists=.env server/index.js",
     "preview": "vite preview",
     "test": "node test/run-all.mjs",
-    "probe": "node server/hermes-contract.js"
+    "probe": "node server/hermes-contract.js",
+    "build:pages": "node scripts/build-pages.mjs",
+    "preview:pages": "vite preview --outDir _site --port 4173",
+    "verify:pages": "node scripts/verify-site.mjs"
   },
   "dependencies": {
     "express": "^4.21.1",

@@ -264,7 +264,7 @@ Without any of them the harness runs fully offline with seed data
 ## 6. Testing
 
 ```bash
-# run-all.mjs → fresh mock on :8788 → all 19 suites
+# run-all.mjs → fresh mock on :8788 → all suites
 npm test
 
 # validate a live Hermes WebUI (add --url / --password)
@@ -280,9 +280,9 @@ npm run build
   continuously). Each suite runs as its own child with `MOCK_URL` +
   `USER_HERMES_URL` exported. Failures are surfaced per suite; exit code 1 on
   any red.
-- The 19 suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
+- The suites: `hermes`, `hermes-ingest`, `phase4`, `github`, `planner`,
   `skills`, `chat`, `regression`, `views`, `superstep`, `channels`,
-  `checkpoints`, `interrupt`, `trace`, `comms`, `cli`, `operators`, `vault`, `integration`. `views` headless-renders
+  `checkpoints`, `interrupt`, `trace`, `comms`, `cli`, `operators`, `vault`, `integration`, `brand`. `views` headless-renders
   every HUD view via a DOM shim (its `REQUIRED` list plus `renderTrace` guards
   the full slice contract); `superstep` guards the P8 dependency barrier; `channels` guards
   the P9 typed reducers; `checkpoints` guards P10 snapshot/rollback; `interrupt`
@@ -329,3 +329,34 @@ npm run build
   hermes client and probe are dependency-free fetch/SSE.
 - Commit small, message-style `type(scope): subject`; never commit operator
   credentials (`.env`, real keys).
+
+## Building the Pages site
+
+The GitHub Pages site is the landing page in `site/` plus the real HUD built
+with a derived base path.
+
+```bash
+# Build _site/ (landing page + HUD demo + assets)
+npm run build:pages
+
+# Serve the built site at http://localhost:4173
+npm run preview:pages
+
+# Verify the built site the way Pages serves it (needs global playwright)
+NODE_PATH=$(npm root -g) npm run verify:pages
+```
+
+The demo is served under `PAGES_BASE` (default `/starship-hud/`). Override it
+with `PAGES_BASE=/ npm run build:pages`.
+
+Brand assets and gallery thumbnails are **committed**, not built in CI. To
+regenerate them you need a global Playwright:
+
+```bash
+npm i -g playwright && npx playwright install chromium
+NODE_PATH=$(npm root -g) node scripts/render-brand.mjs
+```
+
+`test/brand.test.mjs` fails if `site/tokens.css` drifts from `src/style.css`,
+if a suite count goes stale, if the README overclaims, or if a brand asset has
+the wrong dimensions.
